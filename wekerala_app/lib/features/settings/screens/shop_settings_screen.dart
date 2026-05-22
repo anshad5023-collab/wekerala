@@ -56,8 +56,6 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
   final _promoBanner = TextEditingController();
   final _announcement = TextEditingController();
   final _deliveryTime = TextEditingController();
-  // Working hours for auto open/close
-  final _workingHours = TextEditingController();
   // Phase 11 — external website URL
   final _externalUrl = TextEditingController();
   // GST details
@@ -71,8 +69,22 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
   bool _saving = false;
   bool _uploadingPhoto = false;
   bool _autoSendWhatsapp = false;
+  // Open/close control
+  bool _isOpen = true;
+  bool _useSchedule = false;
+  TimeOfDay _openTime = const TimeOfDay(hour: 9, minute: 0);
+  TimeOfDay _closeTime = const TimeOfDay(hour: 21, minute: 0);
 
   static const _maxPhotos = 5;
+
+  String _fmtTime(TimeOfDay t) {
+    final h = t.hourOfPeriod == 0 ? 12 : t.hourOfPeriod;
+    final m = t.minute.toString().padLeft(2, '0');
+    final p = t.period == DayPeriod.am ? 'AM' : 'PM';
+    return '$h:$m $p';
+  }
+
+  String _fmtWorkingHours() => '${_fmtTime(_openTime)} - ${_fmtTime(_closeTime)}';
 
   static const _themeSwatches = [
     {'color': 0xFF22c55e, 'hex': '#22c55e'},
@@ -91,7 +103,6 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
     _promoBanner.dispose();
     _announcement.dispose();
     _deliveryTime.dispose();
-    _workingHours.dispose();
     _externalUrl.dispose();
     _gstin.dispose();
     _gstBusinessName.dispose();
@@ -124,7 +135,27 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
             _promoBanner.text = shop.promotionalBanner ?? '';
             _announcement.text = shop.announcementText ?? '';
             _deliveryTime.text = shop.deliveryTimeEstimate ?? '';
-            _workingHours.text = shop.workingHours ?? '';
+            _isOpen = shop.isOpen;
+            // Parse stored workingHours "HH:MM AM - HH:MM AM" back into TimeOfDay
+            final wh = shop.workingHours ?? '';
+            if (wh.isNotEmpty) {
+              _useSchedule = true;
+              final match = RegExp(r'(\d{1,2}):(\d{2})\s*(AM|PM)?\s*[-–]\s*(\d{1,2}):(\d{2})\s*(AM|PM)?', caseSensitive: false).firstMatch(wh);
+              if (match != null) {
+                int oh = int.parse(match.group(1)!);
+                final om = int.parse(match.group(2)!);
+                final oap = match.group(3)?.toUpperCase();
+                int ch = int.parse(match.group(4)!);
+                final cm = int.parse(match.group(5)!);
+                final cap = match.group(6)?.toUpperCase();
+                if (oap == 'PM' && oh != 12) oh += 12;
+                if (oap == 'AM' && oh == 12) oh = 0;
+                if (cap == 'PM' && ch != 12) ch += 12;
+                if (cap == 'AM' && ch == 12) ch = 0;
+                _openTime = TimeOfDay(hour: oh, minute: om);
+                _closeTime = TimeOfDay(hour: ch, minute: cm);
+              }
+            }
             _productLayout = shop.productLayout ?? 'grid2';
             _externalUrl.text = shop.externalUrl ?? '';
             _gstin.text = shop.gstin ?? '';
@@ -161,6 +192,123 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
           Widget formContent = Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // ── Shop Open / Close ────────────────────────────
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _isOpen ? Colors.green.shade200 : Colors.red.shade200),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(_isOpen ? Icons.store : Icons.store_mall_directory_outlined,
+                            color: _isOpen ? Colors.green : Colors.red),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text('Shop Status',
+                              style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+                        ),
+                        Switch(
+                          value: _isOpen,
+                          activeColor: Colors.green,
+                          inactiveThumbColor: Colors.red,
+                          inactiveTrackColor: Colors.red.shade100,
+                          onChanged: (v) => setState(() => _isOpen = v),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _isOpen ? Colors.green.shade50 : Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            _isOpen ? 'Open' : 'Closed',
+                            style: TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w700,
+                              color: _isOpen ? Colors.green.shade700 : Colors.red.shade700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: _useSchedule,
+                          activeColor: AppColors.primary,
+                          onChanged: (v) => setState(() => _useSchedule = v ?? false),
+                        ),
+                        const Text('Auto open/close by time', style: TextStyle(fontSize: 13)),
+                      ],
+                    ),
+                    if (_useSchedule) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () async {
+                                final t = await showTimePicker(context: context, initialTime: _openTime);
+                                if (t != null) setState(() => _openTime = t);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey.shade300),
+                                  borderRadius: BorderRadius.circular(8),
+                                  color: Colors.grey.shade50,
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.wb_sunny_outlined, size: 16, color: Colors.orange),
+                                    const SizedBox(width: 6),
+                                    Text('Open: ${_fmtTime(_openTime)}', style: const TextStyle(fontSize: 13)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () async {
+                                final t = await showTimePicker(context: context, initialTime: _closeTime);
+                                if (t != null) setState(() => _closeTime = t);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey.shade300),
+                                  borderRadius: BorderRadius.circular(8),
+                                  color: Colors.grey.shade50,
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.nights_stay_outlined, size: 16, color: Colors.indigo),
+                                    const SizedBox(width: 6),
+                                    Text('Close: ${_fmtTime(_closeTime)}', style: const TextStyle(fontSize: 13)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Shop will automatically show as Open/Closed on the website based on this schedule.',
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
               // ── Shop Name pair ──────────────────────────────
               pairedRow(
                 _field(t('shop_details_name_en'), _nameEn,
@@ -255,15 +403,9 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
               // ── Announcement — full width ────────────────────
               _field('Announcement Popup (shown once per customer)', _announcement),
               const SizedBox(height: 12),
-              // ── Working Hours + Delivery Time pair ──────────
+              // ── Delivery Time + Product Layout pair ──────────
               pairedRow(
-                _field('Working Hours (e.g. "9:00 AM - 9:00 PM")', _workingHours),
                 _field('Delivery Time Estimate (e.g. "30–45 min")', _deliveryTime),
-              ),
-              const SizedBox(height: 12),
-              // ── Product Layout ───────────────────────────────
-              pairedRow(
-                const SizedBox.shrink(),
                 DropdownButtonFormField<String>(
                   value: _productLayout ?? 'grid2',
                   decoration: const InputDecoration(
@@ -447,8 +589,9 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
         'themeColor': color,
         'promotionalBanner': _promoBanner.text.trim(),
         'announcementText': _announcement.text.trim(),
+        'isOpen': _isOpen,
         'deliveryTimeEstimate': _deliveryTime.text.trim(),
-        'workingHours': _workingHours.text.trim(),
+        'workingHours': _useSchedule ? _fmtWorkingHours() : '',
         'productLayout': _productLayout ?? 'grid2',
         'externalUrl': _externalUrl.text.trim(),
         'gstin': _gstin.text.trim(),
