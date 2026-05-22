@@ -17,14 +17,12 @@ class DefaultFirebaseOptions {
       case TargetPlatform.iOS:
         return ios;
       case TargetPlatform.windows:
+        return windows;
       case TargetPlatform.linux:
       case TargetPlatform.macOS:
         return desktop;
       default:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions are not supported for this platform. '
-          'Run: flutterfire configure',
-        );
+        return windows;
     }
   }
 
@@ -66,4 +64,14 @@ class DefaultFirebaseOptions {
     authDomain: 'shoplink-prod.firebaseapp.com',
     measurementId: 'G-XXXXXXXXXX',
   );
+
+  static const FirebaseOptions windows = FirebaseOptions(
+    apiKey: 'AIzaSyC-9jIznz_fTBjPxvz2-FS8dXwUkX5he5E',
+    appId: '1:482080959600:web:ae2b9c91b39645318398b5',
+    messagingSenderId: '482080959600',
+    projectId: 'shoplink-prod',
+    authDomain: 'shoplink-prod.firebaseapp.com',
+    storageBucket: 'shoplink-prod.firebasestorage.app',
+  );
+
 }

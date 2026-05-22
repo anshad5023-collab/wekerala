@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -15,56 +16,69 @@ import 'core/services/local_notification_service.dart';
 import 'firebase_options.dart';
 import 'providers/language_provider.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+void main() {
+  runZonedGuarded(() async {
+    WidgetsFlutterBinding.ensureInitialized();
 
-  final isAndroid = !kIsWeb && Platform.isAndroid;
+    FlutterError.onError = (details) {
+      FlutterError.presentError(details);
+      debugPrint('FLUTTER ERROR: ${details.exception}');
+      debugPrint('STACK: ${details.stack}');
+    };
 
-  if (isAndroid) {
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
+    final isAndroid = !kIsWeb && Platform.isAndroid;
+
+    if (isAndroid) {
+      SystemChrome.setSystemUIOverlayStyle(
+        const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.dark,
+        ),
+      );
+    }
+
+    // Load env vars and Firebase in parallel — saves ~300ms
+    await Future.wait([
+      dotenv.load(fileName: '.env'),
+      Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform),
+    ]);
+
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      FirebaseFirestore.instance.settings = const Settings(
+        persistenceEnabled: true,
+        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+      );
+    }
+
+    if (isAndroid) {
+      FirebaseMessaging.onBackgroundMessage(handleFcmBackground);
+    }
+
+    // Init notifications (Android only) and load language
+    String savedLang;
+    if (isAndroid) {
+      // Run in parallel on Android — saves ~200ms
+      final results = await Future.wait([
+        LocalNotificationService.init().catchError((_) async {}),
+        loadSavedLanguage(),
+      ]);
+      savedLang = results[1] as String;
+    } else {
+      savedLang = await loadSavedLanguage();
+    }
+
+    runApp(
+      ProviderScope(
+        overrides: [
+          initialLanguageProvider.overrideWithValue(
+            savedLang.isNotEmpty ? savedLang : 'en',
+          ),
+        ],
+        child: const WeKeralaApp(),
       ),
     );
-  }
-
-  // Load env vars and Firebase in parallel — saves ~300ms
-  await Future.wait([
-    dotenv.load(fileName: '.env'),
-    Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform),
-  ]);
-
-  FirebaseFirestore.instance.settings = const Settings(
-    persistenceEnabled: true,
-    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-  );
-
-  if (isAndroid) {
-    FirebaseMessaging.onBackgroundMessage(handleFcmBackground);
-  }
-
-  // Init notifications (Android only) and load language
-  String savedLang;
-  if (isAndroid) {
-    // Run in parallel on Android — saves ~200ms
-    final results = await Future.wait([
-      LocalNotificationService.init().catchError((_) async {}),
-      loadSavedLanguage(),
-    ]);
-    savedLang = results[1] as String;
-  } else {
-    savedLang = await loadSavedLanguage();
-  }
-
-  runApp(
-    ProviderScope(
-      overrides: [
-        initialLanguageProvider.overrideWithValue(
-          savedLang.isNotEmpty ? savedLang : 'en',
-        ),
-      ],
-      child: const WeKeralaApp(),
-    ),
-  );
+  }, (error, stack) {
+    debugPrint('UNHANDLED ERROR: $error');
+    debugPrint('STACK: $stack');
+  });
 }
