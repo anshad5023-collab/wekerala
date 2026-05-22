@@ -191,6 +191,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       );
     }
 
+    final isOpen = biz['isOpen'] as bool? ?? true;
+
     // ── Mobile: KPI dashboard ListView ──────────────────────────────────────
     return RefreshIndicator(
       color: AppColors.primary,
@@ -203,6 +205,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: [
           if (newOrderCount > 0)
             _NewOrdersBanner(count: newOrderCount),
+
+          // ── Open / Close toggle ──────────────────────────
+          _OpenCloseToggle(shopId: shopId, isOpen: isOpen, onChanged: (v) {
+            setState(() => _biz = {...biz, 'isOpen': v});
+          }),
+          const SizedBox(height: 12),
 
           // Greeting
           _GreetingRow(shopName: shopName, greeting: greeting, dateStr: dateStr)
@@ -884,6 +892,103 @@ class _OrderRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Open / Close toggle card ──────────────────────────────────────────────────
+
+class _OpenCloseToggle extends StatefulWidget {
+  final String shopId;
+  final bool isOpen;
+  final ValueChanged<bool> onChanged;
+  const _OpenCloseToggle({required this.shopId, required this.isOpen, required this.onChanged});
+
+  @override
+  State<_OpenCloseToggle> createState() => _OpenCloseToggleState();
+}
+
+class _OpenCloseToggleState extends State<_OpenCloseToggle> {
+  bool _saving = false;
+
+  Future<void> _toggle(bool value) async {
+    setState(() => _saving = true);
+    try {
+      await FirebaseFirestore.instance
+          .collection('shops')
+          .doc(widget.shopId)
+          .update({'isOpen': value});
+      widget.onChanged(value);
+    } catch (_) {} finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final open = widget.isOpen;
+    return GestureDetector(
+      onTap: _saving ? null : () => _toggle(!open),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: open ? const Color(0xFFECFDF5) : const Color(0xFFFEF2F2),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: open ? const Color(0xFF86EFAC) : const Color(0xFFFCA5A5),
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: open ? const Color(0xFF22C55E) : const Color(0xFFEF4444),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                open ? Icons.store : Icons.store_mall_directory_outlined,
+                color: Colors.white, size: 22,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    open ? 'Shop is Open' : 'Shop is Closed',
+                    style: TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w700,
+                      color: open ? const Color(0xFF15803D) : const Color(0xFFB91C1C),
+                    ),
+                  ),
+                  Text(
+                    open ? 'Tap to close your shop' : 'Tap to open your shop',
+                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+            ),
+            if (_saving)
+              const SizedBox(
+                width: 24, height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              Switch(
+                value: open,
+                activeColor: const Color(0xFF22C55E),
+                inactiveThumbColor: const Color(0xFFEF4444),
+                inactiveTrackColor: const Color(0xFFFECACA),
+                onChanged: _toggle,
+              ),
+          ],
+        ),
       ),
     );
   }
