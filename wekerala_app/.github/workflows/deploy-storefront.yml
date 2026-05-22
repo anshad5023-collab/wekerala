@@ -1,0 +1,34 @@
+name: Deploy Customer Storefront
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'storefront/**'
+      - 'firebase.json'
+      - '.firebaserc'
+      - '.github/workflows/deploy-storefront.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy storefront
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}' > /tmp/sa.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json
+          firebase target:apply hosting storefront shoplink-prod --project ${{ secrets.FIREBASE_PROJECT_ID }}
+          firebase deploy --only hosting:storefront --project ${{ secrets.FIREBASE_PROJECT_ID }}

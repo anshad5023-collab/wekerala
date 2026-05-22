@@ -1,0 +1,490 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
+import '../../../core/constants/app_colors.dart';
+import '../../../models/bill_model.dart';
+import '../../../providers/billing_provider.dart';
+import '../../../providers/shop_provider.dart';
+import '../../../shared/widgets/shimmer_list.dart';
+
+class BillHistoryScreen extends ConsumerStatefulWidget {
+  const BillHistoryScreen({super.key});
+
+  @override
+  ConsumerState<BillHistoryScreen> createState() => _BillHistoryScreenState();
+}
+
+class _BillHistoryScreenState extends ConsumerState<BillHistoryScreen> {
+  // Default: today
+  DateTime _start = DateTime(
+      DateTime.now().year, DateTime.now().month, DateTime.now().day);
+  DateTime _end = DateTime(
+      DateTime.now().year, DateTime.now().month, DateTime.now().day, 23, 59, 59);
+  String _searchQuery = '';
+  String _selectedPeriod = 'Today';
+
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _selectPeriod(String period) {
+    final now = DateTime.now();
+    setState(() {
+      _selectedPeriod = period;
+      switch (period) {
+        case 'Today':
+          _start = DateTime(now.year, now.month, now.day);
+          _end = DateTime(now.year, now.month, now.day, 23, 59, 59);
+          break;
+        case 'This Week':
+          // Monday of the current week
+          final daysFromMonday = now.weekday - 1;
+          _start = DateTime(now.year, now.month, now.day - daysFromMonday);
+          _end = now;
+          break;
+        case 'This Month':
+          _start = DateTime(now.year, now.month, 1);
+          _end = now;
+          break;
+      }
+    });
+  }
+
+  Future<void> _pickCustomRange() async {
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2024),
+      lastDate: DateTime.now(),
+      initialDateRange: DateTimeRange(start: _start, end: _end),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: const ColorScheme.light(primary: AppColors.primary),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedPeriod = 'Custom';
+        _start = picked.start;
+        _end = DateTime(
+            picked.end.year, picked.end.month, picked.end.day, 23, 59, 59);
+      });
+    }
+  }
+
+  List<BillModel> _filterBills(List<BillModel> bills) {
+    if (_searchQuery.isEmpty) return bills;
+    final q = _searchQuery.toLowerCase();
+    return bills.where((b) {
+      return b.customerName.toLowerCase().contains(q) ||
+          b.customerPhone.toLowerCase().contains(q);
+    }).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final shopAsync = ref.watch(activeShopIdProvider);
+
+    return shopAsync.when(
+      loading: () => const Scaffold(body: ShimmerList()),
+      error: (e, _) => Scaffold(body: Center(child: Text(e.toString()))),
+      data: (shopId) {
+        if (shopId == null) {
+          return const Scaffold(
+              body: Center(child: Text('No active shop found.')));
+        }
+        return _BillHistoryBody(
+          shopId: shopId,
+          start: _start,
+          end: _end,
+          selectedPeriod: _selectedPeriod,
+          searchQuery: _searchQuery,
+          searchController: _searchController,
+          onPeriodSelected: _selectPeriod,
+          onCustomRange: _pickCustomRange,
+          onSearchChanged: (q) => setState(() => _searchQuery = q),
+          filterBills: _filterBills,
+        );
+      },
+    );
+  }
+}
+
+class _BillHistoryBody extends ConsumerWidget {
+  final String shopId;
+  final DateTime start;
+  final DateTime end;
+  final String selectedPeriod;
+  final String searchQuery;
+  final TextEditingController searchController;
+  final void Function(String) onPeriodSelected;
+  final VoidCallback onCustomRange;
+  final void Function(String) onSearchChanged;
+  final List<BillModel> Function(List<BillModel>) filterBills;
+
+  const _BillHistoryBody({
+    required this.shopId,
+    required this.start,
+    required this.end,
+    required this.selectedPeriod,
+    required this.searchQuery,
+    required this.searchController,
+    required this.onPeriodSelected,
+    required this.onCustomRange,
+    required this.onSearchChanged,
+    required this.filterBills,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final range = BillDateRange(start, end);
+    final billsAsync =
+        ref.watch(billHistoryProvider((shopId: shopId, range: range)));
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Bill History'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+      ),
+      body: Column(
+        children: [
+          // Period selector chips
+          Container(
+            color: Colors.white,
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _PeriodChip(
+                    label: 'Today',
+                    selected: selectedPeriod == 'Today',
+                    onTap: () => onPeriodSelected('Today'),
+                  ),
+                  const SizedBox(width: 8),
+                  _PeriodChip(
+                    label: 'This Week',
+                    selected: selectedPeriod == 'This Week',
+                    onTap: () => onPeriodSelected('This Week'),
+                  ),
+                  const SizedBox(width: 8),
+                  _PeriodChip(
+                    label: 'This Month',
+                    selected: selectedPeriod == 'This Month',
+                    onTap: () => onPeriodSelected('This Month'),
+                  ),
+                  const SizedBox(width: 8),
+                  _PeriodChip(
+                    label: selectedPeriod == 'Custom'
+                        ? '${DateFormat('d MMM').format(start)} – ${DateFormat('d MMM').format(end)}'
+                        : 'Custom',
+                    selected: selectedPeriod == 'Custom',
+                    onTap: onCustomRange,
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Search bar
+          Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: TextField(
+              controller: searchController,
+              onChanged: onSearchChanged,
+              decoration: InputDecoration(
+                hintText: 'Search by customer name or phone…',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                contentPadding:
+                    const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: Colors.grey.shade300),
+                ),
+                filled: true,
+                fillColor: Colors.white,
+              ),
+            ),
+          ),
+
+          // Bills list
+          Expanded(
+            child: billsAsync.when(
+              loading: () => const ShimmerList(),
+              error: (e, _) => Center(child: Text(e.toString())),
+              data: (bills) {
+                final filtered = filterBills(bills);
+                if (filtered.isEmpty) {
+                  return const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.receipt_long,
+                            size: 56, color: AppColors.textSecondary),
+                        SizedBox(height: 12),
+                        Text('No bills found for this period.',
+                            style:
+                                TextStyle(color: AppColors.textSecondary)),
+                      ],
+                    ),
+                  );
+                }
+
+                return Column(
+                  children: [
+                    // GST Summary card
+                    _GstSummaryCard(bills: filtered),
+                    const SizedBox(height: 8),
+
+                    // Bill tiles
+                    Expanded(
+                      child: ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
+                        itemCount: filtered.length,
+                        separatorBuilder: (_, __) =>
+                            const SizedBox(height: 6),
+                        itemBuilder: (context, index) {
+                          final bill = filtered[index];
+                          return _BillTile(bill: bill);
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BillTile extends StatelessWidget {
+  final BillModel bill;
+  const _BillTile({required this.bill});
+
+  @override
+  Widget build(BuildContext context) {
+    final isCash = bill.paymentMethod == 'cash';
+
+    final avatarBg = isCash
+        ? Colors.green.shade100
+        : bill.isUdhar
+            ? Colors.orange.shade100
+            : Colors.blue.shade100;
+
+    final avatarColor = isCash
+        ? Colors.green
+        : bill.isUdhar
+            ? Colors.orange
+            : Colors.blue;
+
+    final avatarIcon = isCash
+        ? Icons.money
+        : bill.isUdhar
+            ? Icons.credit_card
+            : Icons.phone_android;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: Colors.grey.shade200),
+      ),
+      elevation: 0,
+      color: Colors.white,
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: avatarBg,
+          child: Icon(avatarIcon, color: avatarColor, size: 18),
+        ),
+        title: Text(
+          bill.customerName.isNotEmpty
+              ? bill.customerName
+              : 'Walk-in Customer',
+          style: const TextStyle(fontWeight: FontWeight.w500),
+        ),
+        subtitle: Text(
+          DateFormat('hh:mm a').format(bill.createdAt),
+          style:
+              const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+        ),
+        trailing: Text(
+          '₹${bill.finalAmount.toStringAsFixed(2)}',
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+        ),
+        onTap: () => context.push('/bills/${bill.billId}', extra: bill),
+      ),
+    );
+  }
+}
+
+class _GstSummaryCard extends StatelessWidget {
+  final List<BillModel> bills;
+  const _GstSummaryCard({required this.bills});
+
+  @override
+  Widget build(BuildContext context) {
+    if (bills.isEmpty) return const SizedBox.shrink();
+
+    double totalRevenue = 0;
+    double totalTax = 0;
+    double totalCgst = 0;
+    double totalSgst = 0;
+    int billCount = bills.length;
+
+    for (final bill in bills) {
+      totalRevenue += bill.finalAmount;
+      totalTax += bill.totalTax;
+      for (final entry in bill.gstBreakdown.entries) {
+        totalCgst += (entry.value['cgst'] ?? 0);
+        totalSgst += (entry.value['sgst'] ?? 0);
+      }
+    }
+
+    final hasTax = totalTax > 0;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 6, offset: const Offset(0, 2))],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.receipt_long_outlined, color: AppColors.primary, size: 18),
+                const SizedBox(width: 6),
+                Text(
+                  '$billCount ${billCount == 1 ? 'Bill' : 'Bills'}',
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.textPrimary),
+                ),
+                const Spacer(),
+                Text(
+                  '₹${totalRevenue.toStringAsFixed(0)} total',
+                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.primary),
+                ),
+              ],
+            ),
+            if (hasTax) ...[
+              const SizedBox(height: 10),
+              const Divider(height: 1),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  const Text('GST Summary', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: AppColors.textSecondary)),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1976D2).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      'Total Tax: ₹${totalTax.toStringAsFixed(2)}',
+                      style: const TextStyle(color: Color(0xFF1976D2), fontWeight: FontWeight.w600, fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  _TaxChip(label: 'CGST', amount: totalCgst),
+                  const SizedBox(width: 8),
+                  _TaxChip(label: 'SGST', amount: totalSgst),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TaxChip extends StatelessWidget {
+  final String label;
+  final double amount;
+  const _TaxChip({required this.label, required this.amount});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Text(
+        '$label: ₹${amount.toStringAsFixed(2)}',
+        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+      ),
+    );
+  }
+}
+
+class _PeriodChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _PeriodChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color:
+              selected ? AppColors.primary : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected
+                ? AppColors.primary
+                : Colors.grey.shade300,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : AppColors.textSecondary,
+            fontWeight:
+                selected ? FontWeight.w600 : FontWeight.normal,
+            fontSize: 13,
+          ),
+        ),
+      ),
+    );
+  }
+}

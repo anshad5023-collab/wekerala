@@ -1,0 +1,123 @@
+name: Build Release APK
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Create .env file
+        run: |
+          cat > .env << EOF
+          FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }}
+          FIREBASE_AUTH_DOMAIN=${{ secrets.FIREBASE_AUTH_DOMAIN }}
+          FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_STORAGE_BUCKET=${{ secrets.FIREBASE_STORAGE_BUCKET }}
+          FIREBASE_MESSAGING_SENDER_ID=${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
+          FIREBASE_APP_ID=${{ secrets.FIREBASE_APP_ID }}
+          UNSPLASH_ACCESS_KEY=${{ secrets.UNSPLASH_ACCESS_KEY }}
+          GOOGLE_SHEETS_API_KEY=${{ secrets.GOOGLE_SHEETS_API_KEY }}
+          SHOPLINK_UPI_ID=${{ secrets.SHOPLINK_UPI_ID }}
+          SUPPORT_WHATSAPP=${{ secrets.SUPPORT_WHATSAPP }}
+          STOREFRONT_BASE_URL=${{ secrets.STOREFRONT_BASE_URL }}
+          APP_VERSION=${{ github.ref_name }}
+          USE_FIREBASE_EMULATOR=false
+          DEBUG_MODE=false
+          GUPSHUP_API_KEY=${{ secrets.GUPSHUP_API_KEY }}
+          GUPSHUP_APP_NAME=${{ secrets.GUPSHUP_APP_NAME }}
+          EOF
+
+      - name: Create google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: echo "$GOOGLE_SERVICES_JSON" | base64 -d > android/app/google-services.json
+
+      - name: Restore debug keystore
+        env:
+          DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p ~/.android
+          echo "$DEBUG_KEYSTORE_BASE64" | base64 -d > ~/.android/debug.keystore
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate code (Riverpod)
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Analyze code
+        run: flutter analyze --no-fatal-infos
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Build release APK
+        run: |
+          for attempt in 1 2 3; do
+            flutter build apk --release --dart-define-from-file=.env && break
+            echo "Build attempt $attempt failed, retrying in 15s..."
+            sleep 15
+          done
+
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: weKerala-APK-${{ github.sha }}
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+
+      - name: Upload APK to Firebase Storage (on tag only)
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+        run: |
+          echo "$FIREBASE_SA_JSON" > /tmp/gcp-sa.json
+          gcloud auth activate-service-account --key-file=/tmp/gcp-sa.json --quiet
+          gsutil cp build/app/outputs/flutter-apk/app-release.apk \
+            gs://${{ secrets.FIREBASE_STORAGE_BUCKET }}/apk/shoplink-latest.apk
+          rm /tmp/gcp-sa.json
+
+      - name: Update Remote Config with new APK version (on tag only)
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          FIREBASE_SA_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
+          APP_VERSION: ${{ github.ref_name }}
+        run: |
+          npm install firebase-admin --silent
+          node -e "
+            const admin = require('firebase-admin');
+            admin.initializeApp({ credential: admin.credential.cert(JSON.parse(process.env.FIREBASE_SA_JSON)) });
+            const rc = admin.remoteConfig();
+            const apkUrl = 'https://storage.googleapis.com/' + process.env.FIREBASE_STORAGE_BUCKET + '/apk/shoplink-latest.apk';
+            rc.getTemplate().then(t => {
+              t.parameters.latestApkVersion = { defaultValue: { value: process.env.APP_VERSION } };
+              t.parameters.latestApkUrl = { defaultValue: { value: apkUrl } };
+              return rc.publishTemplate(t);
+            }).then(() => { console.log('Remote Config updated to ' + process.env.APP_VERSION); process.exit(0); })
+            .catch(e => { console.error(e); process.exit(1); });
+          "
+        continue-on-error: true

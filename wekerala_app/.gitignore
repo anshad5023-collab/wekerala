@@ -1,0 +1,39 @@
+# Environment — NEVER commit this
+.env
+*.env
+!.env.example
+
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+*.g.dart
+*.freezed.dart
+
+# Android
+android/local.properties
+android/key.properties
+android/*.jks
+android/app/google-services.json
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+storage-debug.log
+
+# VS Code
+.vscode/settings.json
+.vscode/launch.json
+
+# MacOS / Windows
+.DS_Store
+Thumbs.db
+
+# APK files (too large for git)
+*.apk
+*.aab

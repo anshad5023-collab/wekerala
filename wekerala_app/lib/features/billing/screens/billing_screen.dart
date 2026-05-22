@@ -1,0 +1,2162 @@
+import 'dart:io';
+
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
+
+import '../../../core/constants/app_colors.dart';
+import '../../../core/services/print_service.dart';
+import '../../../models/bill_model.dart';
+import '../../../models/customer_model.dart';
+import '../../../models/product_model.dart';
+import '../../../models/shop_model.dart';
+import '../../../providers/billing_provider.dart';
+import '../../../providers/customers_provider.dart';
+import '../../../providers/products_provider.dart';
+import '../../../providers/shop_provider.dart';
+import '../../../shared/widgets/shimmer_list.dart';
+
+// ---------------------------------------------------------------------------
+// Main screen
+// ---------------------------------------------------------------------------
+
+class BillingScreen extends ConsumerStatefulWidget {
+  const BillingScreen({super.key});
+
+  @override
+  ConsumerState<BillingScreen> createState() => _BillingScreenState();
+}
+
+class _BillingScreenState extends ConsumerState<BillingScreen> {
+  final TextEditingController _searchCtrl = TextEditingController();
+  final TextEditingController _discountCtrl = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
+  String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // Auto-focus the search field when the screen opens so cashiers
+    // can start typing a product name immediately (no extra tap needed).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _searchFocus.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _discountCtrl.dispose();
+    _searchFocus.dispose();
+    super.dispose();
+  }
+
+  // ── helpers ──────────────────────────────────────────────────────────────
+
+  Future<String?> _resolveShopId() async {
+    final shopIdAsync = ref.read(activeShopIdProvider);
+    return shopIdAsync.value;
+  }
+
+  void _onDiscountChanged(String value) {
+    final amount = double.tryParse(value) ?? 0;
+    ref.read(billingProvider.notifier).setDiscount(amount);
+  }
+
+  // ── payment flow ──────────────────────────────────────────────────────────
+
+  Future<void> _onPaymentTap(String method) async {
+    final billingState = ref.read(billingProvider);
+    if (billingState.cartItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cart is empty. Add products first.')),
+      );
+      return;
+    }
+
+    final shopId = await _resolveShopId();
+    if (shopId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not determine active shop.')),
+        );
+      }
+      return;
+    }
+
+    // UPI: show QR code first so the owner can present it to the customer
+    if (method == 'upi') {
+      final shopAsync = ref.read(shopStreamProvider(shopId));
+      final shop = shopAsync.value;
+      final upiId = shop?.upiId ?? '';
+      if (upiId.isNotEmpty) {
+        final total = ref.read(billingProvider).total;
+        if (!mounted) return;
+        final qrConfirmed = await _showUpiQrDialog(
+          context,
+          upiId: upiId,
+          shopName: shop?.shopName ?? '',
+          amount: total,
+        );
+        if (!qrConfirmed || !mounted) return;
+      }
+    }
+
+    String customerName = '';
+    String customerPhone = '';
+
+    if (!mounted) return;
+    // For udhar, name + phone are required; otherwise optional.
+    final confirmed = await _showCustomerDialog(
+      context,
+      requireFields: method == 'udhar',
+      shopId: shopId,
+      onSubmit: (name, phone) {
+        customerName = name;
+        customerPhone = phone;
+      },
+    );
+
+    if (!confirmed || !mounted) return;
+
+    // Fetch shop name and GSTIN for receipt
+    final shopAsync = ref.read(shopStreamProvider(shopId));
+    final shop = shopAsync.value;
+    final shopName = shop?.shopName ?? 'Our Shop';
+    final gstin = shop?.gstin ?? '';
+    final autoSend = shop?.autoSendWhatsappReceipt ?? false;
+
+    try {
+      final bill = await ref.read(billingProvider.notifier).saveBill(
+            shopId: shopId,
+            paymentMethod: method,
+            customerName: customerName,
+            customerPhone: customerPhone,
+            gstinSnapshot: gstin,
+          );
+
+      if (!mounted) return;
+
+      // Show success snackbar with bill number immediately after saving.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_outline,
+                  color: Colors.white, size: 18),
+              const SizedBox(width: 8),
+              Text(
+                'Bill #${bill.billId.substring(0, 6).toUpperCase()} saved!',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          backgroundColor: AppColors.primary,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8)),
+        ),
+      );
+
+      await _showReceiptSheet(
+        context,
+        bill: bill,
+        shopName: shopName,
+        shopAddress: shop?.address ?? '',
+        autoSendWhatsapp: autoSend,
+        shop: shop,
+      );
+
+      if (!mounted) return;
+      ref.read(billingProvider.notifier).clearCart();
+      _discountCtrl.clear();
+      context.pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save bill: $e')),
+        );
+      }
+    }
+  }
+
+  // ── dialogs / sheets ──────────────────────────────────────────────────────
+
+  Future<bool> _showCustomerDialog(
+    BuildContext context, {
+    required bool requireFields,
+    required void Function(String name, String phone) onSubmit,
+    String? shopId,
+  }) async {
+    final nameCtrl = TextEditingController();
+    final phoneCtrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    // Read existing customers for autocomplete suggestions (may be empty if
+    // shopId is unknown or stream not yet loaded — degrades gracefully).
+    final customers = shopId != null
+        ? (ref.read(customersStreamProvider(shopId)).valueOrNull ?? <CustomerModel>[])
+        : <CustomerModel>[];
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.background,
+        title: Text(
+          requireFields ? 'Udhar Customer Details' : 'Customer (Optional)',
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (requireFields)
+                const Text(
+                  'Name and phone are required for Udhar.',
+                  style: TextStyle(
+                      color: AppColors.textSecondary, fontSize: 12),
+                ),
+              const SizedBox(height: 12),
+              // ── Customer name with autocomplete ─────────────────────────
+              Autocomplete<CustomerModel>(
+                optionsBuilder: (textEditingValue) {
+                  if (textEditingValue.text.isEmpty) return const [];
+                  return customers.where((c) => c.name
+                      .toLowerCase()
+                      .contains(textEditingValue.text.toLowerCase()));
+                },
+                displayStringForOption: (c) => c.name,
+                fieldViewBuilder: (context, autoCtrl, focusNode, onFieldSubmitted) {
+                  // Keep the external nameCtrl in sync so onSubmit captures it.
+                  autoCtrl.addListener(() {
+                    nameCtrl.text = autoCtrl.text;
+                  });
+                  return TextFormField(
+                    controller: autoCtrl,
+                    focusNode: focusNode,
+                    decoration: _inputDecoration('Customer Name'),
+                    textCapitalization: TextCapitalization.words,
+                    validator: requireFields
+                        ? (v) => (v == null || v.trim().isEmpty)
+                            ? 'Name is required'
+                            : null
+                        : null,
+                  );
+                },
+                optionsViewBuilder: (context, onSelected, options) {
+                  return Align(
+                    alignment: Alignment.topLeft,
+                    child: Material(
+                      elevation: 4,
+                      borderRadius: BorderRadius.circular(10),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxHeight: 200),
+                        child: ListView.separated(
+                          padding: EdgeInsets.zero,
+                          shrinkWrap: true,
+                          itemCount: options.length,
+                          separatorBuilder: (_, __) =>
+                              const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final customer = options.elementAt(index);
+                            return ListTile(
+                              dense: true,
+                              leading: CircleAvatar(
+                                radius: 16,
+                                backgroundColor: AppColors.primary
+                                    .withValues(alpha: 0.1),
+                                child: Text(
+                                  customer.name
+                                      .substring(0, 1)
+                                      .toUpperCase(),
+                                  style: const TextStyle(
+                                    color: AppColors.primary,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                              title: Text(customer.name,
+                                  style: const TextStyle(fontSize: 14)),
+                              subtitle: Text(customer.phone,
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      color: AppColors.textSecondary)),
+                              trailing: Text(
+                                '₹${customer.totalSpent.toStringAsFixed(0)}',
+                                style: const TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 12),
+                              ),
+                              onTap: () {
+                                onSelected(customer);
+                                phoneCtrl.text = customer.phone;
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  );
+                },
+                onSelected: (customer) {
+                  nameCtrl.text = customer.name;
+                  phoneCtrl.text = customer.phone;
+                },
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: phoneCtrl,
+                decoration: _inputDecoration('Phone Number'),
+                keyboardType: TextInputType.phone,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                maxLength: 10,
+                validator: requireFields
+                    ? (v) => (v == null || v.trim().length < 10)
+                        ? 'Valid 10-digit phone required'
+                        : null
+                    : null,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel',
+                style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              if (formKey.currentState?.validate() ?? true) {
+                onSubmit(nameCtrl.text.trim(), phoneCtrl.text.trim());
+                Navigator.pop(ctx, true);
+              }
+            },
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+
+    return result ?? false;
+  }
+
+  Future<void> _showReceiptSheet(
+    BuildContext context, {
+    required BillModel bill,
+    required String shopName,
+    String shopAddress = '',
+    bool autoSendWhatsapp = false,
+    ShopModel? shop,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _ReceiptSheet(
+        bill: bill,
+        shopName: shopName,
+        shopAddress: shopAddress,
+        autoSendWhatsapp: autoSendWhatsapp,
+        shop: shop,
+      ),
+    );
+  }
+
+  Future<bool> _showUpiQrDialog(
+    BuildContext context, {
+    required String upiId,
+    required String shopName,
+    required double amount,
+  }) async {
+    // UPI deep link format
+    final upiString =
+        'upi://pay?pa=${Uri.encodeComponent(upiId)}&pn=${Uri.encodeComponent(shopName)}&am=${amount.toStringAsFixed(2)}&tn=Payment&cu=INR';
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.background,
+        contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+        title: const Row(
+          children: [
+            Icon(Icons.qr_code_2, color: AppColors.primary),
+            SizedBox(width: 8),
+            Text('Scan to Pay', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: QrImageView(
+                data: upiString,
+                version: QrVersions.auto,
+                size: 200,
+                backgroundColor: Colors.white,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.currency_rupee,
+                      color: AppColors.primary, size: 20),
+                  Text(
+                    amount.toStringAsFixed(2),
+                    style: const TextStyle(
+                      color: AppColors.primary,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'UPI: $upiId',
+              style: const TextStyle(
+                  color: AppColors.textSecondary, fontSize: 12),
+            ),
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 4),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel',
+                style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Payment Received ✓'),
+          ),
+        ],
+      ),
+    );
+    return result ?? false;
+  }
+
+  // ── build ─────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    final billingState = ref.watch(billingProvider);
+    final shopIdAsync = ref.watch(activeShopIdProvider);
+    final isDesktop = MediaQuery.of(context).size.width >= 700;
+
+    final cartPanel = _CartPanel(
+      discountCtrl: _discountCtrl,
+      onDiscountChanged: _onDiscountChanged,
+      onUdhar: () => _onPaymentTap('udhar'),
+    );
+
+    final productPanel = shopIdAsync.when(
+      data: (shopId) => shopId == null
+          ? const Center(child: Text('No active shop found.'))
+          : _ProductPanel(
+              shopId: shopId,
+              searchCtrl: _searchCtrl,
+              searchFocus: _searchFocus,
+              searchQuery: _searchQuery,
+              onSearchChanged: (q) => setState(() => _searchQuery = q),
+              crossAxisCount: isDesktop ? 3 : 2,
+            ),
+      loading: () => const ShimmerList(itemCount: 6),
+      error: (e, _) => Center(child: Text('Error: $e')),
+    );
+
+    final paymentBar = _PaymentBar(onTap: _onPaymentTap);
+
+    final Widget body;
+    if (isDesktop) {
+      // Desktop: products on left, cart + payment on right
+      body = Row(
+        children: [
+          Expanded(flex: 55, child: productPanel),
+          const VerticalDivider(
+              width: 1, thickness: 1, color: Color(0xFFE5EBE8)),
+          Expanded(
+            flex: 45,
+            child: Column(
+              children: [
+                Expanded(child: cartPanel),
+                paymentBar,
+              ],
+            ),
+          ),
+        ],
+      );
+    } else {
+      // Mobile: cart on top, products below, payment bar at bottom
+      body = Column(
+        children: [
+          Flexible(flex: 40, child: cartPanel),
+          const Divider(height: 1, thickness: 1, color: AppColors.surface),
+          Flexible(flex: 60, child: productPanel),
+          paymentBar,
+        ],
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Quick Billing'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        actions: [
+          if (billingState.cartItems.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.delete_sweep_outlined),
+              tooltip: 'Clear cart',
+              onPressed: () async {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    backgroundColor: AppColors.background,
+                    title: const Text(
+                      'Clear Cart?',
+                      style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontWeight: FontWeight.bold),
+                    ),
+                    content: const Text(
+                      'All items will be removed from the cart.',
+                      style: TextStyle(color: AppColors.textSecondary),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancel',
+                            style:
+                                TextStyle(color: AppColors.textSecondary)),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.error,
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Clear'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm == true) {
+                  ref.read(billingProvider.notifier).clearCart();
+                  _discountCtrl.clear();
+                }
+              },
+            ),
+        ],
+      ),
+      body: body,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Cart panel
+// ---------------------------------------------------------------------------
+
+class _CartPanel extends ConsumerWidget {
+  final TextEditingController discountCtrl;
+  final ValueChanged<String> onDiscountChanged;
+  final VoidCallback onUdhar;
+
+  const _CartPanel({
+    required this.discountCtrl,
+    required this.onDiscountChanged,
+    required this.onUdhar,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(billingProvider);
+    final notifier = ref.read(billingProvider.notifier);
+
+    return Column(
+      children: [
+        // Section header
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
+          child: Row(
+            children: [
+              Text(
+                'CART',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              if (state.cartItems.isNotEmpty) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '${state.cartItems.length}',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+
+        // Cart list
+        Expanded(
+          child: state.cartItems.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.shopping_cart_outlined,
+                          size: 36, color: AppColors.textSecondary),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Tap products below to add',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  itemCount: state.cartItems.length,
+                  itemBuilder: (context, index) {
+                    final item = state.cartItems[index];
+                    return _CartItemRow(
+                      item: item,
+                      onIncrement: () =>
+                          notifier.updateQty(item.productId, item.qty + 1),
+                      onDecrement: () =>
+                          notifier.updateQty(item.productId, item.qty - 1),
+                      onDelete: () => notifier.removeItem(item.productId),
+                    ).animate().fadeIn(duration: 200.ms);
+                  },
+                ),
+        ),
+
+        // Discount row
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          child: Row(
+            children: [
+              const Text('Discount:  ₹',
+                  style: TextStyle(color: AppColors.textSecondary)),
+              SizedBox(
+                width: 80,
+                child: TextField(
+                  controller: discountCtrl,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(
+                        RegExp(r'^\d*\.?\d{0,2}')),
+                  ],
+                  onChanged: onDiscountChanged,
+                  decoration: const InputDecoration(
+                    isDense: true,
+                    contentPadding:
+                        EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    border: OutlineInputBorder(),
+                    hintText: '0',
+                  ),
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // GST breakdown section
+        if (state.gstBreakdown.isNotEmpty) ...[
+          const Divider(height: 1, thickness: 1, color: AppColors.surface),
+          Padding(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ...state.gstBreakdown.entries.map((e) {
+                  final rate = e.key;
+                  final data = e.value;
+                  return Column(
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Taxable @$rate%',
+                            style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary),
+                          ),
+                          Text(
+                            '₹${data['taxableAmount']!.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '  CGST ${rate / 2}%',
+                            style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary),
+                          ),
+                          Text(
+                            '₹${data['cgst']!.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '  SGST ${rate / 2}%',
+                            style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary),
+                          ),
+                          Text(
+                            '₹${data['sgst']!.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                }),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Total Tax',
+                      style: TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      '₹${state.totalTax.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+
+        // Total + Udhar row
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          decoration: const BoxDecoration(
+            color: AppColors.surface,
+            border: Border(
+              top: BorderSide(color: Color(0xFFE5EBE8), width: 1),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Total',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    '₹${state.total.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 28,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ],
+              ),
+              // Udhar quick-action button — desktop only (mobile has payment bar)
+              if (MediaQuery.of(context).size.width >= 700) ...[
+                const SizedBox(height: 8),
+                _UdharButton(enabled: state.cartItems.isNotEmpty, onTap: onUdhar),
+              ],
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Cart item row
+// ---------------------------------------------------------------------------
+
+class _CartItemRow extends StatelessWidget {
+  final BillItemModel item;
+  final VoidCallback onIncrement;
+  final VoidCallback onDecrement;
+  final VoidCallback onDelete;
+
+  const _CartItemRow({
+    required this.item,
+    required this.onIncrement,
+    required this.onDecrement,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 3),
+      color: Colors.white,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: const BorderSide(color: Color(0xFFE5EBE8), width: 1),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Row(
+          children: [
+            // Product name + unit price
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    item.productName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: AppColors.textPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    '₹${item.price.toStringAsFixed(2)} / unit',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Qty stepper with 40×40 touch targets
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _QtyButton(icon: Icons.remove, onTap: onDecrement),
+                SizedBox(
+                  width: 32,
+                  child: Center(
+                    child: Text(
+                      item.qty % 1 == 0
+                          ? item.qty.toInt().toString()
+                          : item.qty.toStringAsFixed(1),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                  ),
+                ),
+                _QtyButton(icon: Icons.add, onTap: onIncrement),
+              ],
+            ),
+            const SizedBox(width: 8),
+            // Subtotal
+            SizedBox(
+              width: 60,
+              child: Text(
+                '₹${item.subtotal.toStringAsFixed(2)}',
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+            // Delete
+            GestureDetector(
+              onTap: onDelete,
+              child: const SizedBox(
+                width: 32,
+                height: 40,
+                child: Icon(Icons.close, size: 16, color: AppColors.error),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 40×40 quantity stepper button — meets minimum touch-target spec.
+class _QtyButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _QtyButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 40,
+        height: 40,
+        child: Center(
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Icon(icon, size: 16, color: Colors.white),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Product panel
+// ---------------------------------------------------------------------------
+
+class _ProductPanel extends ConsumerWidget {
+  final String shopId;
+  final TextEditingController searchCtrl;
+  final FocusNode searchFocus;
+  final String searchQuery;
+  final ValueChanged<String> onSearchChanged;
+  final int crossAxisCount;
+
+  const _ProductPanel({
+    required this.shopId,
+    required this.searchCtrl,
+    required this.searchFocus,
+    required this.searchQuery,
+    required this.onSearchChanged,
+    this.crossAxisCount = 2,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final productsAsync = ref.watch(productsStreamProvider(shopId));
+    final cartItems = ref.watch(billingProvider).cartItems;
+    final inCartIds = {for (final i in cartItems) i.productId};
+
+    return Column(
+      children: [
+        // Section header
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'PRODUCTS',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ),
+
+        // Search box
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+          child: TextField(
+            controller: searchCtrl,
+            focusNode: searchFocus,
+            onChanged: onSearchChanged,
+            decoration: InputDecoration(
+              hintText: 'Search products...',
+              prefixIcon:
+                  const Icon(Icons.search, color: AppColors.textSecondary),
+              suffixIcon: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (searchQuery.isNotEmpty)
+                    IconButton(
+                      icon: const Icon(Icons.clear,
+                          color: AppColors.textSecondary),
+                      onPressed: () {
+                        searchCtrl.clear();
+                        onSearchChanged('');
+                      },
+                    ),
+                  if (!kIsWeb && Platform.isAndroid)
+                    IconButton(
+                      icon: const Icon(Icons.qr_code_scanner,
+                          color: AppColors.textSecondary),
+                      tooltip: 'Scan barcode',
+                      onPressed: () async {
+                        final barcode = await Navigator.push<String>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const _BillingBarcodeScanner(),
+                          ),
+                        );
+                        if (barcode != null && barcode.isNotEmpty) {
+                          final product = ref.read(
+                            productByBarcodeProvider(
+                                (shopId: shopId, barcode: barcode)),
+                          );
+                          if (product != null) {
+                            ref
+                                .read(billingProvider.notifier)
+                                .addItem(product);
+                          } else {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                      'No product found for barcode: $barcode'),
+                                ),
+                              );
+                            }
+                          }
+                        }
+                      },
+                    )
+                  else if (!kIsWeb && Platform.isWindows)
+                    // Desktop fallback: USB barcode scanners act as keyboards
+                    // and submit with Enter — this field captures that input.
+                    _DesktopBarcodeField(
+                      shopId: shopId,
+                      onProductFound: (product) =>
+                          ref.read(billingProvider.notifier).addItem(product),
+                      onNotFound: (barcode) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                                'No product found for barcode: $barcode'),
+                          ),
+                        );
+                      },
+                    ),
+                ],
+              ),
+              filled: true,
+              fillColor: AppColors.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+          ),
+        ),
+
+        // Product list
+        Expanded(
+          child: productsAsync.when(
+            data: (products) {
+              final visible = products
+                  .where((p) =>
+                      !p.isHidden &&
+                      !p.isOutOfStock &&
+                      (searchQuery.isEmpty ||
+                          p.nameEn
+                              .toLowerCase()
+                              .contains(searchQuery.toLowerCase()) ||
+                          p.nameMl.contains(searchQuery)))
+                  .toList();
+
+              if (visible.isEmpty) {
+                return const Center(
+                  child: Text('No products found.',
+                      style: TextStyle(color: AppColors.textSecondary)),
+                );
+              }
+
+              return ListView.builder(
+                padding: EdgeInsets.zero,
+                itemCount: visible.length,
+                itemBuilder: (context, index) {
+                  final product = visible[index];
+                  final inCart = inCartIds.contains(product.productId);
+                  return _ProductButton(
+                    product: product,
+                    inCart: inCart,
+                    onTap: () =>
+                        ref.read(billingProvider.notifier).addItem(product),
+                  );
+                },
+              );
+            },
+            loading: () => const ShimmerList(itemCount: 8, itemHeight: 60),
+            error: (e, _) => Center(child: Text('Error: $e')),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Product button
+// ---------------------------------------------------------------------------
+
+class _ProductButton extends StatelessWidget {
+  final ProductModel product;
+  final bool inCart;
+  final VoidCallback onTap;
+
+  const _ProductButton({
+    required this.product,
+    required this.inCart,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final effectivePrice =
+        product.offerPrice > 0 ? product.offerPrice : product.price;
+    final hasOffer = product.offerPrice > 0 && product.offerPrice < product.price;
+
+    return InkWell(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        decoration: BoxDecoration(
+          color: inCart ? AppColors.success.withValues(alpha: 0.06) : Colors.white,
+          border: Border(bottom: BorderSide(color: Colors.grey.shade100)),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            // Thumbnail
+            _BillingProductThumb(url: product.imageUrl, inCart: inCart),
+            const SizedBox(width: 12),
+            // Name + category
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    product.nameEn,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: inCart ? AppColors.success : AppColors.textPrimary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (product.category.isNotEmpty)
+                    Text(
+                      product.category,
+                      style: const TextStyle(
+                          fontSize: 11, color: AppColors.textSecondary),
+                    ),
+                ],
+              ),
+            ),
+            // Price
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '₹${effectivePrice.toStringAsFixed(0)}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: inCart ? AppColors.success : AppColors.primary,
+                  ),
+                ),
+                if (hasOffer)
+                  Text(
+                    '₹${product.price.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                      fontSize: 10,
+                      color: AppColors.textSecondary,
+                      decoration: TextDecoration.lineThrough,
+                    ),
+                  )
+                else
+                  Text(
+                    '/ ${product.unit}',
+                    style: const TextStyle(
+                        fontSize: 10, color: AppColors.textSecondary),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 8),
+            // Add / check icon
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: inCart
+                    ? AppColors.success.withValues(alpha: 0.12)
+                    : AppColors.primary.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                inCart ? Icons.check_rounded : Icons.add_rounded,
+                color: inCart ? AppColors.success : AppColors.primary,
+                size: 18,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Billing product thumbnail
+// ---------------------------------------------------------------------------
+
+class _BillingProductThumb extends StatelessWidget {
+  final String url;
+  final bool inCart;
+  const _BillingProductThumb({required this.url, required this.inCart});
+
+  @override
+  Widget build(BuildContext context) {
+    final border = Border.all(
+      color: inCart
+          ? AppColors.success.withValues(alpha: 0.5)
+          : Colors.grey.shade200,
+    );
+    if (url.isEmpty) {
+      return Container(
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(6),
+          border: border,
+        ),
+        child: const Icon(Icons.image_outlined,
+            size: 20, color: AppColors.textSecondary),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: CachedNetworkImage(
+        imageUrl: url,
+        width: 44,
+        height: 44,
+        fit: BoxFit.cover,
+        placeholder: (_, __) =>
+            Container(width: 44, height: 44, color: AppColors.surface),
+        errorWidget: (_, __, ___) => Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(6),
+            border: border,
+          ),
+          child: const Icon(Icons.broken_image_outlined,
+              size: 20, color: AppColors.textSecondary),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Udhar button
+// ---------------------------------------------------------------------------
+
+class _UdharButton extends StatelessWidget {
+  final bool enabled;
+  final VoidCallback onTap;
+  const _UdharButton({required this.enabled, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: enabled ? onTap : null,
+        icon: const Icon(Icons.account_balance_wallet_outlined, size: 16),
+        label: const Text('Save as Udhar (Credit)'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.accent,
+          side: BorderSide(
+            color: enabled
+                ? AppColors.accent.withValues(alpha: 0.6)
+                : Colors.grey.shade300,
+          ),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          textStyle:
+              const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Payment bar
+// ---------------------------------------------------------------------------
+
+class _PaymentBar extends ConsumerStatefulWidget {
+  final void Function(String method) onTap;
+
+  const _PaymentBar({required this.onTap});
+
+  @override
+  ConsumerState<_PaymentBar> createState() => _PaymentBarState();
+}
+
+class _PaymentBarState extends ConsumerState<_PaymentBar> {
+  String? _selectedMethod;
+
+  @override
+  Widget build(BuildContext context) {
+    final shopIdAsync = ref.watch(activeShopIdProvider);
+    final billingState = ref.watch(billingProvider);
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(
+          top: BorderSide(color: Color(0xFFE5EBE8), width: 1),
+        ),
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Section header
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: Text(
+              'PAYMENT',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.2,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: _PayButton(
+                  label: 'Cash',
+                  icon: Icons.payments_outlined,
+                  color: AppColors.success,
+                  onTap: () {
+                    setState(() => _selectedMethod = 'cash');
+                    widget.onTap('cash');
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _PayButton(
+                  label: 'UPI',
+                  icon: Icons.qr_code_scanner_outlined,
+                  color: const Color(0xFF1565C0),
+                  onTap: () {
+                    setState(() => _selectedMethod = 'upi');
+                    widget.onTap('upi');
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _PayButton(
+                  label: 'Udhar',
+                  icon: Icons.account_balance_wallet_outlined,
+                  color: AppColors.accent,
+                  onTap: () {
+                    setState(() => _selectedMethod = 'udhar');
+                    widget.onTap('udhar');
+                  },
+                ),
+              ),
+            ],
+          ),
+          // Show UPI QR card when UPI is selected
+          if (_selectedMethod == 'upi')
+            shopIdAsync.when(
+              data: (shopId) {
+                if (shopId == null) return const SizedBox.shrink();
+                final shopAsync = ref.watch(shopStreamProvider(shopId));
+                return shopAsync.when(
+                  data: (shop) {
+                    if (shop == null || shop.upiId.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: _UpiQrCard(
+                        upiId: shop.upiId,
+                        shopName: shop.shopName,
+                        amount: billingState.total,
+                      ),
+                    );
+                  },
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, __) => const SizedBox.shrink(),
+                );
+              },
+              loading: () => const SizedBox.shrink(),
+              error: (_, __) => const SizedBox.shrink(),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PayButton extends StatefulWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _PayButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  State<_PayButton> createState() => _PayButtonState();
+}
+
+class _PayButtonState extends State<_PayButton> {
+  double _scale = 1.0;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) {
+        HapticFeedback.lightImpact();
+        setState(() => _scale = 0.95);
+      },
+      onTapUp: (_) => setState(() => _scale = 1.0),
+      onTapCancel: () => setState(() => _scale = 1.0),
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: _scale,
+        duration: const Duration(milliseconds: 120),
+        child: Container(
+          height: 52,
+          decoration: BoxDecoration(
+            color: widget.color,
+            borderRadius: BorderRadius.circular(26),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(widget.icon, color: Colors.white, size: 18),
+              const SizedBox(width: 6),
+              Text(
+                widget.label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Receipt bottom sheet
+// ---------------------------------------------------------------------------
+
+class _ReceiptSheet extends StatefulWidget {
+  final BillModel bill;
+  final String shopName;
+  final String shopAddress;
+  final bool autoSendWhatsapp;
+  final ShopModel? shop;
+
+  const _ReceiptSheet({
+    required this.bill,
+    required this.shopName,
+    this.shopAddress = '',
+    this.autoSendWhatsapp = false,
+    this.shop,
+  });
+
+  @override
+  State<_ReceiptSheet> createState() => _ReceiptSheetState();
+}
+
+class _ReceiptSheetState extends State<_ReceiptSheet> {
+  bool _printing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.autoSendWhatsapp) {
+      // Wait for the sheet animation to complete, then share
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (mounted) {
+          Share.share(_buildReceiptText());
+        }
+      });
+    }
+  }
+
+  String _buildReceiptText() {
+    final bill = widget.bill;
+    final shopName = widget.shopName;
+    final shopAddress = widget.shopAddress;
+    final buf = StringBuffer();
+    buf.writeln('*$shopName*');
+    if (shopAddress.isNotEmpty) buf.writeln(shopAddress);
+    if (bill.gstinSnapshot != null && bill.gstinSnapshot!.isNotEmpty) {
+      buf.writeln('GSTIN: ${bill.gstinSnapshot}');
+    }
+    buf.writeln('──────────────────');
+    final dateStr =
+        '${bill.createdAt.day.toString().padLeft(2, '0')}/${bill.createdAt.month.toString().padLeft(2, '0')}/${bill.createdAt.year}';
+    buf.writeln(
+        'Bill No: ${bill.billId.substring(0, 6).toUpperCase()}  $dateStr');
+    buf.writeln('──────────────────');
+    for (final item in bill.items) {
+      final qtyStr = item.qty % 1 == 0
+          ? item.qty.toInt().toString()
+          : item.qty.toStringAsFixed(1);
+      final hsnPart =
+          (item.hsnCode != null && item.hsnCode!.isNotEmpty)
+              ? '  HSN:${item.hsnCode}'
+              : '';
+      buf.writeln(
+          '${item.productName}$hsnPart  ${qtyStr}x₹${item.price.toStringAsFixed(2)}  ₹${item.subtotal.toStringAsFixed(2)}');
+    }
+    buf.writeln('──────────────────');
+    buf.writeln(
+        'Subtotal: ₹${bill.totalAmount.toStringAsFixed(2)}');
+    if (bill.discountAmount > 0) {
+      buf.writeln(
+          'Discount: -₹${bill.discountAmount.toStringAsFixed(2)}');
+    }
+    if (bill.totalTax > 0) {
+      for (final e in bill.gstBreakdown.entries) {
+        final rate = int.tryParse(e.key) ?? 0;
+        final data = e.value;
+        buf.writeln(
+            '  CGST ${rate / 2}%: ₹${data['cgst']!.toStringAsFixed(2)}');
+        buf.writeln(
+            '  SGST ${rate / 2}%: ₹${data['sgst']!.toStringAsFixed(2)}');
+      }
+      buf.writeln(
+          'Total Tax: ₹${bill.totalTax.toStringAsFixed(2)}');
+    }
+    buf.writeln('──────────────────');
+    buf.writeln(
+        'TOTAL: ₹${bill.finalAmount.toStringAsFixed(2)}');
+    buf.writeln(
+        'Payment: ${_paymentLabel(bill.paymentMethod)}');
+    if (bill.customerName.isNotEmpty) {
+      buf.writeln('Customer: ${bill.customerName}');
+    }
+    buf.writeln('──────────────────');
+    buf.writeln('നന്ദി! വീണ്ടും വരൂ 🙏');
+    return buf.toString().trim();
+  }
+
+  String _paymentLabel(String method) {
+    switch (method) {
+      case 'upi':
+        return 'UPI';
+      case 'udhar':
+        return 'Udhar (Credit)';
+      default:
+        return 'Cash';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bill = widget.bill;
+    final receiptText = _buildReceiptText();
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Handle
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.textSecondary.withValues(alpha: 0.4),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Title
+          Row(
+            children: [
+              const Icon(Icons.receipt_long_outlined,
+                  color: AppColors.primary, size: 22),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Bill Receipt',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textPrimary,
+                          ),
+                    ),
+                    if (bill.gstinSnapshot != null &&
+                        bill.gstinSnapshot!.isNotEmpty)
+                      Text(
+                        'GSTIN: ${bill.gstinSnapshot}',
+                        style: const TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 11),
+                      ),
+                  ],
+                ),
+              ),
+              Text(
+                '#${bill.billId.substring(0, 6).toUpperCase()}',
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 12),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+          const Divider(color: AppColors.surface, thickness: 1.5),
+
+          // Items
+          ...bill.items.map((item) {
+            final qtyStr = item.qty % 1 == 0
+                ? item.qty.toInt().toString()
+                : item.qty.toStringAsFixed(1);
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${item.productName}  x$qtyStr',
+                      style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textPrimary),
+                    ),
+                  ),
+                  Text(
+                    '₹${item.subtotal.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            );
+          }),
+
+          const Divider(color: AppColors.surface, thickness: 1.5),
+
+          // Discount
+          if (bill.discountAmount > 0) ...[
+            _SummaryRow(
+              label: 'Discount',
+              value: '-₹${bill.discountAmount.toStringAsFixed(2)}',
+              valueColor: AppColors.success,
+            ),
+            const SizedBox(height: 4),
+          ],
+
+          // GST breakdown
+          if (bill.totalTax > 0) ...[
+            ...bill.gstBreakdown.entries.expand((e) {
+              final rate = int.tryParse(e.key) ?? 0;
+              final data = e.value;
+              return [
+                _SummaryRow(
+                  label: 'CGST ${rate / 2}%',
+                  value: '₹${data['cgst']!.toStringAsFixed(2)}',
+                ),
+                const SizedBox(height: 2),
+                _SummaryRow(
+                  label: 'SGST ${rate / 2}%',
+                  value: '₹${data['sgst']!.toStringAsFixed(2)}',
+                ),
+                const SizedBox(height: 2),
+              ];
+            }),
+            _SummaryRow(
+              label: 'Total Tax',
+              value: '₹${bill.totalTax.toStringAsFixed(2)}',
+            ),
+            const SizedBox(height: 4),
+          ],
+
+          // Total
+          _SummaryRow(
+            label: 'Total',
+            value: '₹${bill.finalAmount.toStringAsFixed(2)}',
+            bold: true,
+          ),
+          const SizedBox(height: 4),
+
+          // Payment method
+          _SummaryRow(
+            label: 'Payment',
+            value: _paymentLabel(bill.paymentMethod),
+          ),
+
+          // Customer
+          if (bill.customerName.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            _SummaryRow(
+              label: 'Customer',
+              value: bill.customerName +
+                  (bill.customerPhone.isNotEmpty
+                      ? '  ${bill.customerPhone}'
+                      : ''),
+            ),
+          ],
+
+          const SizedBox(height: 20),
+
+          // Share button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF25D366), // WhatsApp green
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              icon: const Icon(Icons.share_outlined),
+              label: const Text(
+                'Share on WhatsApp',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+              onPressed: () async {
+                await Share.share(receiptText);
+              },
+            ),
+          ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.2),
+
+          const SizedBox(height: 10),
+
+          // Print button
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                side: const BorderSide(color: AppColors.primary),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              icon: _printing
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: AppColors.primary),
+                    )
+                  : const Icon(Icons.print_outlined, color: AppColors.primary),
+              label: Text(
+                _printing ? 'Printing...' : 'Print Receipt',
+                style: const TextStyle(
+                    color: AppColors.primary, fontWeight: FontWeight.bold),
+              ),
+              onPressed: _printing
+                  ? null
+                  : () async {
+                      if (widget.shop == null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                                'Shop data unavailable. Please try again.'),
+                            backgroundColor: AppColors.error,
+                          ),
+                        );
+                        return;
+                      }
+                      setState(() => _printing = true);
+                      try {
+                        await PrintService.printBill(bill, widget.shop!);
+                        if (mounted) {
+                          // ignore: use_build_context_synchronously
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Printed successfully'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          // ignore: use_build_context_synchronously
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Print failed: $e'),
+                              backgroundColor: AppColors.error,
+                            ),
+                          );
+                        }
+                      } finally {
+                        if (mounted) setState(() => _printing = false);
+                      }
+                    },
+            ),
+          ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.2),
+
+          const SizedBox(height: 10),
+
+          // Close button
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                side: const BorderSide(color: AppColors.primary),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text(
+                'Close',
+                style: TextStyle(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ).animate().slideY(begin: 0.3, duration: 350.ms, curve: Curves.easeOut);
+  }
+}
+
+class _SummaryRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool bold;
+  final Color? valueColor;
+
+  const _SummaryRow({
+    required this.label,
+    required this.value,
+    this.bold = false,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            color: AppColors.textSecondary,
+            fontSize: bold ? 15 : 13,
+            fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            color: valueColor ?? AppColors.textPrimary,
+            fontSize: bold ? 18 : 13,
+            fontWeight: bold ? FontWeight.bold : FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Desktop barcode text-entry field (Windows — USB scanners send Enter on scan)
+// ---------------------------------------------------------------------------
+
+class _DesktopBarcodeField extends ConsumerStatefulWidget {
+  final String shopId;
+  final void Function(ProductModel product) onProductFound;
+  final void Function(String barcode) onNotFound;
+
+  const _DesktopBarcodeField({
+    required this.shopId,
+    required this.onProductFound,
+    required this.onNotFound,
+  });
+
+  @override
+  ConsumerState<_DesktopBarcodeField> createState() =>
+      _DesktopBarcodeFieldState();
+}
+
+class _DesktopBarcodeFieldState extends ConsumerState<_DesktopBarcodeField> {
+  final TextEditingController _ctrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _onSubmitted(String barcode) {
+    if (barcode.trim().isEmpty) return;
+    final product = ref.read(
+      productByBarcodeProvider(
+          (shopId: widget.shopId, barcode: barcode.trim())),
+    );
+    if (product != null) {
+      widget.onProductFound(product);
+    } else {
+      widget.onNotFound(barcode.trim());
+    }
+    _ctrl.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 180,
+      child: TextField(
+        controller: _ctrl,
+        decoration: const InputDecoration(
+          labelText: 'Scan / Enter Barcode',
+          prefixIcon: Icon(Icons.qr_code,
+              size: 18, color: AppColors.textSecondary),
+          border: OutlineInputBorder(),
+          isDense: true,
+          contentPadding:
+              EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        ),
+        onSubmitted: _onSubmitted,
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Barcode scanner page (used by _ProductPanel)
+// ---------------------------------------------------------------------------
+
+class _BillingBarcodeScanner extends StatelessWidget {
+  const _BillingBarcodeScanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Scan Barcode'),
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+      ),
+      body: MobileScanner(
+        onDetect: (capture) {
+          final barcode = capture.barcodes.firstOrNull?.rawValue;
+          if (barcode != null) Navigator.pop(context, barcode);
+        },
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Input decoration helper (file-level)
+// ---------------------------------------------------------------------------
+
+InputDecoration _inputDecoration(String label) => InputDecoration(
+      labelText: label,
+      filled: true,
+      fillColor: AppColors.surface,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide.none,
+      ),
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+    );
+
+// ---------------------------------------------------------------------------
+// UPI QR card — shown inline when UPI payment method is selected
+// ---------------------------------------------------------------------------
+
+class _UpiQrCard extends StatelessWidget {
+  final String upiId;
+  final String shopName;
+  final double amount;
+
+  const _UpiQrCard({
+    required this.upiId,
+    required this.shopName,
+    required this.amount,
+  });
+
+  String get _upiString =>
+      'upi://pay?pa=$upiId&pn=${Uri.encodeComponent(shopName)}&am=${amount.toStringAsFixed(2)}&cu=INR';
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.green.shade200),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.green.shade50,
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(Icons.qr_code_2_rounded,
+                  color: Colors.green.shade700, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'Scan to Pay ₹${amount.toStringAsFixed(0)}',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  color: Colors.green.shade800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          QrImageView(
+            data: _upiString,
+            version: QrVersions.auto,
+            size: 180,
+            backgroundColor: Colors.white,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            upiId,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Colors.grey,
+              fontFamily: 'monospace',
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Ask customer to scan with any UPI app',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+          ),
+        ],
+      ),
+    );
+  }
+}

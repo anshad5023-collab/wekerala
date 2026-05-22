@@ -1,0 +1,622 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/constants/app_colors.dart';
+import '../../../providers/products_provider.dart';
+import '../../../providers/shop_provider.dart';
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+
+class _KotItem {
+  final String name;
+  int qty;
+  final String notes;
+  _KotItem({required this.name, this.qty = 1, this.notes = ''});
+}
+
+class _KotOrder {
+  final String id;
+  final String table;
+  final List<_KotItem> items;
+  final DateTime createdAt;
+  String status; // 'pending' | 'preparing' | 'ready' | 'served'
+
+  _KotOrder({
+    required this.id,
+    required this.table,
+    required this.items,
+    required this.createdAt,
+    this.status = 'pending',
+  });
+}
+
+// ─── Screen ───────────────────────────────────────────────────────────────────
+
+class KotScreen extends ConsumerStatefulWidget {
+  const KotScreen({super.key});
+
+  @override
+  ConsumerState<KotScreen> createState() => _KotScreenState();
+}
+
+class _KotScreenState extends ConsumerState<KotScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  final List<_KotOrder> _orders = [];
+  String _selectedTable = 'Table 1';
+
+  static const _tables = [
+    'Table 1', 'Table 2', 'Table 3', 'Table 4',
+    'Table 5', 'Table 6', 'Takeaway', 'Delivery',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _openNewKot() async {
+    final items = await showModalBottomSheet<List<_KotItem>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _NewKotSheet(
+        tables: _tables,
+        initialTable: _selectedTable,
+        ref: ref,
+      ),
+    );
+    if (items == null || items.isEmpty) return;
+    setState(() {
+      _orders.insert(
+        0,
+        _KotOrder(
+          id: 'KOT-${DateTime.now().millisecondsSinceEpoch}',
+          table: _selectedTable,
+          items: items,
+          createdAt: DateTime.now(),
+        ),
+      );
+    });
+    _syncToFirestore(_orders.first);
+  }
+
+  Future<void> _syncToFirestore(_KotOrder order) async {
+    final shopAsync = ref.read(activeShopIdProvider);
+    final shopId = shopAsync.valueOrNull ?? '';
+    if (shopId.isEmpty) return;
+
+    await FirebaseFirestore.instance
+        .collection('shops')
+        .doc(shopId)
+        .collection('kots')
+        .doc(order.id)
+        .set({
+      'id': order.id,
+      'table': order.table,
+      'status': order.status,
+      'createdAt': Timestamp.fromDate(order.createdAt),
+      'items': order.items.map((i) => {
+            'name': i.name,
+            'qty': i.qty,
+            'notes': i.notes,
+          }).toList(),
+    });
+  }
+
+  void _updateStatus(_KotOrder order, String status) {
+    setState(() => order.status = status);
+    _syncToFirestore(order);
+  }
+
+  List<_KotOrder> get _activeOrders =>
+      _orders.where((o) => o.status != 'served').toList();
+  List<_KotOrder> get _servedOrders =>
+      _orders.where((o) => o.status == 'served').toList();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Kitchen Orders (KOT)'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.white,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.white60,
+          tabs: [
+            Tab(text: 'Active (${_activeOrders.length})'),
+            Tab(text: 'Served (${_servedOrders.length})'),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openNewKot,
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: const Text('New KOT'),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _OrderList(
+            orders: _activeOrders,
+            onStatusChange: _updateStatus,
+          ),
+          _OrderList(
+            orders: _servedOrders,
+            onStatusChange: _updateStatus,
+            readOnly: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Order List ───────────────────────────────────────────────────────────────
+
+class _OrderList extends StatelessWidget {
+  final List<_KotOrder> orders;
+  final void Function(_KotOrder, String) onStatusChange;
+  final bool readOnly;
+
+  const _OrderList({
+    required this.orders,
+    required this.onStatusChange,
+    this.readOnly = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (orders.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.receipt_long_outlined, size: 56, color: Colors.grey.shade300),
+            const SizedBox(height: 12),
+            Text(
+              readOnly ? 'No served orders yet' : 'No active orders',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 15),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      itemCount: orders.length,
+      itemBuilder: (_, i) => _KotCard(
+        order: orders[i],
+        onStatusChange: onStatusChange,
+        readOnly: readOnly,
+      ),
+    );
+  }
+}
+
+// ─── KOT Card ─────────────────────────────────────────────────────────────────
+
+class _KotCard extends StatelessWidget {
+  final _KotOrder order;
+  final void Function(_KotOrder, String) onStatusChange;
+  final bool readOnly;
+
+  const _KotCard({
+    required this.order,
+    required this.onStatusChange,
+    this.readOnly = false,
+  });
+
+  static const _statusColors = {
+    'pending':   Color(0xFFF57C00),
+    'preparing': Color(0xFF1976D2),
+    'ready':     Color(0xFF388E3C),
+    'served':    Color(0xFF757575),
+  };
+
+  static const _nextStatus = {
+    'pending':   'preparing',
+    'preparing': 'ready',
+    'ready':     'served',
+  };
+
+  static const _nextLabel = {
+    'pending':   'Start Preparing',
+    'preparing': 'Mark Ready',
+    'ready':     'Mark Served',
+  };
+
+  String _elapsed(DateTime from) {
+    final diff = DateTime.now().difference(from);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    return '${diff.inHours}h ${diff.inMinutes % 60}m ago';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _statusColors[order.status] ?? Colors.grey;
+    final next = _nextStatus[order.status];
+    final nextLbl = _nextLabel[order.status];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Header ──────────────────────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.08),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.table_restaurant_outlined, size: 16, color: color),
+                const SizedBox(width: 6),
+                Text(order.table,
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                        color: color)),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    order.status.toUpperCase(),
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: color),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _elapsed(order.createdAt),
+                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Items ────────────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ...order.items.map((item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 24,
+                            height: 24,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Center(
+                              child: Text('${item.qty}',
+                                  style: const TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: AppColors.primary)),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(item.name,
+                                style: const TextStyle(fontSize: 13)),
+                          ),
+                          if (item.notes.isNotEmpty)
+                            Text(item.notes,
+                                style: const TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textSecondary,
+                                    fontStyle: FontStyle.italic)),
+                        ],
+                      ),
+                    )),
+              ],
+            ),
+          ),
+
+          // ── Action button ────────────────────────────────────────────────────
+          if (!readOnly && next != null && nextLbl != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => onStatusChange(order, next),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: color,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                  ),
+                  child: Text(nextLbl, style: const TextStyle(fontSize: 13)),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── New KOT Sheet ────────────────────────────────────────────────────────────
+
+class _NewKotSheet extends ConsumerStatefulWidget {
+  final List<String> tables;
+  final String initialTable;
+  final WidgetRef ref;
+
+  const _NewKotSheet({
+    required this.tables,
+    required this.initialTable,
+    required this.ref,
+  });
+
+  @override
+  ConsumerState<_NewKotSheet> createState() => _NewKotSheetState();
+}
+
+class _NewKotSheetState extends ConsumerState<_NewKotSheet> {
+  late String _table;
+  final List<_KotItem> _items = [];
+  final _searchCtrl = TextEditingController();
+  String _search = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _table = widget.initialTable;
+    _searchCtrl.addListener(() => setState(() => _search = _searchCtrl.text.trim().toLowerCase()));
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _addItem(String name) {
+    setState(() {
+      final existing = _items.where((i) => i.name == name).firstOrNull;
+      if (existing != null) {
+        existing.qty++;
+      } else {
+        _items.add(_KotItem(name: name));
+      }
+    });
+  }
+
+  void _removeItem(_KotItem item) {
+    setState(() {
+      if (item.qty > 1) {
+        item.qty--;
+      } else {
+        _items.remove(item);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final shopAsync = ref.watch(activeShopIdProvider);
+    final shopId = shopAsync.valueOrNull ?? '';
+
+    final productsAsync = shopId.isNotEmpty
+        ? ref.watch(productsStreamProvider(shopId))
+        : const AsyncValue<List<dynamic>>.loading();
+
+    final allProducts = productsAsync.valueOrNull ?? [];
+    final filtered = _search.isEmpty
+        ? allProducts
+        : allProducts.where((p) {
+            final name = (p.nameEn as String? ?? '').toLowerCase();
+            return name.contains(_search);
+          }).toList();
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.85,
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        children: [
+          // ── Handle ──────────────────────────────────────────────────────────
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // ── Table selector ───────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                const Text('Table:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _table,
+                      isExpanded: true,
+                      items: widget.tables.map((t) => DropdownMenuItem(
+                        value: t,
+                        child: Text(t, style: const TextStyle(fontSize: 14)),
+                      )).toList(),
+                      onChanged: (v) => setState(() => _table = v ?? _table),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // ── Current items ────────────────────────────────────────────────────
+          if (_items.isNotEmpty) ...[
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Order', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.textSecondary)),
+                  const SizedBox(height: 6),
+                  ..._items.map((item) => Row(
+                        children: [
+                          GestureDetector(
+                            onTap: () => _removeItem(item),
+                            child: const Icon(Icons.remove_circle_outline, size: 18, color: AppColors.error),
+                          ),
+                          const SizedBox(width: 6),
+                          Text('${item.qty}×', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                          const SizedBox(width: 4),
+                          Expanded(child: Text(item.name, style: const TextStyle(fontSize: 13))),
+                          GestureDetector(
+                            onTap: () => _addItem(item.name),
+                            child: const Icon(Icons.add_circle_outline, size: 18, color: AppColors.primary),
+                          ),
+                        ],
+                      )),
+                ],
+              ),
+            ),
+          ],
+
+          // ── Search ──────────────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: TextField(
+              controller: _searchCtrl,
+              decoration: InputDecoration(
+                hintText: 'Search menu items...',
+                prefixIcon: const Icon(Icons.search, size: 20),
+                filled: true,
+                fillColor: AppColors.surface,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+            ),
+          ),
+
+          // ── Product list ─────────────────────────────────────────────────────
+          Expanded(
+            child: productsAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('$e')),
+              data: (_) => ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: filtered.length,
+                itemBuilder: (_, i) {
+                  final p = filtered[i];
+                  final name = p.nameEn as String? ?? '';
+                  final inOrder = _items.where((it) => it.name == name).firstOrNull;
+                  return ListTile(
+                    dense: true,
+                    title: Text(name, style: const TextStyle(fontSize: 13)),
+                    subtitle: Text('₹${p.price}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    trailing: inOrder != null
+                        ? Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Center(
+                              child: Text('${inOrder.qty}',
+                                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                            ),
+                          )
+                        : GestureDetector(
+                            onTap: () => _addItem(name),
+                            child: Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: AppColors.primary.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(Icons.add, size: 18, color: AppColors.primary),
+                            ),
+                          ),
+                    onTap: () => _addItem(name),
+                  );
+                },
+              ),
+            ),
+          ),
+
+          // ── Send KOT button ──────────────────────────────────────────────────
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+                16, 8, 16, MediaQuery.of(context).viewInsets.bottom + 16),
+            child: ElevatedButton(
+              onPressed: _items.isEmpty
+                  ? null
+                  : () => Navigator.of(context).pop(_items),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: Text('Send KOT (${_items.length} items)',
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "parameters": {
+    "latestApkVersion": {
+      "defaultValue": {
+        "value": "1.0.0"
+      },
+      "description": "Latest ShopLink APK version string — updated by GitHub Actions on each build"
+    },
+    "latestApkUrl": {
+      "defaultValue": {
+        "value": "https://storage.googleapis.com/shoplink-prod.appspot.com/apk/shoplink-latest.apk"
+      },
+      "description": "Direct download URL for the latest APK"
+    },
+    "forceUpdate": {
+      "defaultValue": {
+        "value": "false"
+      },
+      "description": "Set to true to force all users to update immediately — dialog cannot be dismissed"
+    },
+    "maintenanceMode": {
+      "defaultValue": {
+        "value": "false"
+      },
+      "description": "Set to true to show maintenance screen to all users"
+    },
+    "maintenanceMessage": {
+      "defaultValue": {
+        "value": "ShopLink is under maintenance. We will be back shortly."
+      },
+      "description": "Message shown during maintenance mode"
+    }
+  },
+  "version": {
+    "versionNumber": "1"
+  }
+}

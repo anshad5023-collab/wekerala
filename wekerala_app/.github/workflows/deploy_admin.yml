@@ -1,0 +1,35 @@
+name: Deploy Admin Panel
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'admin/**'
+      - 'firebase.json'
+      - '.firebaserc'
+      - '.github/workflows/deploy_admin.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy-admin:
+    name: Deploy Admin Panel to Firebase Hosting
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy admin panel
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}' > /tmp/sa.json
+          export GOOGLE_APPLICATION_CREDENTIALS=/tmp/sa.json
+          firebase target:apply hosting admin shoplink-prod-admin --project ${{ secrets.FIREBASE_PROJECT_ID }}
+          firebase deploy --only hosting:admin --project ${{ secrets.FIREBASE_PROJECT_ID }}

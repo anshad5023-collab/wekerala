@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(vercel --prod)",
+      "Bash(node scripts/seed-demo.mjs)",
+      "Bash(curl -s \"https://firestore.googleapis.com/v1/projects/shoplink-prod/databases/\\(default\\)/documents/shops\")",
+      "Bash(curl -s \"https://firestore.googleapis.com/v1/projects/shoplink-prod/databases/\\(default\\)/documents/shops/dEYgPmls3Occ3APLnxKt/products?pageSize=5\")",
+      "PowerShell(& \"C:\\\\Users\\\\DELL\\\\AppData\\\\Local\\\\Android\\\\Sdk\\\\platform-tools\\\\adb.exe\" devices)",
+      "Bash(flutter devices *)",
+      "Bash(flutter run *)",
+      "Bash(python -c \"from PIL import Image; print\\('PIL available'\\)\")",
+      "Bash(pip install *)",
+      "mcp__claude_ai_Google_Drive__search_files",
+      "mcp__claude_ai_Google_Drive__list_recent_files",
+      "Bash(python3 -c ' *)",
+      "Bash(py -3 -c ' *)",
+      "Bash(del \"d:\\\\ORTAS\\\\Ortas inteligence\\\\WhatsApp Supermarket System\\\\shoplink\\\\prompt.md\")",
+      "Bash(vercel --version)",
+      "Bash(find lib/features/home -type f)",
+      "Bash(dir /s /b lib\\\\features\\\\home)",
+      "Bash(Remove-Item -Path \"d:\\\\ORTAS\\\\Ortas inteligence\\\\WhatsApp Supermarket System\\\\shoplink\\\\shoplink_app\\\\lib\\\\features\\\\home\\\\screens\\\\home_screen.dart\" -Force)",
+      "Bash(Remove-Item -Path \"d:\\\\ORTAS\\\\Ortas inteligence\\\\WhatsApp Supermarket System\\\\shoplink\\\\shoplink_app\\\\lib\\\\features\\\\home\\\\screens\" -Force)",
+      "Bash(Remove-Item -Path \"d:\\\\ORTAS\\\\Ortas inteligence\\\\WhatsApp Supermarket System\\\\shoplink\\\\shoplink_app\\\\lib\\\\features\\\\home\" -Force)",
+      "Bash(flutter analyze *)",
+      "Bash(Get-ChildItem -Path \"d:\\\\ORTAS\\\\Ortas inteligence\\\\WhatsApp Supermarket System\\\\ruflo\" -Force)",
+      "Bash(Select-Object Name, Mode)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(Remove-Item \"d:\\\\ORTAS\\\\Ortas inteligence\\\\WhatsApp Supermarket System\\\\shoplink\\\\shoplink_app\\\\README.md\" -Force)",
+      "Bash(Remove-Item \"d:\\\\ORTAS\\\\Ortas inteligence\\\\WhatsApp Supermarket System\\\\shoplink\\\\shoplink_app\\\\HOW_TO_SETUP.md\" -Force)",
+      "Bash(Remove-Item \"d:\\\\ORTAS\\\\Ortas inteligence\\\\WhatsApp Supermarket System\\\\shoplink\\\\shoplink_project\\\\HOW_TO_SETUP.md\" -Force)",
+      "Bash(Remove-Item \"d:\\\\ORTAS\\\\Ortas inteligence\\\\WhatsApp Supermarket System\\\\shoplink\\\\shoplink_project\\\\CLAUDE.md\" -Force)",
+      "Bash(Write-Host \"Deleted 4 outdated MD files\")",
+      "Bash(Get-Content \"C:\\\\Users\\\\DELL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--ORTAS-Ortas-inteligence-WhatsApp-Supermarket-System-shoplink\\\\fa167928-ed05-4a23-86f3-1eacb5d345b6\\\\tasks\\\\bpdovwo2e.output\" -Wait)",
+      "Bash(Select-String --line-buffered \"Running|Syncing|Installing|flutter:|Error|error|FAILURE|Restarting|Waiting|Application|Finished|hot reload|debug\")"
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "projects": {
+    "default": "shoplink-prod"
+  },
+  "targets": {
+    "shoplink-prod": {
+      "hosting": {
+        "storefront": [
+          "shoplink-prod"
+        ],
+        "admin": [
+          "shoplink-prod-admin"
+        ]
+      }
+    }
+  }
+}

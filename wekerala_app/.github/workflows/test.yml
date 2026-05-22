@@ -1,0 +1,51 @@
+name: Flutter Tests
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Create minimal .env for tests
+        run: |
+          cat > .env << EOF
+          FIREBASE_API_KEY=test
+          FIREBASE_PROJECT_ID=test-project
+          FIREBASE_STORAGE_BUCKET=test.appspot.com
+          UNSPLASH_ACCESS_KEY=test
+          GOOGLE_SHEETS_API_KEY=test
+          SHOPLINK_UPI_ID=test@upi
+          SUPPORT_WHATSAPP=911234567890
+          STOREFRONT_BASE_URL=https://test.web.app
+          APP_VERSION=0.0.1
+          USE_FIREBASE_EMULATOR=true
+          DEBUG_MODE=true
+          EOF
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Generate code
+        run: dart run build_runner build --delete-conflicting-outputs
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test --coverage
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          file: coverage/lcov.info

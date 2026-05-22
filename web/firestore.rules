@@ -1,0 +1,230 @@
+rules_version = '2';
+// R1 DRAFT — NOT DEPLOYED. Test against emulator before: firebase deploy --only firestore:rules
+// Replace root firestore.rules only after emulator suite passes.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // --- helpers ---
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    function isOwner(ownerId) {
+      return signedIn() && request.auth.uid == ownerId;
+    }
+
+    function phoneLinked(merchantData) {
+      // returns true when the merchant can write (phone is linked or flag absent)
+      return !('requiresPhoneLink' in merchantData)
+          || merchantData.requiresPhoneLink != true;
+    }
+
+    function merchantRef(merchantId) {
+      return get(/databases/$(database)/documents/merchants/$(merchantId));
+    }
+
+    // --- categories — public read, server-only write ---
+    match /categories/{catId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // --- subdomainMappings — public read, server-only write ---
+    match /subdomainMappings/{slug} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // --- merchants ---
+    match /merchants/{merchantId} {
+      // Public read for approved merchants; owner and admin always read
+      allow read: if resource.data.isApproved == true
+                  || isOwner(resource.data.ownerId)
+                  || isAdmin();
+
+      // No client creates — Admin SDK only
+      allow create: if false;
+
+      // Admin: unrestricted update/delete
+      // Owner: update own doc only when phone is linked
+      allow update: if isAdmin()
+                    || (isOwner(resource.data.ownerId) && phoneLinked(resource.data));
+      allow delete: if isAdmin();
+
+      // products subcollection
+      match /products/{productId} {
+        allow read: if merchantRef(merchantId).data.isApproved == true
+                    || isOwner(merchantRef(merchantId).data.ownerId)
+                    || isAdmin();
+        allow create, update: if isAdmin()
+                              || (isOwner(merchantRef(merchantId).data.ownerId)
+                                  && phoneLinked(merchantRef(merchantId).data));
+        allow delete: if isAdmin()
+                      || isOwner(merchantRef(merchantId).data.ownerId);
+      }
+
+      // orders subcollection — customers create without auth (R1: no customer auth)
+      match /orders/{orderId} {
+        allow read: if isAdmin()
+                    || isOwner(merchantRef(merchantId).data.ownerId);
+        allow create: if true; // unauthenticated customers in R1
+        allow update: if isAdmin()
+                      || (isOwner(merchantRef(merchantId).data.ownerId)
+                          && phoneLinked(merchantRef(merchantId).data));
+        allow delete: if isAdmin();
+      }
+
+      // services subcollection (schema-only R1, populated R2+)
+      match /services/{serviceId} {
+        allow read: if merchantRef(merchantId).data.isApproved == true
+                    || isOwner(merchantRef(merchantId).data.ownerId)
+                    || isAdmin();
+        allow write: if isAdmin()
+                     || (isOwner(merchantRef(merchantId).data.ownerId)
+                         && phoneLinked(merchantRef(merchantId).data));
+      }
+
+      // bookings subcollection (schema-only R1, populated R2+)
+      match /bookings/{bookingId} {
+        allow read: if isAdmin()
+                    || isOwner(merchantRef(merchantId).data.ownerId);
+        allow create: if true; // unauthenticated customers in R1
+        allow update: if isAdmin()
+                      || (isOwner(merchantRef(merchantId).data.ownerId)
+                          && phoneLinked(merchantRef(merchantId).data));
+        allow delete: if isAdmin();
+      }
+
+      // inquiries subcollection (schema-only R1, populated R2+)
+      match /inquiries/{inquiryId} {
+        allow read: if isAdmin()
+                    || isOwner(merchantRef(merchantId).data.ownerId);
+        allow create: if true; // unauthenticated customers in R1
+        allow update: if isAdmin()
+                      || isOwner(merchantRef(merchantId).data.ownerId);
+        allow delete: if isAdmin();
+      }
+    }
+
+    // --- users — own doc only; can't self-elevate privileged fields ---
+    match /users/{uid} {
+      allow read: if (signedIn() && request.auth.uid == uid) || isAdmin();
+
+      allow create: if signedIn() && request.auth.uid == uid;
+
+      // Block self-escalation of privileged fields
+      allow update: if (signedIn() && request.auth.uid == uid
+                        && !request.resource.data.diff(resource.data)
+                              .affectedKeys()
+                              .hasAny(['isAdmin', 'merchantIds', 'requiresPhoneLink']))
+                    || isAdmin();
+
+      allow delete: if false;
+    }
+
+    // --- shops ---
+    match /shops/{shopId} {
+      allow read: if true;
+      allow create: if signedIn();
+      // Authenticated owner can update any field; unauthenticated server can patch 'website' + 'shopSlug'
+      allow update: if signedIn()
+                   || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['website', 'shopSlug']);
+      allow delete: if false;
+      match /products/{productId} {
+        allow read: if true;
+        allow write: if signedIn();
+      }
+      match /orders/{orderId} {
+        allow create: if true;
+        allow read, update, delete: if signedIn();
+      }
+      match /credits/{creditId} {
+        allow read, write: if signedIn();
+      }
+      match /customers/{customerId} {
+        allow read, write: if signedIn();
+      }
+      match /bills/{billId} {
+        allow read, write: if signedIn();
+      }
+      match /staff/{staffId} {
+        allow read, write: if signedIn();
+      }
+      match /suppliers/{supplierId} {
+        allow read, write: if signedIn();
+      }
+      match /kots/{kotId} {
+        allow read, write: if signedIn();
+      }
+    }
+
+    // Phase 11/15 listing collections
+    match /services/{docId} {
+      allow read: if true;
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && request.auth.uid == resource.data.ownerId;
+    }
+    match /theaters/{docId} {
+      allow read: if true;
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && request.auth.uid == resource.data.ownerId;
+    }
+    match /hotels/{docId} {
+      allow read: if true;
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && request.auth.uid == resource.data.ownerId;
+    }
+    match /restaurants/{docId} {
+      allow read: if true;
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && request.auth.uid == resource.data.ownerId;
+    }
+    match /beauty/{docId} {
+      allow read: if true;
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && request.auth.uid == resource.data.ownerId;
+    }
+    match /realestate/{docId} {
+      allow read: if true;
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && request.auth.uid == resource.data.ownerId;
+    }
+    match /doctors/{docId} {
+      allow read: if true;
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && request.auth.uid == resource.data.ownerId;
+    }
+    match /hospitals/{docId} {
+      allow read: if true;
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && request.auth.uid == resource.data.ownerId;
+    }
+    match /education/{docId} {
+      allow read: if true;
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && request.auth.uid == resource.data.ownerId;
+    }
+    match /homeServices/{docId} {
+      allow read: if true;
+      allow create: if signedIn();
+      allow update, delete: if signedIn() && request.auth.uid == resource.data.ownerId;
+    }
+
+    // Taxonomy, deals, ratings, bookmarks — preserve existing behavior
+    match /serviceTags/{tagId} { allow read: if true; allow write: if true; }
+    match /deals/{dealId}      { allow read: if true; allow write: if true; }
+    match /ratings/{ratingId}  { allow read: if true; allow write: if signedIn(); }
+    match /bookmarks/{bookmarkId} { allow read, write: if true; }
+
+    // Sector visibility + platform config — admin panel writes, password-protected at API level
+    match /config/{docId}         { allow read: if true; allow write: if true; }
+    match /platformConfig/{docId} { allow read: if true; allow write: if true; }
+  }
+}

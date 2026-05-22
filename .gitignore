@@ -1,0 +1,41 @@
+# Flutter
+wekerala_app/.dart_tool/
+wekerala_app/build/
+wekerala_app/.flutter-plugins
+wekerala_app/.flutter-plugins-dependencies
+wekerala_app/.packages
+wekerala_app/pubspec.lock
+
+# Flutter Windows build artifacts
+wekerala_app/windows/flutter/generated_plugin_registrant.cc
+wekerala_app/windows/flutter/generated_plugin_registrant.h
+wekerala_app/windows/flutter/generated_plugins.cmake
+
+# Android generated files
+wekerala_app/android/.gradle/
+wekerala_app/android/local.properties
+wekerala_app/android/key.properties
+wekerala_app/android/app/google-services.json
+
+# Environment / secrets
+wekerala_app/.env
+web/.env.local
+functions/.env
+*.env
+
+# Next.js
+web/node_modules/
+web/.next/
+web/out/
+
+# Firebase Functions
+functions/node_modules/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db

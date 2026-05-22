@@ -1,0 +1,89 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: true if authenticated user owns this shop
+    function isOwner(shopId) {
+      return request.auth != null &&
+             get(/databases/$(database)/documents/shops/$(shopId)).data.ownerId
+             == request.auth.uid;
+    }
+
+    // ── 1. Users ──────────────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ── 2. Shops and all subcollections ──────────────────────────────────────
+    match /shops/{shopId} {
+      // Shop document — public read (storefront needs this), owner-only write
+      allow read:  if true;
+      allow write: if request.auth != null &&
+                      resource.data.ownerId == request.auth.uid;
+      // Allow create (new shop setup)
+      allow create: if request.auth != null;
+
+      // Products — public read; owner write
+      match /products/{productId} {
+        allow read:  if true;
+        allow write: if isOwner(shopId);
+      }
+
+      // Orders — anyone can create (customer checkout); owner manages
+      match /orders/{orderId} {
+        allow create: if true;
+        allow read, update, delete: if isOwner(shopId);
+      }
+
+      // Customers — owner only
+      match /customers/{customerId} {
+        allow read, write: if isOwner(shopId);
+      }
+
+      // Credits (Udhar book) — owner only
+      match /credits/{creditId} {
+        allow read, write: if isOwner(shopId);
+      }
+
+      // Bills — owner only
+      match /bills/{billId} {
+        allow read, write: if isOwner(shopId);
+      }
+
+      // Staff — owner only
+      match /staff/{staffId} {
+        allow read, write: if isOwner(shopId);
+      }
+
+      // Suppliers — owner only
+      match /suppliers/{supplierId} {
+        allow read, write: if isOwner(shopId);
+      }
+
+      // KOTs (Kitchen Order Tickets) — owner only
+      match /kots/{kotId} {
+        allow read, write: if isOwner(shopId);
+      }
+    }
+
+    // ── Business listing collections ─────────────────────────────────────────
+    match /services/{docId}   { allow read: if true; allow create: if request.auth != null; allow update: if request.auth != null && (request.auth.uid == resource.data.ownerId || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isActive'])); allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId; }
+    match /theaters/{docId}   { allow read: if true; allow create: if request.auth != null; allow update: if request.auth != null && (request.auth.uid == resource.data.ownerId || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isActive'])); allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId; }
+    match /hotels/{docId}     { allow read: if true; allow create: if request.auth != null; allow update: if request.auth != null && (request.auth.uid == resource.data.ownerId || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isActive'])); allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId; }
+    match /restaurants/{docId}{ allow read: if true; allow create: if request.auth != null; allow update: if request.auth != null && (request.auth.uid == resource.data.ownerId || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isActive'])); allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId; }
+    match /beauty/{docId}     { allow read: if true; allow create: if request.auth != null; allow update: if request.auth != null && (request.auth.uid == resource.data.ownerId || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isActive'])); allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId; }
+    match /realestate/{docId} { allow read: if true; allow create: if request.auth != null; allow update: if request.auth != null && (request.auth.uid == resource.data.ownerId || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isActive'])); allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId; }
+    match /doctors/{docId}    { allow read: if true; allow create: if request.auth != null; allow update: if request.auth != null && (request.auth.uid == resource.data.ownerId || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isActive'])); allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId; }
+    match /hospitals/{docId}  { allow read: if true; allow create: if request.auth != null; allow update: if request.auth != null && (request.auth.uid == resource.data.ownerId || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isActive'])); allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId; }
+    match /education/{docId}  { allow read: if true; allow create: if request.auth != null; allow update: if request.auth != null && (request.auth.uid == resource.data.ownerId || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isActive'])); allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId; }
+    match /homeServices/{docId}{ allow read: if true; allow create: if request.auth != null; allow update: if request.auth != null && (request.auth.uid == resource.data.ownerId || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isActive'])); allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId; }
+
+    // Taxonomy / config — public read
+    match /serviceTags/{tagId}    { allow read: if true; allow write: if true; }
+    match /deals/{dealId}         { allow read: if true; allow write: if true; }
+    match /ratings/{ratingId}     { allow read: if true; allow write: if request.auth != null; }
+    match /bookmarks/{bookmarkId} { allow read, write: if true; }
+    match /config/{docId}         { allow read: if true; allow write: if true; }
+    match /platformConfig/{docId} { allow read: if true; allow write: if true; }
+  }
+}

@@ -1,0 +1,185 @@
+'use client';
+
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Header } from '@/components/shop/header';
+import { SearchBar } from '@/components/shop/search-bar';
+import { CategoryFilter } from '@/components/shop/category-filter';
+import { ProductGrid } from '@/components/shop/product-grid';
+import { CartPage } from '@/components/shop/cart-page';
+import { CheckoutPage, type CustomerDetails } from '@/components/shop/checkout-page';
+import { OrderConfirmation } from '@/components/shop/order-confirmation';
+import { OrderTracking } from '@/components/shop/order-tracking';
+import { FloatingCartBar } from '@/components/shop/floating-cart-bar';
+import { ShopBanner } from '@/components/shop/shop-banner';
+import { ProductDetailSheet } from '@/components/shop/product-detail-sheet';
+import { AnnouncementModal } from '@/components/shop/announcement-modal';
+import { useCartStore } from '@/lib/cart-store';
+import { useAuthStore } from '@/lib/auth-store';
+import { type Language } from '@/lib/translations';
+import { SearchOverlay } from '@/components/shop/search-overlay';
+import { fetchShopData, type ShopData, type Product } from '@/lib/products';
+
+export function ShopSkeleton() {
+  return (
+    <div className="animate-pulse">
+      <div className="h-16 bg-green-400" />
+      <div className="h-40 bg-gray-200" />
+      <div className="flex gap-2 p-4">
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-8 w-20 rounded-full bg-gray-200" />
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-3 p-4">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <div key={i} className="h-48 rounded-lg bg-gray-200" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function ShopViewById({ shopId }: { shopId: string }) {
+  const searchParams = useSearchParams();
+  const view = searchParams.get('view');
+  const orderId = searchParams.get('orderId');
+
+  const [language, setLanguage] = useState<Language>('en');
+  const [currentPage, setCurrentPage] = useState<'shop' | 'cart' | 'checkout' | 'confirmation' | 'tracking'>(
+    view === 'cart' ? 'cart' : view === 'checkout' ? 'checkout' : view === 'tracking' ? 'tracking' : 'shop'
+  );
+  const [newOrderId, setNewOrderId] = useState<string>('');
+  const [shopData, setShopData] = useState<ShopData | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [announcementText, setAnnouncementText] = useState<string>('');
+  const [customerDetails, setCustomerDetails] = useState<CustomerDetails>({ name: '', phone: '', address: '', note: '' });
+
+  const { items: cartItems, getTotal } = useCartStore();
+  const { uid: customerUid } = useAuthStore();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [showSearchOverlay, setShowSearchOverlay] = useState(false);
+
+  useEffect(() => {
+    fetchShopData(shopId).then(({ shop, products }) => {
+      setShopData(shop);
+      setProducts(products);
+      if (shop.themeColor) document.documentElement.style.setProperty('--primary', shop.themeColor);
+      if (shop.announcementText) setAnnouncementText(shop.announcementText);
+    });
+  }, [shopId]);
+
+  const filteredProducts = useMemo(() => {
+    let filtered = products;
+    if (selectedCategory && selectedCategory !== 'all') filtered = filtered.filter((p) => p.category === selectedCategory);
+    if (searchQuery) {
+      filtered = filtered.filter(
+        (p) => p.name.en.toLowerCase().includes(searchQuery.toLowerCase()) || p.name.ml.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    return filtered;
+  }, [products, selectedCategory, searchQuery]);
+
+  const categories = useMemo(() => {
+    const cats = new Set(products.map((p) => p.category));
+    return ['all', ...Array.from(cats)];
+  }, [products]);
+
+  const handleConfirmOrder = async (details: CustomerDetails) => {
+    setCustomerDetails(details);
+
+    if (shopData?.ownerWhatsApp) {
+      const phone = shopData.ownerWhatsApp.replace(/\D/g, '');
+      const total = getTotal();
+      const itemList = cartItems
+        .map((i) => `• ${i.product.name.en} x${i.quantity} — ₹${i.product.price * i.quantity}`)
+        .join('\n');
+      const msg = encodeURIComponent(
+        `🛒 *New Order*\n\n*Customer:* ${details.name}\n*Phone:* ${details.phone}\n*Address:* ${details.address}${details.note ? `\n*Note:* ${details.note}` : ''}\n\n*Items:*\n${itemList}\n\n*Total:* ₹${total}`
+      );
+      window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
+    }
+
+    try {
+      const subtotal = getTotal();
+      const discountAmount = details.discountPercent ? Math.round(subtotal * details.discountPercent / 100) : 0;
+      const deliveryFee = details.deliveryCharge ?? 0;
+      const finalTotal = subtotal - discountAmount + deliveryFee;
+      const now = new Date().toISOString();
+      const response = await fetch(`/api/orders?shopId=${shopId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shopId, shopName: shopData?.shopName ?? '',
+          orderNumber: Date.now(), status: 'new',
+          customerUid: customerUid ?? '',
+          customerName: details.name, customerPhone: details.phone,
+          customerLocation: details.address, deliveryType: 'delivery',
+          orderNote: details.note,
+          couponCode: details.couponCode ?? '',
+          discountPercent: details.discountPercent ?? 0,
+          deliveryCharge: deliveryFee,
+          items: cartItems.map((item) => ({
+            productId: item.product.id, productName: item.product.name.en,
+            variantName: '', qty: item.quantity, unit: item.product.unit,
+            price: item.product.price, itemNote: '', subtotal: item.product.price * item.quantity,
+          })),
+          totalAmount: finalTotal, paymentMethod: 'cash', paymentStatus: 'pending',
+          createdAt: now, updatedAt: now,
+        }),
+      });
+      const data = await response.json();
+      if (data.orderId) setNewOrderId(data.orderId);
+    } catch (e) {
+      console.error('Failed to save order', e);
+    }
+    setCurrentPage('confirmation');
+  };
+
+  if (!shopData) return <ShopSkeleton />;
+
+  if (currentPage === 'cart') return (
+    <>
+      <Header shopName={shopData.shopName} shopNameMl={shopData.shopNameMl} logoUrl={shopData.logoUrl} language={language} onLanguageToggle={() => setLanguage(language === 'en' ? 'ml' : 'en')} onCartClick={() => setCurrentPage('cart')} />
+      <CartPage language={language} onBack={() => setCurrentPage('shop')} onCheckout={() => setCurrentPage('checkout')} deliveryCharge={shopData.deliveryCharge} freeDeliveryAbove={0} minOrderAmount={shopData.minOrderAmount} />
+    </>
+  );
+
+  if (currentPage === 'checkout') return (
+    <CheckoutPage language={language} onBack={() => setCurrentPage('cart')} onConfirm={handleConfirmOrder} onLanguageToggle={() => setLanguage(language === 'en' ? 'ml' : 'en')} shopId={shopId} deliveryCharge={shopData.deliveryCharge} freeDeliveryAbove={0} />
+  );
+
+  if (currentPage === 'confirmation') return (
+    <OrderConfirmation language={language} customerDetails={customerDetails} onBackToShop={() => setCurrentPage('shop')} whatsappNumber={shopData.ownerWhatsApp} orderId={newOrderId} />
+  );
+
+  if (currentPage === 'tracking' && orderId) return <OrderTracking orderId={orderId} shopId={shopId} />;
+
+  return (
+    <>
+      {showSearchOverlay && (
+        <SearchOverlay
+          language={language}
+          onClose={() => setShowSearchOverlay(false)}
+          onProductClick={(p) => { setSelectedProduct(p); setShowSearchOverlay(false); }}
+          activeCategory={selectedCategory}
+          onApplyFilters={(q) => setSearchQuery(q)}
+          products={products}
+        />
+      )}
+      {announcementText && <AnnouncementModal text={announcementText} shopId={shopId} />}
+      <Header shopName={shopData.shopName} shopNameMl={shopData.shopNameMl} logoUrl={shopData.logoUrl} language={language} onLanguageToggle={() => setLanguage(language === 'en' ? 'ml' : 'en')} onCartClick={() => setCurrentPage('cart')} />
+      <div className="max-w-screen-xl mx-auto">
+        <ShopBanner bannerImageUrl={shopData.bannerImageUrl} promotionalBanner={shopData.promotionalBanner} deliveryTimeEstimate={shopData.deliveryTimeEstimate} minOrderAmount={shopData.minOrderAmount} deliveryCharge={shopData.deliveryCharge} isOpen={shopData.isOpen} language={language} />
+        <div className="sticky top-16 z-40 bg-background px-4 py-2 shadow-sm">
+          <SearchBar language={language} value={searchQuery} onSearchClick={() => setShowSearchOverlay(true)} />
+        </div>
+        <CategoryFilter language={language} categories={categories} selectedCategory={selectedCategory} onSelectCategory={setSelectedCategory} />
+        <ProductGrid language={language} products={filteredProducts} onProductClick={setSelectedProduct} />
+      </div>
+      <FloatingCartBar language={language} onClick={() => setCurrentPage('cart')} />
+      {selectedProduct && <ProductDetailSheet product={selectedProduct} language={language} onClose={() => setSelectedProduct(null)} />}
+    </>
+  );
+}

@@ -1,0 +1,70 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Create .env file
+        shell: pwsh
+        run: |
+          @"
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          UNSPLASH_ACCESS_KEY=${{ secrets.UNSPLASH_ACCESS_KEY }}
+          GOOGLE_SHEETS_API_KEY=${{ secrets.GOOGLE_SHEETS_API_KEY }}
+          SHOPLINK_UPI_ID=${{ secrets.SHOPLINK_UPI_ID }}
+          SUPPORT_WHATSAPP=${{ secrets.SUPPORT_WHATSAPP }}
+          STOREFRONT_BASE_URL=${{ secrets.STOREFRONT_BASE_URL }}
+          APP_VERSION=${{ github.ref_name }}
+          USE_FIREBASE_EMULATOR=false
+          DEBUG_MODE=false
+          GUPSHUP_API_KEY=${{ secrets.GUPSHUP_API_KEY }}
+          GUPSHUP_APP_NAME=${{ secrets.GUPSHUP_APP_NAME }}
+          "@ | Out-File -FilePath .env -Encoding utf8
+
+      - name: Create google-services.json
+        shell: pwsh
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:GOOGLE_SERVICES_JSON)) | Out-File -FilePath android/app/google-services.json -Encoding utf8
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze code
+        run: flutter analyze --no-fatal-infos
+        continue-on-error: true
+
+      - name: Build Windows release
+        run: flutter build windows --release --dart-define-from-file=.env
+
+      - name: Create ZIP archive
+        shell: pwsh
+        run: |
+          $src = "build\windows\x64\runner\Release"
+          $dest = "wekerala-windows-${{ github.sha }}.zip"
+          Compress-Archive -Path "$src\*" -DestinationPath $dest
+
+      - name: Upload Windows build as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: weKerala-Windows-${{ github.sha }}
+          path: wekerala-windows-${{ github.sha }}.zip
+          retention-days: 30

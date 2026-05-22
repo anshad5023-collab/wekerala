@@ -1,0 +1,159 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+class BillItemModel {
+  final String productId;
+  final String productName;
+  final double qty;
+  final String unit;
+  final double price;
+  final double subtotal;
+  final int gstRate;
+  final String? hsnCode;
+  final bool priceIncludesGst;
+
+  const BillItemModel({
+    required this.productId,
+    required this.productName,
+    required this.qty,
+    required this.unit,
+    required this.price,
+    required this.subtotal,
+    this.gstRate = 0,
+    this.hsnCode,
+    this.priceIncludesGst = true,
+  });
+
+  BillItemModel copyWith({
+    String? productId,
+    String? productName,
+    double? qty,
+    String? unit,
+    double? price,
+    double? subtotal,
+    int? gstRate,
+    Object? hsnCode = _billSentinel,
+    bool? priceIncludesGst,
+  }) {
+    return BillItemModel(
+      productId: productId ?? this.productId,
+      productName: productName ?? this.productName,
+      qty: qty ?? this.qty,
+      unit: unit ?? this.unit,
+      price: price ?? this.price,
+      subtotal: subtotal ?? this.subtotal,
+      gstRate: gstRate ?? this.gstRate,
+      hsnCode: hsnCode == _billSentinel ? this.hsnCode : hsnCode as String?,
+      priceIncludesGst: priceIncludesGst ?? this.priceIncludesGst,
+    );
+  }
+
+  factory BillItemModel.fromMap(Map<String, dynamic> map) {
+    return BillItemModel(
+      productId: map['productId'] as String? ?? '',
+      productName: map['productName'] as String? ?? '',
+      qty: (map['qty'] as num?)?.toDouble() ?? 0,
+      unit: map['unit'] as String? ?? 'piece',
+      price: (map['price'] as num?)?.toDouble() ?? 0,
+      subtotal: (map['subtotal'] as num?)?.toDouble() ?? 0,
+      gstRate: (map['gstRate'] as int?) ?? 0,
+      hsnCode: map['hsnCode'] as String?,
+      priceIncludesGst: (map['priceIncludesGst'] as bool?) ?? true,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    final m = <String, dynamic>{
+      'productId': productId,
+      'productName': productName,
+      'qty': qty,
+      'unit': unit,
+      'price': price,
+      'subtotal': subtotal,
+      'gstRate': gstRate,
+      'priceIncludesGst': priceIncludesGst,
+    };
+    if (hsnCode != null) m['hsnCode'] = hsnCode;
+    return m;
+  }
+}
+
+class BillModel {
+  final String billId;
+  final String shopId;
+  final List<BillItemModel> items;
+  final double totalAmount;
+  final double discountAmount;
+  final double finalAmount;
+  final String paymentMethod; // 'cash' | 'upi' | 'udhar'
+  final String customerName;
+  final String customerPhone;
+  final bool isUdhar;
+  final DateTime createdAt;
+  final Map<String, Map<String, double>> gstBreakdown;
+  final double totalTax;
+  final String? gstinSnapshot;
+
+  const BillModel({
+    required this.billId,
+    required this.shopId,
+    required this.items,
+    required this.totalAmount,
+    this.discountAmount = 0,
+    required this.finalAmount,
+    required this.paymentMethod,
+    this.customerName = '',
+    this.customerPhone = '',
+    required this.isUdhar,
+    required this.createdAt,
+    this.gstBreakdown = const {},
+    this.totalTax = 0.0,
+    this.gstinSnapshot,
+  });
+
+  factory BillModel.fromFirestore(DocumentSnapshot doc) {
+    final d = doc.data() as Map<String, dynamic>;
+    return BillModel(
+      billId: d['billId'] as String? ?? doc.id,
+      shopId: d['shopId'] as String? ?? '',
+      items: (d['items'] as List<dynamic>?)
+              ?.map((e) => BillItemModel.fromMap(e as Map<String, dynamic>))
+              .toList() ??
+          [],
+      totalAmount: (d['totalAmount'] as num?)?.toDouble() ?? 0,
+      discountAmount: (d['discountAmount'] as num?)?.toDouble() ?? 0,
+      finalAmount: (d['finalAmount'] as num?)?.toDouble() ?? 0,
+      paymentMethod: d['paymentMethod'] as String? ?? 'cash',
+      customerName: d['customerName'] as String? ?? '',
+      customerPhone: d['customerPhone'] as String? ?? '',
+      isUdhar: d['isUdhar'] as bool? ?? false,
+      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      gstBreakdown: (d['gstBreakdown'] as Map<String, dynamic>? ?? {}).map(
+        (k, v) => MapEntry(k, Map<String, double>.from(v as Map)),
+      ),
+      totalTax: (d['totalTax'] as num?)?.toDouble() ?? 0.0,
+      gstinSnapshot: d['gstinSnapshot'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toFirestore() {
+    final m = <String, dynamic>{
+      'billId': billId,
+      'shopId': shopId,
+      'items': items.map((i) => i.toMap()).toList(),
+      'totalAmount': totalAmount,
+      'discountAmount': discountAmount,
+      'finalAmount': finalAmount,
+      'paymentMethod': paymentMethod,
+      'customerName': customerName,
+      'customerPhone': customerPhone,
+      'isUdhar': isUdhar,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'gstBreakdown': gstBreakdown,
+      'totalTax': totalTax,
+    };
+    if (gstinSnapshot != null) m['gstinSnapshot'] = gstinSnapshot;
+    return m;
+  }
+}
+
+const Object _billSentinel = Object();

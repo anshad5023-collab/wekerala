@@ -1,0 +1,15 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // APK downloads — public read
+    match /apk/{allPaths=**} {
+      allow read;
+      allow write: if false;
+    }
+    // Shop assets (banners, product images, photos) — public read, auth write
+    match /shops/{shopId}/{allPaths=**} {
+      allow read;
+      allow write: if request.auth != null;
+    }
+  }
+}

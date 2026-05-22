@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter build *)",
+      "Bash(/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -NonInteractive -Command ' *)",
+      "Bash(ls _waste/)",
+      "Bash(ls STRUCTURE.md)"
+    ]
+  }
+}
