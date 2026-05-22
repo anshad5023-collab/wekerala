@@ -75,10 +75,38 @@ export interface WkListing {
   appointmentRequired?: boolean;
 }
 
+// Compute isOpen from workingHours string (e.g. "9:00 AM - 9:00 PM") using IST
+function computeIsOpen(manualIsOpen: boolean, workingHours?: string): boolean {
+  if (!workingHours) return manualIsOpen;
+  try {
+    // Current time in IST (UTC+5:30)
+    const now = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const ist = new Date(now.getTime() + istOffset - now.getTimezoneOffset() * 60000);
+    const h = ist.getHours(), m = ist.getMinutes();
+    const totalMins = h * 60 + m;
+
+    // Parse "H:MM AM/PM - H:MM AM/PM" or "HH:MM - HH:MM"
+    const match = workingHours.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?\s*[-–]\s*(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+    if (!match) return manualIsOpen;
+    let [, sh, sm, sap, eh, em, eap] = match;
+    let startH = parseInt(sh), endH = parseInt(eh);
+    if (sap?.toUpperCase() === 'PM' && startH !== 12) startH += 12;
+    if (sap?.toUpperCase() === 'AM' && startH === 12) startH = 0;
+    if (eap?.toUpperCase() === 'PM' && endH !== 12) endH += 12;
+    if (eap?.toUpperCase() === 'AM' && endH === 12) endH = 0;
+    const startMins = startH * 60 + parseInt(sm);
+    const endMins = endH * 60 + parseInt(em);
+    return totalMins >= startMins && totalMins < endMins;
+  } catch { return manualIsOpen; }
+}
+
 function normalizeShop(data: Record<string, unknown>, id: string): WkListing {
   const tags: string[] = [];
   if (data['shopArea']) tags.push(data['shopArea'] as string);
   const shopType = (data['shopType'] as string) ?? '';
+  const manualIsOpen = (data['isOpen'] as boolean) ?? false;
+  const workingHours = (data['workingHours'] as string) || undefined;
   return {
     id,
     name: (data['shopName'] as string) ?? '',
@@ -88,7 +116,7 @@ function normalizeShop(data: Record<string, unknown>, id: string): WkListing {
     photoUrl: (data['bannerImageUrl'] as string) || (data['logoUrl'] as string) || undefined,
     tags,
     district: (data['shopArea'] as string) ?? (data['district'] as string) ?? '',
-    isOpen: (data['isOpen'] as boolean) ?? false,
+    isOpen: computeIsOpen(manualIsOpen, workingHours),
     href: (data['shopSlug'] as string) ? `/shops/${data['shopSlug']}` : `/shop?shopId=${id}`,
     phone: (data['ownerWhatsApp'] as string) || (data['ownerPhone'] as string) || undefined,
     description: (data['shopNameMl'] as string) || (data['address'] as string) || undefined,

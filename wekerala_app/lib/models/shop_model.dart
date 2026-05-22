@@ -51,6 +51,8 @@ class ShopModel {
   final bool autoSendWhatsappReceipt;
   // ONDC integration — seller / provider ID registered on eSamudaay or Mystore
   final String? ondcSellerId;
+  // AI chat widget settings
+  final Map<String, dynamic> aiSettings;
 
   const ShopModel({
     required this.shopId,
@@ -99,6 +101,7 @@ class ShopModel {
     this.gstBusinessName,
     this.autoSendWhatsappReceipt = false,
     this.ondcSellerId,
+    this.aiSettings = const {},
   });
 
   static DateTime _parseDate(dynamic v, DateTime fallback) {
@@ -156,6 +159,7 @@ class ShopModel {
       gstBusinessName: d['gstBusinessName'] as String?,
       autoSendWhatsappReceipt: (d['autoSendWhatsappReceipt'] as bool?) ?? false,
       ondcSellerId: d['ondcSellerId'] as String?,
+      aiSettings: Map<String, dynamic>.from(d['aiSettings'] as Map? ?? {}),
     );
   }
 
@@ -208,6 +212,7 @@ class ShopModel {
       if (gstBusinessName != null) 'gstBusinessName': gstBusinessName,
       'autoSendWhatsappReceipt': autoSendWhatsappReceipt,
       if (ondcSellerId != null) 'ondcSellerId': ondcSellerId,
+      'aiSettings': aiSettings,
     };
   }
 
@@ -235,6 +240,7 @@ class ShopModel {
     Object? gstBusinessName = _shopSentinel,
     bool? autoSendWhatsappReceipt,
     Object? ondcSellerId = _shopSentinel,
+    Map<String, dynamic>? aiSettings,
   }) {
     return ShopModel(
       shopId: shopId,
@@ -282,6 +288,7 @@ class ShopModel {
       gstBusinessName: gstBusinessName == _shopSentinel ? this.gstBusinessName : gstBusinessName as String?,
       autoSendWhatsappReceipt: autoSendWhatsappReceipt ?? this.autoSendWhatsappReceipt,
       ondcSellerId: ondcSellerId == _shopSentinel ? this.ondcSellerId : ondcSellerId as String?,
+      aiSettings: aiSettings ?? this.aiSettings,
     );
   }
 }

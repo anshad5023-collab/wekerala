@@ -56,6 +56,8 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
   final _promoBanner = TextEditingController();
   final _announcement = TextEditingController();
   final _deliveryTime = TextEditingController();
+  // Working hours for auto open/close
+  final _workingHours = TextEditingController();
   // Phase 11 — external website URL
   final _externalUrl = TextEditingController();
   // GST details
@@ -89,6 +91,7 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
     _promoBanner.dispose();
     _announcement.dispose();
     _deliveryTime.dispose();
+    _workingHours.dispose();
     _externalUrl.dispose();
     _gstin.dispose();
     _gstBusinessName.dispose();
@@ -121,6 +124,7 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
             _promoBanner.text = shop.promotionalBanner ?? '';
             _announcement.text = shop.announcementText ?? '';
             _deliveryTime.text = shop.deliveryTimeEstimate ?? '';
+            _workingHours.text = shop.workingHours ?? '';
             _productLayout = shop.productLayout ?? 'grid2';
             _externalUrl.text = shop.externalUrl ?? '';
             _gstin.text = shop.gstin ?? '';
@@ -251,9 +255,15 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
               // ── Announcement — full width ────────────────────
               _field('Announcement Popup (shown once per customer)', _announcement),
               const SizedBox(height: 12),
-              // ── Delivery Time + UPI pair ─────────────────────
+              // ── Working Hours + Delivery Time pair ──────────
               pairedRow(
+                _field('Working Hours (e.g. "9:00 AM - 9:00 PM")', _workingHours),
                 _field('Delivery Time Estimate (e.g. "30–45 min")', _deliveryTime),
+              ),
+              const SizedBox(height: 12),
+              // ── Product Layout ───────────────────────────────
+              pairedRow(
+                const SizedBox.shrink(),
                 DropdownButtonFormField<String>(
                   value: _productLayout ?? 'grid2',
                   decoration: const InputDecoration(
@@ -438,6 +448,7 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
         'promotionalBanner': _promoBanner.text.trim(),
         'announcementText': _announcement.text.trim(),
         'deliveryTimeEstimate': _deliveryTime.text.trim(),
+        'workingHours': _workingHours.text.trim(),
         'productLayout': _productLayout ?? 'grid2',
         'externalUrl': _externalUrl.text.trim(),
         'gstin': _gstin.text.trim(),

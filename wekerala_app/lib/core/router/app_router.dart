@@ -50,6 +50,7 @@ import '../../features/orders/screens/voice_order_screen.dart';
 import '../../features/reorder/screens/reorder_screen.dart';
 import '../../features/festival/screens/festival_screen.dart';
 import '../../features/settings/screens/ondc_settings_screen.dart';
+import '../../features/settings/screens/ai_settings_screen.dart';
 import '../../models/bill_model.dart';
 import '../../models/supplier_model.dart';
 import '../../providers/auth_provider.dart';
@@ -178,6 +179,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/reorder', builder: (_, __) => const ReorderScreen()),
       GoRoute(path: '/festival', builder: (_, __) => const FestivalScreen()),
       GoRoute(path: '/settings/ondc', builder: (_, __) => const OndcSettingsScreen()),
+      GoRoute(path: '/settings/ai', builder: (_, __) => const AiSettingsScreen()),
       GoRoute(
         path: '/website-builder',
         builder: (_, state) => WebsiteBuilderScreen(url: state.extra as String? ?? ''),

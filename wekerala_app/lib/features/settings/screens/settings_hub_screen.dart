@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_config.dart';
 import '../../../providers/shop_provider.dart';
-import '../../../providers/theme_provider.dart';
 
 class SettingsHubScreen extends ConsumerWidget {
   const SettingsHubScreen({super.key});
@@ -50,9 +50,10 @@ class _HubBody extends ConsumerWidget {
       },
     ) ?? '';
 
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
     final controlUrl = shopStream?.whenOrNull(
-      data: (shop) => 'https://wekerala.vercel.app/control/website',
-    ) ?? 'https://wekerala.vercel.app/control/website';
+      data: (shop) => '${AppConfig.storefrontBaseUrl}/control/website?shopId=${shop.shopId}&uid=$uid',
+    ) ?? '${AppConfig.storefrontBaseUrl}/control/website';
 
     return ListView(
       children: [
@@ -126,6 +127,12 @@ class _HubBody extends ConsumerWidget {
         // ── Integrations ──────────────────────────────────
         _SectionHeader('Integrations'),
         _SettingsCard(children: [
+          _SettingsTile(
+            icon: Icons.smart_toy_outlined,
+            title: 'WhatsApp AI Assistant',
+            iconColor: const Color(0xFF2D6A4F),
+            onTap: () => context.push('/settings/ai'),
+          ),
           _SettingsTile(
             icon: Icons.hub_outlined,
             title: 'ONDC Integration',
@@ -202,10 +209,6 @@ class _HubBody extends ConsumerWidget {
             onTap: () => context.push('/settings/printer'),
           ),
         ]),
-
-        // ── Appearance ────────────────────────────────────
-        _SectionHeader('Appearance'),
-        _AppearanceCard(),
 
         // ── Account ───────────────────────────────────────
         _SectionHeader('Account'),
@@ -395,54 +398,6 @@ class _SettingsCard extends StatelessWidget {
               if (i < children.length - 1)
                 const Divider(height: 1, indent: 64, endIndent: 16),
             ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Appearance Card ────────────────────────────────────────────────────────────
-
-class _AppearanceCard extends ConsumerWidget {
-  const _AppearanceCard();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final mode = ref.watch(themeModeProvider);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: Column(
-          children: [
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1976D2).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.dark_mode_outlined,
-                    color: Color(0xFF1976D2), size: 20),
-              ),
-              title: const Text('Dark Mode',
-                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-              trailing: Switch(
-                value: mode == ThemeMode.dark,
-                activeColor: AppColors.primary,
-                onChanged: (v) => ref
-                    .read(themeModeProvider.notifier)
-                    .setMode(v ? ThemeMode.dark : ThemeMode.light),
-              ),
-            ),
           ],
         ),
       ),

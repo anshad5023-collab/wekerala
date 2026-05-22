@@ -15,6 +15,16 @@ export interface Product {
   isOutOfStock: boolean;
 }
 
+export interface AiSettings {
+  enabled: boolean;
+  shareProductPrices?: boolean;
+  shareStockStatus?: boolean;
+  answerDelivery?: boolean;
+  answerHours?: boolean;
+  replyLanguage?: 'auto' | 'english' | 'malayalam';
+  customNote?: string;
+}
+
 export interface Shop {
   shopId: string;
   shopName: string;
@@ -36,6 +46,7 @@ export interface Shop {
   shopArea?: string;
   shopType?: string;
   isApproved?: boolean;
+  aiSettings?: AiSettings;
 }
 
 export interface ShopData extends Shop {

@@ -19,6 +19,7 @@ import { useAuthStore } from '@/lib/auth-store';
 import { type Language } from '@/lib/translations';
 import { SearchOverlay } from '@/components/shop/search-overlay';
 import { fetchShopData, type ShopData, type Product } from '@/lib/products';
+import { ChatWidget } from '@/components/shop/chat-widget';
 
 export function ShopSkeleton() {
   return (
@@ -180,6 +181,7 @@ export function ShopViewById({ shopId }: { shopId: string }) {
         <ProductGrid language={language} products={filteredProducts} onProductClick={setSelectedProduct} />
       </div>
       <FloatingCartBar language={language} onClick={() => setCurrentPage('cart')} />
+      <ChatWidget shopId={shopId} shopData={shopData} language={language} />
       {selectedProduct && <ProductDetailSheet product={selectedProduct} language={language} onClose={() => setSelectedProduct(null)} />}
     </>
   );

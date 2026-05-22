@@ -46,6 +46,7 @@ function nearestDistrict(lat: number, lon: number): string {
 }
 
 function ShopCard({ shop }: { shop: WkListing }) {
+  const shopHref = shop.href ?? `/shop?shopId=${shop.id}`;
   const phone = shop.phone?.replace(/\D/g, '');
   const waUrl = phone ? `https://wa.me/${phone}?text=${encodeURIComponent(`Hi, I found your shop on wekerala!`)}` : null;
   const callUrl = phone ? `tel:${phone}` : null;
@@ -57,51 +58,51 @@ function ShopCard({ shop }: { shop: WkListing }) {
       overflow: 'hidden',
       boxShadow: '0 1px 4px rgba(0,0,0,0.10)',
       marginBottom: 14,
+      cursor: 'pointer',
     }}>
-      {/* Banner image */}
-      <div style={{ position: 'relative', width: '100%', height: 180, background: '#f0f0f0', overflow: 'hidden' }}>
-        {shop.photoUrl ? (
-          <img
-            src={shop.photoUrl}
-            alt={shop.name}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            loading="lazy"
-          />
-        ) : (
-          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e8f0e8' }}>
-            <span style={{ fontSize: 48 }}>🏪</span>
-          </div>
-        )}
-        {shop.isOpen && (
+      {/* Banner image — whole top area clicks to storefront */}
+      <Link href={shopHref} style={{ textDecoration: 'none', display: 'block' }}>
+        <div style={{ position: 'relative', width: '100%', height: 180, background: '#f0f0f0', overflow: 'hidden' }}>
+          {shop.photoUrl ? (
+            <img
+              src={shop.photoUrl}
+              alt={shop.name}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              loading="lazy"
+            />
+          ) : (
+            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e8f0e8' }}>
+              <span style={{ fontSize: 48 }}>🏪</span>
+            </div>
+          )}
           <span style={{
             position: 'absolute', top: 10, left: 10,
-            background: '#22c55e', color: '#fff',
+            background: shop.isOpen ? '#22c55e' : '#ef4444',
+            color: '#fff',
             borderRadius: 20, padding: '3px 10px',
-            fontSize: 11, fontWeight: 700, fontFamily: 'monospace',
-          }}>Open</span>
-        )}
-        {shop.rating && (
-          <span style={{
-            position: 'absolute', top: 10, right: 10,
-            background: 'rgba(0,0,0,0.65)', color: '#fff',
-            borderRadius: 20, padding: '3px 10px',
-            fontSize: 12, fontWeight: 700,
-          }}>⭐ {shop.rating.toFixed(1)}</span>
-        )}
-      </div>
+            fontSize: 11, fontWeight: 700,
+          }}>{shop.isOpen ? 'Open' : 'Closed'}</span>
+          {shop.rating && (
+            <span style={{
+              position: 'absolute', top: 10, right: 10,
+              background: 'rgba(0,0,0,0.65)', color: '#fff',
+              borderRadius: 20, padding: '3px 10px',
+              fontSize: 12, fontWeight: 700,
+            }}>⭐ {shop.rating.toFixed(1)}</span>
+          )}
+        </div>
 
-      {/* Info */}
-      <div style={{ padding: '12px 14px 10px' }}>
-        <Link href={shop.href ?? `/shop?shopId=${shop.id}`} style={{ textDecoration: 'none' }}>
+        {/* Info */}
+        <div style={{ padding: '12px 14px 10px' }}>
           <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#111827', lineHeight: 1.3 }}>{shop.name}</h3>
-        </Link>
-        <p style={{ margin: '3px 0 0', fontSize: 13, color: '#6b7280' }}>
-          {[shop.category, shop.district].filter(Boolean).join(' · ')}
-        </p>
-        {shop.description && (
-          <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9ca3af', lineHeight: 1.4 }}>{shop.description}</p>
-        )}
-      </div>
+          <p style={{ margin: '3px 0 0', fontSize: 13, color: '#6b7280' }}>
+            {[shop.category, shop.district].filter(Boolean).join(' · ')}
+          </p>
+          {shop.description && (
+            <p style={{ margin: '4px 0 0', fontSize: 12, color: '#9ca3af', lineHeight: 1.4 }}>{shop.description}</p>
+          )}
+        </div>
+      </Link>
 
       {/* Action buttons */}
       <div style={{ display: 'flex', gap: 8, padding: '0 14px 14px' }}>
@@ -126,7 +127,7 @@ function ShopCard({ shop }: { shop: WkListing }) {
           </a>
         )}
         {!callUrl && !waUrl && (
-          <Link href={shop.href ?? `/shop?shopId=${shop.id}`} style={{
+          <Link href={shopHref} style={{
             flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
             padding: '10px 0', borderRadius: 10, border: 'none',
             textDecoration: 'none', color: '#fff', fontSize: 13, fontWeight: 600,
