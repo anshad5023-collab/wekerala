@@ -365,11 +365,11 @@ function WebTab({ biz, uid, storefrontPath }: { biz: Business | null; uid: strin
 
       {/* URL card */}
       <div style={{ background: '#f9fafb', border: '1px solid #f3f4f6', borderRadius: 12, padding: '10px 14px' }}>
-        {biz.type === 'shops' && (biz.website as Record<string,unknown> | null)?.isPublished && (
+        {biz.type === 'shops' && Boolean((biz.website as Record<string,unknown> | null)?.isPublished) && (
           <span style={{ fontSize: 10, color: '#22c55e', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', marginBottom: 4 }}>● Website Live</span>
         )}
         <p style={{ margin: 0, fontSize: 12, color: '#6b7280', wordBreak: 'break-all', lineHeight: 1.5, fontFamily: 'monospace' }}>{fullUrl}</p>
-        {biz.type === 'shops' && !(biz.website as Record<string,unknown> | null)?.isPublished && (
+        {biz.type === 'shops' && !Boolean((biz.website as Record<string,unknown> | null)?.isPublished) && (
           <p style={{ margin: '4px 0 0', fontSize: 11, color: '#9ca3af' }}>Use Website Builder to publish your live site</p>
         )}
       </div>
@@ -483,7 +483,7 @@ function ControlPageInner() {
   }, [uid]);
 
   useEffect(() => {
-    if (activeTab !== 'home' || !selectedBiz || selectedBiz.type !== 'shops') { setOrders([]); return; }
+    if (activeTab !== 'orders' || !selectedBiz || selectedBiz.type !== 'shops') { setOrders([]); return; }
     setOrdersLoading(true);
     fetch(`/api/orders?shopId=${selectedBiz.id}`)
       .then(r => r.json()).then(d => setOrders(d.orders ?? []))
@@ -532,7 +532,7 @@ function ControlPageInner() {
           </button>
         </div>
       ) : (
-        <div style={{ flex: 1, display: 'flex', maxWidth: 1280, width: '100%', margin: '0 auto', alignSelf: 'center', boxSizing: 'border-box', width: '100%' }}>
+        <div style={{ flex: 1, display: 'flex', maxWidth: 1280, width: '100%', margin: '0 auto', alignSelf: 'center', boxSizing: 'border-box' }}>
 
           {/* Desktop sidebar nav */}
           <aside style={{ display: 'none', width: 220, background: '#fff', borderRight: '1px solid #f3f4f6', flexDirection: 'column', gap: 4, padding: '16px 12px', flexShrink: 0 }} className="md-sidebar">

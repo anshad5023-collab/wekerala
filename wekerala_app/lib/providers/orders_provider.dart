@@ -29,16 +29,21 @@ final orderDetailProvider =
 });
 
 Future<void> updateOrderStatus(
-    String shopId, String orderId, String newStatus) async {
+    String shopId, String orderId, String newStatus,
+    {String? cancelReason}) async {
+  final fields = <String, dynamic>{
+    'status': newStatus,
+    'updatedAt': FieldValue.serverTimestamp(),
+  };
+  if (cancelReason != null && cancelReason.isNotEmpty) {
+    fields['cancelReason'] = cancelReason;
+  }
   await FirebaseFirestore.instance
       .collection('shops')
       .doc(shopId)
       .collection('orders')
       .doc(orderId)
-      .update({
-    'status': newStatus,
-    'updatedAt': FieldValue.serverTimestamp(),
-  });
+      .update(fields);
 
   // Read order + shop for post-update actions
   final results = await Future.wait([

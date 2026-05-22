@@ -141,7 +141,9 @@ class _OrdersBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ordersAsync = ref.watch(ordersStreamProvider(shopId));
     final allOrders = ordersAsync.value ?? [];
-    final newCount = allOrders.where((o) => o.status == 'new').length;
+    final countByStatus = {
+      for (final s in _kStatuses) s: allOrders.where((o) => o.status == s).length,
+    };
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -157,7 +159,9 @@ class _OrdersBody extends ConsumerWidget {
           unselectedLabelColor: Colors.white70,
           indicatorColor: Colors.white,
           tabs: _kStatuses.map((s) {
-            if (s == 'new' && newCount > 0) {
+            final count = countByStatus[s] ?? 0;
+            final badgeColor = s == 'new' ? Colors.red : _statusChipColor(s);
+            if (s != 'all' && count > 0) {
               return Tab(
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -167,10 +171,10 @@ class _OrdersBody extends ConsumerWidget {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                       decoration: BoxDecoration(
-                        color: Colors.red,
+                        color: badgeColor,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text('$newCount',
+                      child: Text('$count',
                           style: const TextStyle(fontSize: 11, color: Colors.white)),
                     ),
                   ],
@@ -324,27 +328,15 @@ class _OrdersBody extends ConsumerWidget {
                                 order.status == 'cancelled') {
                               return false;
                             }
-                            final confirmed = await showDialog<bool>(
+                            final reason = await showDialog<String>(
                               context: ctx,
-                              builder: (_) => AlertDialog(
-                                title: const Text('Cancel this order?'),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.of(ctx).pop(false),
-                                    child: const Text('Cancel'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.of(ctx).pop(true),
-                                    child: const Text('Confirm'),
-                                  ),
-                                ],
-                              ),
+                              builder: (_) =>
+                                  CancelReasonDialog(orderId: order.orderId),
                             );
-                            if (confirmed == true) {
+                            if (reason != null) {
                               await updateOrderStatus(
-                                  shopId, order.orderId, 'cancelled');
+                                  shopId, order.orderId, 'cancelled',
+                                  cancelReason: reason);
                             }
                             return false;
                           }
@@ -637,6 +629,93 @@ class _DeliveryPill extends StatelessWidget {
           fontWeight: FontWeight.w600,
         ),
       ),
+    );
+  }
+}
+
+// ─── Cancel Reason Dialog ─────────────────────────────────────────────────────
+
+class CancelReasonDialog extends StatefulWidget {
+  final String orderId;
+  const CancelReasonDialog({super.key, required this.orderId});
+
+  @override
+  State<CancelReasonDialog> createState() => CancelReasonDialogState();
+}
+
+class CancelReasonDialogState extends State<CancelReasonDialog> {
+  static const _reasons = [
+    'Customer requested cancellation',
+    'Item out of stock',
+    'Duplicate order',
+    'Delivery not possible',
+    'Payment issue',
+    'Other',
+  ];
+
+  String _selected = 'Customer requested cancellation';
+  final _otherCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _otherCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Cancel Order'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Select a reason:',
+              style: TextStyle(fontSize: 13, color: Colors.black54)),
+          const SizedBox(height: 8),
+          ..._reasons.map(
+            (r) => RadioListTile<String>(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(r, style: const TextStyle(fontSize: 13)),
+              value: r,
+              groupValue: _selected,
+              onChanged: (v) => setState(() => _selected = v!),
+            ),
+          ),
+          if (_selected == 'Other')
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: TextField(
+                controller: _otherCtrl,
+                decoration: const InputDecoration(
+                  hintText: 'Describe reason...',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                maxLines: 2,
+              ),
+            ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Back'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final reason = _selected == 'Other'
+                ? (_otherCtrl.text.trim().isNotEmpty
+                    ? _otherCtrl.text.trim()
+                    : 'Other')
+                : _selected;
+            Navigator.of(context).pop(reason);
+          },
+          style: FilledButton.styleFrom(backgroundColor: Colors.red),
+          child: const Text('Cancel Order'),
+        ),
+      ],
     );
   }
 }

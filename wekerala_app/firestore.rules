@@ -51,6 +51,32 @@ service cloud.firestore {
 
       // ── Bills / POS (under shop) ──────────────────────
       match /bills/{billId} {
+        allow read, create: if request.auth != null &&
+                              request.auth.uid == get(
+                                /databases/$(database)/documents/shops/$(shopId)
+                              ).data.ownerId;
+        // Allow update only non-financial fields (e.g. reprint flag)
+        allow update: if request.auth != null &&
+                         request.auth.uid == get(
+                           /databases/$(database)/documents/shops/$(shopId)
+                         ).data.ownerId &&
+                         !request.resource.data.diff(resource.data)
+                           .affectedKeys()
+                           .hasAny(['finalAmount', 'totalAmount', 'items', 'gstBreakdown']);
+        // Bills cannot be deleted — soft delete only
+        allow delete: if false;
+      }
+
+      // ── Staff (under shop) ───────────────────────────
+      match /staff/{staffId} {
+        allow read, write: if request.auth != null &&
+                              request.auth.uid == get(
+                                /databases/$(database)/documents/shops/$(shopId)
+                              ).data.ownerId;
+      }
+
+      // ── Suppliers (under shop) ───────────────────────
+      match /suppliers/{supplierId} {
         allow read, write: if request.auth != null &&
                               request.auth.uid == get(
                                 /databases/$(database)/documents/shops/$(shopId)

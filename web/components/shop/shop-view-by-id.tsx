@@ -90,7 +90,8 @@ export function ShopViewById({ shopId }: { shopId: string }) {
     setCustomerDetails(details);
 
     if (shopData?.ownerWhatsApp) {
-      const phone = shopData.ownerWhatsApp.replace(/\D/g, '');
+      const raw = shopData.ownerWhatsApp.replace(/\D/g, '');
+      const phone = raw.length === 10 ? `91${raw}` : raw;
       const total = getTotal();
       const itemList = cartItems
         .map((i) => `• ${i.product.name.en} x${i.quantity} — ₹${i.product.price * i.quantity}`)

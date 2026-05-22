@@ -4,7 +4,7 @@ const { onRequest } = require('firebase-functions/v2/https');
 const { defineString } = require('firebase-functions/params');
 const axios = require('axios');
 const { initializeApp, getApps } = require('firebase-admin/app');
-const { getFirestore } = require('firebase-admin/firestore');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 
 // Initialize Firebase Admin only once
 if (getApps().length === 0) {
@@ -15,34 +15,46 @@ if (getApps().length === 0) {
 // and:          firebase functions:secrets:set GUPSHUP_APP_NAME
 const GUPSHUP_API_KEY = defineString('GUPSHUP_API_KEY', { default: '' });
 const GUPSHUP_APP_NAME = defineString('GUPSHUP_APP_NAME', { default: '' });
-const GUPSHUP_BASE_URL = 'https://api.gupshup.io/wa/api/v1/msg';
+const GUPSHUP_BASE_URL = 'https://api.gupshup.io/sm/api/v1/msg';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-async function sendWhatsApp(phone, message) {
+async function sendWhatsApp(phone, message, retries = 2) {
   const apiKey = GUPSHUP_API_KEY.value();
   const appName = GUPSHUP_APP_NAME.value();
   console.log(`[WA] Sending to ${phone}, apiKey present: ${!!apiKey}, appName: ${appName}`);
   if (!apiKey || !appName) {
     console.error('[WA] Missing Gupshup credentials — check functions/.env');
-    return;
+    return false;
   }
-  const e164 = phone.startsWith('91') ? phone : `91${phone}`;
-  try {
-    const params = new URLSearchParams({
-      channel: 'whatsapp',
-      source: '15559725142',
-      destination: e164,
-      message: JSON.stringify({ type: 'text', text: message }),
-      'src.name': appName,
-    });
-    const resp = await axios.post(GUPSHUP_BASE_URL, params, {
-      headers: { apikey: apiKey },
-    });
-    console.log(`[WA] Gupshup response ${resp.status}:`, JSON.stringify(resp.data));
-  } catch (err) {
-    console.error('[WA] Send error:', err.response?.data ?? err.message);
+  const digits = phone.replace(/\D/g, '').slice(-10);
+  if (digits.length < 10) {
+    console.error(`[WA] Invalid phone number: ${phone}`);
+    return false;
   }
+  const e164 = `91${digits}`;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const params = new URLSearchParams({
+        channel: 'whatsapp',
+        source: '15559725142',
+        destination: e164,
+        message: JSON.stringify({ type: 'text', text: message }),
+        'src.name': appName,
+      });
+      const resp = await axios.post(GUPSHUP_BASE_URL, params, {
+        headers: { apikey: apiKey },
+        timeout: 10000,
+      });
+      console.log(`[WA] Gupshup response ${resp.status}:`, JSON.stringify(resp.data));
+      return true;
+    } catch (err) {
+      const isLast = attempt === retries;
+      console.error(`[WA] Send error (attempt ${attempt + 1}/${retries + 1}):`, err.response?.data ?? err.message);
+      if (!isLast) await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+    }
+  }
+  return false;
 }
 
 /**
@@ -237,7 +249,7 @@ async function handleOndcOrder(body) {
     .set(wekeralaOrder);
 
   await db.collection('shops').doc(shopId).update({
-    totalOrders: (shopData.totalOrders || 0) + 1,
+    totalOrders: FieldValue.increment(1),
   });
 
   console.log(`ONDC order ${ondcOrderId} created for shop ${shopId}`);
@@ -308,10 +320,10 @@ exports.onOrderCreated = onDocumentCreated(
   }
 );
 
-// ─── Function 2: Daily Sales Summary (9:30 PM IST = 16:30 UTC) ──────────────
+// ─── Function 2: Daily Sales Summary (9:30 PM IST) ───────────────────────────
 
 exports.sendDailySalesSummary = onSchedule(
-  { schedule: '30 16 * * *', timeZone: 'Asia/Kolkata' },
+  { schedule: '30 21 * * *', timeZone: 'Asia/Kolkata' },
   async () => {
     const db = getFirestore();
     const { startUTC, endUTC } = getTodayISTRange();

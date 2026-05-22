@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -30,12 +32,16 @@ class BillingState {
   /// taxableAmount, cgst, and sgst for that rate slab.
   Map<int, Map<String, double>> get gstBreakdown {
     final result = <int, Map<String, double>>{};
+    // Apply discount proportionally across items so GST is on net amount
+    final discountRatio =
+        subtotal > 0 ? (discountAmount / subtotal).clamp(0.0, 1.0) : 0.0;
     for (final item in cartItems) {
       if (item.gstRate <= 0) continue;
       final rate = item.gstRate;
+      final effectiveSubtotal = item.subtotal * (1 - discountRatio);
       final taxable = item.priceIncludesGst
-          ? item.subtotal / (1 + rate / 100)
-          : item.subtotal;
+          ? effectiveSubtotal / (1 + rate / 100)
+          : effectiveSubtotal;
       final cgst = taxable * (rate / 200);
       final sgst = taxable * (rate / 200);
       if (result.containsKey(rate)) {
@@ -212,14 +218,14 @@ class BillingNotifier extends Notifier<BillingState> {
       }
       await batch.commit();
 
-      // Upsert customer record when bill is on credit (udhar)
-      if (bill.isUdhar && bill.customerPhone.isNotEmpty) {
-        await CustomerModel.upsertFromOrder(
+      // Upsert customer record for any bill that has a phone number
+      if (bill.customerPhone.isNotEmpty && bill.customerName.isNotEmpty) {
+        unawaited(CustomerModel.upsertFromOrder(
           shopId: shopId,
           customerPhone: bill.customerPhone,
           customerName: bill.customerName,
           orderAmount: bill.finalAmount,
-        );
+        ));
       }
 
       state = state.copyWith(isLoading: false);

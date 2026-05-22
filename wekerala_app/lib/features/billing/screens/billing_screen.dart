@@ -96,17 +96,27 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
       final shopAsync = ref.read(shopStreamProvider(shopId));
       final shop = shopAsync.value;
       final upiId = shop?.upiId ?? '';
-      if (upiId.isNotEmpty) {
-        final total = ref.read(billingProvider).total;
-        if (!mounted) return;
-        final qrConfirmed = await _showUpiQrDialog(
-          context,
-          upiId: upiId,
-          shopName: shop?.shopName ?? '',
-          amount: total,
-        );
-        if (!qrConfirmed || !mounted) return;
+      if (upiId.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('UPI ID not configured. Add it in Shop Settings.'),
+              backgroundColor: Colors.orange,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
       }
+      final total = ref.read(billingProvider).total;
+      if (!mounted) return;
+      final qrConfirmed = await _showUpiQrDialog(
+        context,
+        upiId: upiId,
+        shopName: shop?.shopName ?? '',
+        amount: total,
+      );
+      if (!qrConfirmed || !mounted) return;
     }
 
     String customerName = '';
@@ -1076,10 +1086,20 @@ class _ProductPanel extends ConsumerWidget {
                             productByBarcodeProvider(
                                 (shopId: shopId, barcode: barcode)),
                           );
-                          if (product != null) {
+                          if (product != null && !product.isOutOfStock) {
                             ref
                                 .read(billingProvider.notifier)
                                 .addItem(product);
+                          } else if (product != null && product.isOutOfStock) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                      '${product.nameEn} is out of stock.'),
+                                  backgroundColor: Colors.orange,
+                                ),
+                              );
+                            }
                           } else {
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(

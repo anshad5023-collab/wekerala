@@ -10,6 +10,7 @@ import '../../../providers/language_provider.dart';
 import '../../../providers/shop_provider.dart';
 import '../../../providers/orders_provider.dart';
 import '../../../models/order_model.dart';
+import 'orders_list_screen.dart' show CancelReasonDialog;
 
 class OrderDetailScreen extends ConsumerWidget {
   final String orderId;
@@ -299,7 +300,17 @@ class _ActionButtons extends StatelessWidget {
         if (order.status != 'delivered' && order.status != 'cancelled') ...[
           const SizedBox(height: 8),
           OutlinedButton(
-            onPressed: () => updateOrderStatus(shopId, order.orderId, 'cancelled'),
+            onPressed: () async {
+              final reason = await showDialog<String>(
+                context: context,
+                builder: (_) =>
+                    CancelReasonDialog(orderId: order.orderId),
+              );
+              if (reason != null) {
+                await updateOrderStatus(shopId, order.orderId, 'cancelled',
+                    cancelReason: reason);
+              }
+            },
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.error,
               side: const BorderSide(color: AppColors.error),
