@@ -87,6 +87,14 @@ export function ShopViewById({ shopId }: { shopId: string }) {
     return ['all', ...Array.from(cats)];
   }, [products]);
 
+  function normalizePhone(phone: string): string {
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length === 10) return `91${digits}`;
+    if (digits.length === 12 && digits.startsWith('91')) return digits;
+    if (digits.length === 11 && digits.startsWith('0')) return `91${digits.slice(1)}`;
+    return digits;
+  }
+
   const handleConfirmOrder = async (details: CustomerDetails) => {
     setCustomerDetails(details);
 
@@ -109,14 +117,16 @@ export function ShopViewById({ shopId }: { shopId: string }) {
       const deliveryFee = details.deliveryCharge ?? 0;
       const finalTotal = subtotal - discountAmount + deliveryFee;
       const now = new Date().toISOString();
+      const orderId = `ORD-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+      const normalizedPhone = normalizePhone(details.phone);
       const response = await fetch(`/api/orders?shopId=${shopId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           shopId, shopName: shopData?.shopName ?? '',
-          orderNumber: Date.now(), status: 'new',
+          orderNumber: orderId, status: 'new',
           customerUid: customerUid ?? '',
-          customerName: details.name, customerPhone: details.phone,
+          customerName: details.name, customerPhone: normalizedPhone,
           customerLocation: details.address, deliveryType: 'delivery',
           orderNote: details.note,
           couponCode: details.couponCode ?? '',
@@ -125,7 +135,7 @@ export function ShopViewById({ shopId }: { shopId: string }) {
           items: cartItems.map((item) => ({
             productId: item.product.id, productName: item.product.name.en,
             variantName: '', qty: item.quantity, unit: item.product.unit,
-            price: item.product.price, itemNote: '', subtotal: item.product.price * item.quantity,
+            price: item.product.price, itemNote: item.note ?? '', subtotal: item.product.price * item.quantity,
           })),
           totalAmount: finalTotal, paymentMethod: 'cash', paymentStatus: 'pending',
           createdAt: now, updatedAt: now,
