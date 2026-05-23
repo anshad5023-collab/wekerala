@@ -763,39 +763,61 @@ exports.whatsappWebhook = onRequest({ cors: true }, async (req, res) => {
   const db = getFirestore();
 
   try {
-    // 1. Extract sender phone, message text, and app name from Gupshup POST payload
-    // Gupshup v2 format: { app, payload: { source, type, payload: { text } } }
-    // Gupshup v1 format: { mobile, message, appName }
-    const body = req.body;
-    console.log('[Webhook] Raw body:', JSON.stringify(body).slice(0, 500));
+    // 1. Parse body — Gupshup sends form-encoded OR JSON depending on format
+    let body = req.body;
+    const rawBody = req.rawBody ? req.rawBody.toString() : '';
+    console.log('[Webhook] Content-Type:', req.headers['content-type']);
+    console.log('[Webhook] Raw body:', rawBody.slice(0, 500));
+
+    // If body is empty, try parsing rawBody manually
+    if (!body || Object.keys(body).length === 0) {
+      try {
+        if (rawBody.startsWith('{') || rawBody.startsWith('[')) {
+          body = JSON.parse(rawBody);
+        } else {
+          // form-encoded: key=value&key2=value2
+          body = Object.fromEntries(new URLSearchParams(rawBody));
+          // Gupshup v2 sends payload as a JSON string inside form field
+          if (body.payload && typeof body.payload === 'string') {
+            body.payload = JSON.parse(body.payload);
+          }
+        }
+      } catch (e) {
+        console.error('[Webhook] Body parse error:', e.message);
+      }
+    }
+
+    console.log('[Webhook] Parsed body keys:', Object.keys(body || {}));
 
     let sender, messageText, appName;
-    if (body.payload && body.payload.source) {
-      // Gupshup v2 format
-      sender = body.payload.source;
-      messageText = body.payload.payload?.text || body.payload.payload?.caption || '';
-      appName = body.app || body.appName;
+
+    // Gupshup v2 form-encoded: payload is a JSON object with source + payload.text
+    if (body.payload && (body.payload.source || body.payload.sender)) {
+      sender = body.payload.source || body.payload.sender?.phone;
+      messageText = body.payload.payload?.text || body.payload.payload?.caption || body.payload.text || '';
+      appName = body.app || body['app.name'] || body.appName;
     } else if (body.mobile) {
-      // Gupshup v1 format
+      // Gupshup v1
       sender = body.mobile;
       messageText = body.message;
       appName = body.appName;
-    } else {
-      // Try Meta/v3 format: { entry[0].changes[0].value.messages[0] }
-      const entry = body.entry?.[0];
-      const change = entry?.changes?.[0]?.value;
+    } else if (body.entry?.[0]) {
+      // Meta/v3 format
+      const change = body.entry[0]?.changes?.[0]?.value;
       const msg = change?.messages?.[0];
       if (msg) {
         sender = msg.from;
-        messageText = msg.text?.body || msg.interactive?.button_reply?.title || '';
+        messageText = msg.text?.body || '';
         appName = change?.metadata?.display_phone_number || body.appName;
       }
     }
 
     if (!sender || !messageText) {
-      console.warn('[Webhook] Missing required fields:', { sender, messageText, appName });
+      console.warn('[Webhook] Could not extract fields. Body:', JSON.stringify(body).slice(0, 300));
       return res.json({ success: false });
     }
+
+    console.log('[Webhook] Extracted — sender:', sender, 'message:', messageText, 'app:', appName);
 
     // 2. Query Firestore shops collection to find the shop that owns this Gupshup app
     // Try matching by gupshupAppName first, then fall back to whatsappNumber

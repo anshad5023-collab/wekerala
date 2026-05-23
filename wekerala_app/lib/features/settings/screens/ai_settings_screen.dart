@@ -30,18 +30,18 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
     super.dispose();
   }
 
-  void _loadFrom(Map<String, dynamic> s) {
+  void _loadFrom(Map<String, dynamic> s, String gupshupAppName) {
     if (_loaded) return;
     _loaded = true;
     setState(() {
       _enabled = s['enabled'] as bool? ?? false;
       _shareProductPrices = s['shareProductPrices'] as bool? ?? true;
       _shareStockStatus = s['shareStockStatus'] as bool? ?? true;
-      _answerDelivery = s['answerDelivery'] as bool? ?? true;
-      _answerHours = s['answerHours'] as bool? ?? true;
+      _answerDelivery = s['answerDeliveryQuestions'] as bool? ?? true;
+      _answerHours = s['answerHoursQuestions'] as bool? ?? true;
       _replyLanguage = s['replyLanguage'] as String? ?? 'auto';
       _noteCtrl.text = s['customNote'] as String? ?? '';
-      _gupshupCtrl.text = s['gupshupAppName'] as String? ?? '';
+      _gupshupCtrl.text = gupshupAppName;
     });
   }
 
@@ -53,12 +53,17 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
           'enabled': _enabled,
           'shareProductPrices': _shareProductPrices,
           'shareStockStatus': _shareStockStatus,
-          'answerDelivery': _answerDelivery,
-          'answerHours': _answerHours,
+          'answerDeliveryQuestions': _answerDelivery,
+          'answerHoursQuestions': _answerHours,
           'replyLanguage': _replyLanguage,
           'customNote': _noteCtrl.text.trim(),
-          'gupshupAppName': _gupshupCtrl.text.trim(),
+          'neverShareOwnerPhone': true,
+          'neverShareOwnerAddress': true,
+          'neverDiscussCompetitors': true,
+          'autoSendStorefrontLink': true,
         },
+        // gupshupAppName lives at root level so the webhook query works
+        'gupshupAppName': _gupshupCtrl.text.trim(),
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -92,7 +97,7 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
           return const Scaffold(body: Center(child: Text('No shop found')));
         }
         final shopStream = ref.watch(shopStreamProvider(shopId));
-        shopStream.whenData((shop) => _loadFrom(shop.aiSettings));
+        shopStream.whenData((shop) => _loadFrom(shop.aiSettings, shop.gupshupAppName));
 
         return Scaffold(
           backgroundColor: const Color(0xFFF5F5F5),
