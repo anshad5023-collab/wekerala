@@ -4,7 +4,7 @@ const { onRequest } = require('firebase-functions/v2/https');
 const { defineString } = require('firebase-functions/params');
 const axios = require('axios');
 const { initializeApp, getApps } = require('firebase-admin/app');
-const { getFirestore, FieldValue } = require('firebase-admin/firestore');
+const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
 
 // Initialize Firebase Admin only once
 if (getApps().length === 0) {
@@ -1019,3 +1019,186 @@ Keep replies short (under 100 words). Detect language and reply in the same lang
     return res.json({ success: false });
   }
 });
+
+// ─── Function 10: Daily Sales Summary (8 PM IST = 14:30 UTC) ─────────────────
+
+exports.dailySalesSummary = onSchedule(
+  { schedule: '30 14 * * *', timeZone: 'UTC' },
+  async () => {
+    const db = getFirestore();
+    const shops = await db.collection('shops').get();
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    for (const shopDoc of shops.docs) {
+      try {
+        const shop = shopDoc.data();
+        if (!shop.ownerPhone) continue;
+
+        const ordersSnap = await db.collection('shops').doc(shopDoc.id)
+          .collection('orders')
+          .where('createdAt', '>=', Timestamp.fromDate(todayStart))
+          .get();
+
+        if (ordersSnap.empty) continue;
+
+        let totalRevenue = 0;
+        const productCount = {};
+        ordersSnap.forEach(o => {
+          const d = o.data();
+          totalRevenue += d.total || d.totalAmount || 0;
+          (d.items || []).forEach(item => {
+            productCount[item.name] = (productCount[item.name] || 0) + (item.quantity || 1);
+          });
+        });
+
+        const top3 = Object.entries(productCount).sort((a, b) => b[1] - a[1]).slice(0, 3);
+        const topStr = top3.map(([name, qty]) => `• ${name} × ${qty}`).join('\n');
+
+        const message = `📊 *Today's Sales — ${shop.shopName || 'Your Shop'}*\n\nOrders: ${ordersSnap.size}\nRevenue: ₹${Math.round(totalRevenue)}\n\n🏆 Top Products:\n${topStr || 'N/A'}\n\nDashboard: https://wekerala.vercel.app/shop?shopId=${shopDoc.id}`;
+        await sendWhatsApp(shop.ownerPhone, message);
+        await new Promise(r => setTimeout(r, 500));
+      } catch (err) {
+        console.error('Daily summary error for shop', shopDoc.id, err.message);
+      }
+    }
+  }
+);
+
+// ─── Function 11: Check Reorder Alerts (every 6 hours) ───────────────────────
+
+exports.checkReorderAlerts = onSchedule(
+  { schedule: '0 */6 * * *', timeZone: 'UTC' },
+  async () => {
+    const db = getFirestore();
+    const shops = await db.collection('shops').get();
+    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+
+    for (const shopDoc of shops.docs) {
+      try {
+        const shop = shopDoc.data();
+        if (!shop.ownerPhone) continue;
+
+        const productsSnap = await db.collection('shops').doc(shopDoc.id)
+          .collection('products')
+          .where('stock', '<=', 0)
+          .get();
+
+        if (productsSnap.empty) continue;
+
+        const alertsRef = db.collection('shops').doc(shopDoc.id).collection('sentAlerts');
+        const toAlert = [];
+
+        for (const pDoc of productsSnap.docs) {
+          const alertDoc = await alertsRef.doc(pDoc.id).get();
+          if (alertDoc.exists && alertDoc.data().sentAt.toDate() > sixHoursAgo) continue;
+          toAlert.push(pDoc.data().name || pDoc.id);
+          await alertsRef.doc(pDoc.id).set({ sentAt: FieldValue.serverTimestamp() });
+        }
+
+        if (toAlert.length === 0) continue;
+
+        const itemList = toAlert.map(n => `• ${n} — OUT OF STOCK`).join('\n');
+        const message = `⚠️ *Low Stock Alert — ${shop.shopName}*\n\nThese items need restocking:\n${itemList}\n\nUpdate: https://wekerala.vercel.app/control/website?shopId=${shopDoc.id}`;
+        await sendWhatsApp(shop.ownerPhone, message);
+        await new Promise(r => setTimeout(r, 300));
+      } catch (err) {
+        console.error('Reorder alert error for shop', shopDoc.id, err.message);
+      }
+    }
+  }
+);
+
+// ─── Function 12: Add Loyalty Points on New Order ────────────────────────────
+
+exports.addLoyaltyPoints = onDocumentCreated(
+  'shops/{shopId}/orders/{orderId}',
+  async (event) => {
+    const order = event.data?.data();
+    if (!order) return null;
+
+    const { shopId } = event.params;
+    const db = getFirestore();
+    const shopDoc = await db.collection('shops').doc(shopId).get();
+    const loyaltySettings = shopDoc.data()?.loyaltySettings;
+    if (!loyaltySettings?.enabled) return null;
+
+    const orderTotal = order.total || order.totalAmount || 0;
+    const pointsEarned = Math.floor((orderTotal / 100) * (loyaltySettings.pointsPerHundred || 10));
+    if (pointsEarned <= 0 || !order.customerPhone) return null;
+
+    await db
+      .collection('shops').doc(shopId)
+      .collection('customers').doc(order.customerPhone)
+      .set({
+        name: order.customerName || 'Customer',
+        phone: order.customerPhone,
+        loyaltyPoints: FieldValue.increment(pointsEarned),
+        totalSpent: FieldValue.increment(orderTotal),
+        lastOrderAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+
+    return null;
+  }
+);
+
+// ─── Function 13: Process Flash Sales (every 5 minutes) ──────────────────────
+
+exports.processFlashSales = onSchedule(
+  { schedule: '*/5 * * * *', timeZone: 'UTC' },
+  async () => {
+    const db = getFirestore();
+    const now = Timestamp.now();
+    const shops = await db.collection('shops').get();
+
+    for (const shopDoc of shops.docs) {
+      try {
+        const salesSnap = await db.collection('shops').doc(shopDoc.id)
+          .collection('flashSales')
+          .where('startTime', '<=', now)
+          .where('expired', '!=', true)
+          .get();
+
+        for (const saleDoc of salesSnap.docs) {
+          const sale = saleDoc.data();
+          const isActive = sale.endTime.toDate() > new Date();
+
+          if (!isActive) {
+            // Expire: reset products
+            if (sale.productIds?.length) {
+              for (const pid of sale.productIds) {
+                await db.collection('shops').doc(shopDoc.id).collection('products').doc(pid)
+                  .update({ onSale: false, salePrice: FieldValue.delete() });
+              }
+            }
+            await saleDoc.ref.update({ expired: true });
+            continue;
+          }
+
+          // Active: apply discount + broadcast once
+          if (sale.productIds?.length) {
+            for (const pid of sale.productIds) {
+              const pDoc = await db.collection('shops').doc(shopDoc.id).collection('products').doc(pid).get();
+              if (!pDoc.exists) continue;
+              const price = pDoc.data().price || 0;
+              const salePrice = Math.round(price * (1 - (sale.discountPercent || 0) / 100));
+              await pDoc.ref.update({ onSale: true, salePrice });
+            }
+          }
+
+          if (!sale.broadcastSent) {
+            const shop = shopDoc.data();
+            if (shop.ownerPhone) {
+              const url = `https://wekerala.vercel.app/shop?shopId=${shopDoc.id}`;
+              const msg = `🔥 *FLASH SALE at ${shop.shopName}!*\n\nGet ${sale.discountPercent}% OFF — Limited time only!\n\nShop now: ${url}`;
+              await sendWhatsApp(shop.ownerPhone, msg).catch(() => {});
+            }
+            await saleDoc.ref.update({ broadcastSent: true });
+          }
+        }
+      } catch (err) {
+        console.error('Flash sale error for shop', shopDoc.id, err.message);
+      }
+    }
+  }
+);
