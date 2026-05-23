@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -244,12 +245,10 @@ class _OrderContent extends StatelessWidget {
           child: Column(
             children: [
               _InfoRow(label: t('order_payment'), value: order.paymentMethod.toUpperCase()),
-              _InfoRow(
-                label: 'Status',
-                value: order.paymentStatus == 'paid' ? 'Paid' : 'Pending',
-                valueColor: order.paymentStatus == 'paid'
-                    ? AppColors.success
-                    : AppColors.error,
+              _PaymentStatusRow(
+                shopId: shopId,
+                orderId: order.orderId,
+                currentStatus: order.paymentStatus,
               ),
             ],
           ),
@@ -398,6 +397,66 @@ class _InfoRow extends StatelessWidget {
                   fontWeight: FontWeight.w500,
                   color: valueColor ?? AppColors.textPrimary)),
           if (trailing != null) trailing!,
+        ],
+      ),
+    );
+  }
+}
+
+class _PaymentStatusRow extends StatelessWidget {
+  final String shopId;
+  final String orderId;
+  final String currentStatus;
+
+  const _PaymentStatusRow({
+    required this.shopId,
+    required this.orderId,
+    required this.currentStatus,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final orderRef = FirebaseFirestore.instance
+        .collection('shops')
+        .doc(shopId)
+        .collection('orders')
+        .doc(orderId);
+
+    final validStatus = ['pending', 'paid', 'failed'].contains(currentStatus)
+        ? currentStatus
+        : 'pending';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text('Payment Status',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+          DropdownButton<String>(
+            value: validStatus,
+            isDense: true,
+            underline: const SizedBox.shrink(),
+            items: ['pending', 'paid', 'failed'].map((s) => DropdownMenuItem(
+              value: s,
+              child: Text(
+                s.toUpperCase(),
+                style: TextStyle(
+                  color: s == 'paid'
+                      ? Colors.green
+                      : s == 'failed'
+                          ? Colors.red
+                          : Colors.orange,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            )).toList(),
+            onChanged: (val) async {
+              if (val == null) return;
+              await orderRef.update({'paymentStatus': val});
+            },
+          ),
         ],
       ),
     );

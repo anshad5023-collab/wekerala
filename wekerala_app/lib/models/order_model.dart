@@ -59,6 +59,7 @@ class OrderModel {
   final double totalAmount;
   final String paymentMethod;
   final String paymentStatus;
+  final String cancelReason;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -76,6 +77,7 @@ class OrderModel {
     required this.totalAmount,
     required this.paymentMethod,
     this.paymentStatus = 'pending',
+    this.cancelReason = '',
     required this.createdAt,
     required this.updatedAt,
   });
@@ -116,6 +118,7 @@ class OrderModel {
       totalAmount: (m['totalAmount'] as num?)?.toDouble() ?? 0,
       paymentMethod: m['paymentMethod'] as String? ?? 'cash',
       paymentStatus: m['paymentStatus'] as String? ?? 'pending',
+      cancelReason: m['cancelReason'] as String? ?? '',
       createdAt: _parseDate(m['createdAt'], DateTime.now()),
       updatedAt: _parseDate(m['updatedAt'], DateTime.now()),
     );
@@ -138,7 +141,7 @@ class OrderModel {
         'updatedAt': Timestamp.fromDate(updatedAt),
       };
 
-  OrderModel copyWith({String? status, String? paymentStatus}) => OrderModel(
+  OrderModel copyWith({String? status, String? paymentStatus, String? cancelReason}) => OrderModel(
         orderId: orderId,
         shopId: shopId,
         orderNumber: orderNumber,
@@ -152,6 +155,7 @@ class OrderModel {
         totalAmount: totalAmount,
         paymentMethod: paymentMethod,
         paymentStatus: paymentStatus ?? this.paymentStatus,
+        cancelReason: cancelReason ?? this.cancelReason,
         createdAt: createdAt,
         updatedAt: updatedAt,
       );

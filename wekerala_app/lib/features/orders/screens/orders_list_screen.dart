@@ -590,6 +590,14 @@ class _OrderTile extends StatelessWidget {
                                 color: AppColors.textSecondary, fontSize: 11)),
                       ],
                     ),
+                    if (order.cancelReason.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          'Reason: ${order.cancelReason}',
+                          style: const TextStyle(color: Colors.red, fontSize: 12),
+                        ),
+                      ),
                   ],
                 ),
               ),
