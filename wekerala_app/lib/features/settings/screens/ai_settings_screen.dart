@@ -19,12 +19,14 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
   bool _answerHours = true;
   String _replyLanguage = 'auto';
   final _noteCtrl = TextEditingController();
+  final _gupshupCtrl = TextEditingController();
   bool _saving = false;
   bool _loaded = false;
 
   @override
   void dispose() {
     _noteCtrl.dispose();
+    _gupshupCtrl.dispose();
     super.dispose();
   }
 
@@ -39,6 +41,7 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
       _answerHours = s['answerHours'] as bool? ?? true;
       _replyLanguage = s['replyLanguage'] as String? ?? 'auto';
       _noteCtrl.text = s['customNote'] as String? ?? '';
+      _gupshupCtrl.text = s['gupshupAppName'] as String? ?? '';
     });
   }
 
@@ -54,6 +57,7 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
           'answerHours': _answerHours,
           'replyLanguage': _replyLanguage,
           'customNote': _noteCtrl.text.trim(),
+          'gupshupAppName': _gupshupCtrl.text.trim(),
         },
       });
       if (mounted) {
@@ -149,6 +153,39 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
                 ),
               ]),
               const SizedBox(height: 16),
+
+              // Gupshup setup
+              Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Gupshup Setup', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      const SizedBox(height: 4),
+                      const Text('Enter your Gupshup App Name to receive customer messages.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _gupshupCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Gupshup App Name',
+                          hintText: 'e.g. myshop_whatsapp',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.phonelink_setup),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: const Color(0xFFFFF3E0), borderRadius: BorderRadius.circular(8)),
+                        child: const Text('Webhook URL to set in Gupshup dashboard:\nhttps://us-central1-shoplink-prod.cloudfunctions.net/whatsappWebhook', style: TextStyle(fontSize: 11, fontFamily: 'monospace')),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
 
               // What AI can share
               _SectionLabel('What AI Can Share'),

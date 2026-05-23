@@ -53,6 +53,10 @@ class ShopModel {
   final String? ondcSellerId;
   // AI chat widget settings
   final Map<String, dynamic> aiSettings;
+  // Gupshup WhatsApp integration
+  final String gupshupAppName;
+  // Loyalty program configuration
+  final Map<String, dynamic> loyaltySettings;
 
   const ShopModel({
     required this.shopId,
@@ -102,6 +106,8 @@ class ShopModel {
     this.autoSendWhatsappReceipt = false,
     this.ondcSellerId,
     this.aiSettings = const {},
+    this.gupshupAppName = '',
+    this.loyaltySettings = const {},
   });
 
   static DateTime _parseDate(dynamic v, DateTime fallback) {
@@ -160,6 +166,8 @@ class ShopModel {
       autoSendWhatsappReceipt: (d['autoSendWhatsappReceipt'] as bool?) ?? false,
       ondcSellerId: d['ondcSellerId'] as String?,
       aiSettings: Map<String, dynamic>.from(d['aiSettings'] as Map? ?? {}),
+      gupshupAppName: d['gupshupAppName'] as String? ?? '',
+      loyaltySettings: Map<String, dynamic>.from(d['loyaltySettings'] as Map? ?? {}),
     );
   }
 
@@ -213,6 +221,8 @@ class ShopModel {
       'autoSendWhatsappReceipt': autoSendWhatsappReceipt,
       if (ondcSellerId != null) 'ondcSellerId': ondcSellerId,
       'aiSettings': aiSettings,
+      'gupshupAppName': gupshupAppName,
+      'loyaltySettings': loyaltySettings,
     };
   }
 
@@ -241,6 +251,8 @@ class ShopModel {
     bool? autoSendWhatsappReceipt,
     Object? ondcSellerId = _shopSentinel,
     Map<String, dynamic>? aiSettings,
+    String? gupshupAppName,
+    Map<String, dynamic>? loyaltySettings,
   }) {
     return ShopModel(
       shopId: shopId,
@@ -289,6 +301,8 @@ class ShopModel {
       autoSendWhatsappReceipt: autoSendWhatsappReceipt ?? this.autoSendWhatsappReceipt,
       ondcSellerId: ondcSellerId == _shopSentinel ? this.ondcSellerId : ondcSellerId as String?,
       aiSettings: aiSettings ?? this.aiSettings,
+      gupshupAppName: gupshupAppName ?? this.gupshupAppName,
+      loyaltySettings: loyaltySettings ?? this.loyaltySettings,
     );
   }
 }
