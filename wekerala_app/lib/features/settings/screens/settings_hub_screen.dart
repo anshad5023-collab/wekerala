@@ -141,6 +141,41 @@ class _HubBody extends ConsumerWidget {
           ),
         ]),
 
+        // ── Marketing & Growth ────────────────────────────
+        _SectionHeader('Marketing & Growth'),
+        _SettingsCard(
+          children: [
+            _SettingsTile(
+              icon: Icons.campaign_outlined,
+              title: 'WhatsApp Broadcast',
+              subtitle: 'Send offers to all customers',
+              iconColor: const Color(0xFF25D366),
+              onTap: () => context.push('/marketing/broadcast'),
+            ),
+            _SettingsTile(
+              icon: Icons.local_fire_department,
+              title: 'Flash Sales',
+              subtitle: 'Limited time offers with auto-WhatsApp',
+              iconColor: const Color(0xFFFC8019),
+              onTap: () => context.push('/marketing/flash-sale'),
+            ),
+            _SettingsTile(
+              icon: Icons.star_outline,
+              title: 'Loyalty Program',
+              subtitle: 'Reward customers with points',
+              iconColor: const Color(0xFFFF9900),
+              onTap: () => context.push('/marketing/loyalty'),
+            ),
+            _SettingsTile(
+              icon: Icons.account_balance_wallet_outlined,
+              title: 'Udhar Book',
+              subtitle: 'Track credit & send reminders',
+              iconColor: const Color(0xFF2D6A4F),
+              onTap: () => context.push('/marketing/udhar'),
+            ),
+          ],
+        ),
+
         // ── Orders & Sales ────────────────────────────────
         _SectionHeader('Orders & Sales'),
         _SettingsCard(children: [
@@ -335,6 +370,7 @@ class _ShopProfileCard extends StatelessWidget {
 class _SettingsTile extends StatelessWidget {
   final IconData icon;
   final String title;
+  final String? subtitle;
   final Color iconColor;
   final VoidCallback onTap;
   final Widget? trailing;
@@ -344,6 +380,7 @@ class _SettingsTile extends StatelessWidget {
     required this.title,
     required this.iconColor,
     required this.onTap,
+    this.subtitle,
     this.trailing,
   });
 
@@ -368,7 +405,12 @@ class _SettingsTile extends StatelessWidget {
           color: Color(0xFF1A2E22),
         ),
       ),
-      subtitle: null,
+      subtitle: subtitle != null
+          ? Text(
+              subtitle!,
+              style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+            )
+          : null,
       trailing: trailing ?? const Icon(Icons.chevron_right, color: Color(0xFF6B7280), size: 20),
       onTap: onTap,
     );
