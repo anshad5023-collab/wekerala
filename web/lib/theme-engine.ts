@@ -1,4 +1,4 @@
-export type LayoutVariant = 'clean' | 'dark' | 'warm' | 'neopop' | 'editorial' | 'carousel' | 'luxury' | 'festival' | 'restaurant';
+export type LayoutVariant = 'clean' | 'dark' | 'warm' | 'neopop' | 'editorial' | 'carousel' | 'luxury' | 'festival' | 'restaurant' | 'amazon' | 'flipkart' | 'swiggy' | 'zomato';
 
 export interface ThemeConfig {
   id: string;
@@ -120,6 +120,22 @@ export const THEMES: ThemeConfig[] = [
   {
     id: 'restaurant', name: 'Restaurant', description: 'Swiggy-style menu for hotels & restaurants', tag: 'Food', layout: 'restaurant',
     defaults: { primaryColor: '#FC8019', secondaryColor: '#FF4D2B', fontFamily: 'Poppins', bgColor: '#FFFFFF', textColor: '#3E4152' },
+  },
+  {
+    id: 'amazon', name: 'Amazon', description: 'Amazon-style shop — deals, categories, product grid', tag: 'Shop', layout: 'amazon',
+    defaults: { primaryColor: '#FF9900', secondaryColor: '#131921', fontFamily: 'Inter', bgColor: '#F3F3F3', textColor: '#0F1111' },
+  },
+  {
+    id: 'flipkart', name: 'Flipkart', description: 'Flipkart-style with flash sales & category strips', tag: 'Shop', layout: 'flipkart',
+    defaults: { primaryColor: '#2874F0', secondaryColor: '#FB641B', fontFamily: 'Nunito', bgColor: '#F1F3F6', textColor: '#212121' },
+  },
+  {
+    id: 'swiggy', name: 'Swiggy', description: 'Swiggy-style food menu with categories & cart bar', tag: 'Food', layout: 'swiggy',
+    defaults: { primaryColor: '#FC8019', secondaryColor: '#3D4152', fontFamily: 'Poppins', bgColor: '#FFFFFF', textColor: '#3D4152' },
+  },
+  {
+    id: 'zomato', name: 'Zomato', description: 'Zomato-style restaurant with red branding & filters', tag: 'Food', layout: 'zomato',
+    defaults: { primaryColor: '#E23744', secondaryColor: '#1C1C1C', fontFamily: 'Poppins', bgColor: '#FFFFFF', textColor: '#1C1C1C' },
   },
 ];
 

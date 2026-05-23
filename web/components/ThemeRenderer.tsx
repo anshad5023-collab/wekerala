@@ -2,6 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { getTheme, type WebsiteConfig } from '@/lib/theme-engine';
+import AmazonLayout from './themes/AmazonLayout';
+import FlipkartLayout from './themes/FlipkartLayout';
+import SwiggyLayout from './themes/SwiggyLayout';
+import ZomatoLayout from './themes/ZomatoLayout';
 
 interface ShopData {
   shopName: string; shopNameMl: string; shopType: string;
@@ -923,6 +927,10 @@ export default function ThemeRenderer({ config, shop, products, shopId }: Props)
       {theme.layout === 'carousel' && <CarouselLayout {...layoutProps} />}
       {theme.layout === 'luxury' && <LuxuryLayout {...layoutProps} />}
       {theme.layout === 'festival' && <FestivalLayout {...layoutProps} />}
+      {theme.layout === 'amazon' && <AmazonLayout {...layoutProps} />}
+      {theme.layout === 'flipkart' && <FlipkartLayout {...layoutProps} />}
+      {theme.layout === 'swiggy' && <SwiggyLayout {...layoutProps} />}
+      {theme.layout === 'zomato' && <ZomatoLayout {...layoutProps} />}
       <PolicyFooter config={config} shopId={shopId} />
     </>
   );

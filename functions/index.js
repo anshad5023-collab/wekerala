@@ -648,6 +648,73 @@ exports.onOrderStatusChanged = onDocumentUpdated(
   }
 );
 
+// ─── Function 9: Order Status Change → Rich Customer WhatsApp Notification ───
+
+// Fires whenever an order document is updated under any shop.
+// Sends a richer, status-specific WhatsApp message to the customer.
+// Uses the v1 Admin SDK style (admin.firestore) via a local alias so it works
+// alongside the existing v2-style functions in this file.
+exports.onOrderStatusChange = onDocumentUpdated(
+  'shops/{shopId}/orders/{orderId}',
+  async (event) => {
+    try {
+      const before = event.data.before.data();
+      const after = event.data.after.data();
+
+      if (!before || !after) return null;
+      if (before.status === after.status) return null; // no status change
+
+      const { shopId, orderId } = event.params;
+      const customerPhone = after.customerPhone || '';
+      const customerName = after.customerName || 'Customer';
+      const newStatus = after.status;
+      const orderTotal = after.total || after.totalAmount || 0;
+
+      if (!customerPhone || customerPhone.length < 10) return null;
+
+      const db = getFirestore();
+      const shopDoc = await db.collection('shops').doc(shopId).get();
+      const shopName = (shopDoc.data() && (shopDoc.data().shopName || shopDoc.data().name)) || 'Your Shop';
+
+      const statusMessages = {
+        confirmed: `✅ Order Confirmed!\n\nHi ${customerName}, your order at *${shopName}* has been confirmed!\n\nOrder Total: ₹${orderTotal}\n\nWe'll update you when it's ready. Thank you! 🙏`,
+        preparing: `👨‍🍳 Order Being Prepared!\n\nHi ${customerName}, your order at *${shopName}* is now being prepared. Almost ready! ⏱️`,
+        ready: `🎉 Order Ready!\n\nHi ${customerName}, your order at *${shopName}* is READY for pickup/delivery!\n\nOrder Total: ₹${orderTotal}\n\nThank you for your order! 🙏`,
+        delivered: `✅ Order Delivered!\n\nHi ${customerName}, your order from *${shopName}* has been delivered!\n\nThank you for shopping with us. We hope to see you again! 🛍️`,
+        cancelled: `❌ Order Cancelled\n\nHi ${customerName}, unfortunately your order at *${shopName}* has been cancelled.\n\nPlease contact us for more details or to reorder.`,
+        out_for_delivery: `🚗 Out for Delivery!\n\nHi ${customerName}, your order from *${shopName}* is on its way! Expect delivery soon. 🎁`,
+      };
+
+      const message = statusMessages[newStatus];
+      if (!message) return null;
+
+      try {
+        await sendWhatsApp(customerPhone, message);
+        // Log the notification on the order document
+        await db
+          .collection('shops').doc(shopId)
+          .collection('orders').doc(orderId)
+          .update({
+            lastNotifiedAt: FieldValue.serverTimestamp(),
+            lastNotifiedStatus: newStatus,
+          });
+        console.log(`[onOrderStatusChange] Notified ${customerPhone} — status: ${newStatus}, order: ${orderId}`);
+      } catch (err) {
+        console.error('[onOrderStatusChange] Failed to send WhatsApp:', err.message);
+      }
+
+      return null;
+    } catch (err) {
+      console.error('[onOrderStatusChange] Unhandled error:', err.message);
+      return null;
+    }
+  }
+);
+
+// ─── Gemini API Key ──────────────────────────────────────────────────────────
+// Set via: firebase functions:secrets:set GEMINI_API_KEY
+const GEMINI_API_KEY = defineString('GEMINI_API_KEY', { default: '' });
+
 // ─── Function 6: Monthly Business Report (1st of month, 8 AM IST = 02:30 UTC) ─
 
 exports.sendMonthlyReport = onSchedule(
@@ -752,3 +819,203 @@ exports.sendMonthlyReport = onSchedule(
     }
   }
 );
+
+// ─── Function 8: WhatsApp Webhook — Gupshup inbound + Gemini AI auto-reply ───
+
+exports.whatsappWebhook = onRequest({ cors: true }, async (req, res) => {
+  const db = getFirestore();
+
+  try {
+    // 1. Extract sender phone, message text, and app name from Gupshup POST payload
+    const sender = req.body.mobile;
+    const messageText = req.body.message;
+    const appName = req.body.appName;
+
+    if (!sender || !messageText || !appName) {
+      console.warn('[Webhook] Missing required fields:', { sender, messageText, appName });
+      return res.json({ success: false });
+    }
+
+    // 2. Query Firestore shops collection to find the shop that owns this Gupshup app
+    const shopsSnap = await db
+      .collection('shops')
+      .where('gupshupAppName', '==', appName)
+      .limit(1)
+      .get();
+
+    if (shopsSnap.empty) {
+      console.warn('[Webhook] No shop found for gupshupAppName:', appName);
+      return res.json({ success: false });
+    }
+
+    const shopDoc = shopsSnap.docs[0];
+    const shopId = shopDoc.id;
+    const shop = shopDoc.data();
+
+    // 3. Check AI settings — bail out early if AI is not enabled
+    const aiSettings = shop.aiSettings || {};
+    if (aiSettings.enabled !== true) {
+      console.log(`[Webhook] AI not enabled for shop ${shopId}`);
+      return res.json({ success: false });
+    }
+
+    const shopName = shop.shopName || shop.name || 'Our Shop';
+    const ownerPhone = shop.ownerPhone || shop.phoneNumber || shop.phone || shop.ownerWhatsApp || '';
+    const storefrontUrl = `https://wekerala.vercel.app/shop?shopId=${shopId}`;
+
+    // 4. Fetch top 20 products (name, price, inStock only)
+    const productsSnap = await db
+      .collection('shops')
+      .doc(shopId)
+      .collection('products')
+      .limit(20)
+      .get();
+
+    const products = productsSnap.docs.map((d) => {
+      const p = d.data();
+      return {
+        name: p.productName || p.name || '',
+        price: p.price || p.sellingPrice || 0,
+        inStock: p.inStock !== undefined ? p.inStock : (p.stockQty > 0),
+      };
+    });
+
+    // 5. Read last 5 messages from the AI chat history for this sender
+    const chatDocRef = db
+      .collection('shops')
+      .doc(shopId)
+      .collection('aiChats')
+      .doc(sender);
+
+    const chatSnap = await chatDocRef.get();
+    const existingMessages = chatSnap.exists ? (chatSnap.data().messages || []) : [];
+    const recentHistory = existingMessages.slice(-5);
+
+    // 6. Check for human hand-off keyword before calling Gemini
+    const lowerMessage = messageText.toLowerCase();
+    const handoffKeyword = aiSettings.humanHandoffKeyword
+      ? aiSettings.humanHandoffKeyword.toLowerCase()
+      : null;
+
+    if (handoffKeyword && lowerMessage.includes(handoffKeyword)) {
+      let handoffReply;
+      if (!aiSettings.neverShareOwnerPhone && ownerPhone) {
+        handoffReply = `Please contact us directly on WhatsApp: ${ownerPhone}`;
+      } else {
+        handoffReply = 'Please contact us directly.';
+      }
+
+      await sendWhatsApp(sender, handoffReply);
+
+      // Save this exchange to chat history
+      const updatedMessages = [
+        ...recentHistory,
+        { role: 'user', text: messageText, ts: Date.now() },
+        { role: 'assistant', text: handoffReply, ts: Date.now() },
+      ].slice(-5);
+
+      await chatDocRef.set({ messages: updatedMessages }, { merge: true });
+
+      return res.json({ success: true });
+    }
+
+    // 7. Build the Gemini system prompt dynamically from aiSettings
+    const systemPrompt = `You are the WhatsApp assistant for ${shopName}.
+Rules:
+${aiSettings.shareProductPrices ? '- You CAN share product prices from the list below.' : '- NEVER mention specific prices. Say "please check our store for prices".'}
+${aiSettings.shareStockStatus ? '- You CAN share stock availability.' : '- Do not discuss stock availability.'}
+${aiSettings.neverShareOwnerPhone ? '- NEVER share the owner phone number under any circumstances.' : ''}
+${aiSettings.neverShareOwnerAddress ? '- NEVER share the owner home/personal address.' : ''}
+${aiSettings.neverDiscussCompetitors ? '- NEVER discuss or recommend competitor shops.' : ''}
+${aiSettings.autoSendStorefrontLink ? `- Always end your reply with: "Order here: ${storefrontUrl}"` : ''}
+${aiSettings.answerDeliveryQuestions ? `- Delivery charge: ₹${shop.deliveryCharge || 0}. Free above ₹${shop.freeDeliveryAbove || 0}.` : '- Do not answer delivery questions. Say "please contact us".'}
+${aiSettings.answerHoursQuestions ? `- Store hours: ${shop.workingHours || 'Contact us for hours'}.` : ''}
+${aiSettings.customInstructions ? aiSettings.customInstructions : ''}
+Products list: ${JSON.stringify(products.map((p) => ({ name: p.name, price: p.price, inStock: p.inStock })))}
+Keep replies short (under 100 words). Detect language and reply in the same language.`;
+
+    // 8. Build Gemini request contents from chat history + new user message
+    const historyContents = recentHistory.map((m) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.text }],
+    }));
+
+    const geminiPayload = {
+      system_instruction: { parts: [{ text: systemPrompt }] },
+      contents: [
+        ...historyContents,
+        { role: 'user', parts: [{ text: messageText }] },
+      ],
+    };
+
+    // 9. Call Gemini 2.0 Flash API
+    const GEMINI_KEY = GEMINI_API_KEY.value() || process.env.GEMINI_API_KEY;
+
+    if (!GEMINI_KEY) {
+      console.error('[Webhook] Missing GEMINI_API_KEY');
+      await sendWhatsApp(sender, `I'll get back to you shortly. View our store: ${storefrontUrl}`);
+      return res.json({ success: false });
+    }
+
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
+
+    let aiReply;
+    try {
+      const geminiResp = await axios.post(geminiUrl, geminiPayload, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 15000,
+      });
+
+      aiReply =
+        geminiResp.data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+        `I'll get back to you shortly. View our store: ${storefrontUrl}`;
+    } catch (geminiErr) {
+      console.error('[Webhook] Gemini API error:', geminiErr.response?.data ?? geminiErr.message);
+      aiReply = `I'll get back to you shortly. View our store: ${storefrontUrl}`;
+    }
+
+    // 10. Send the AI reply via WhatsApp
+    await sendWhatsApp(sender, aiReply);
+
+    // 11. Save updated conversation — keep only the last 5 messages
+    const updatedMessages = [
+      ...recentHistory,
+      { role: 'user', text: messageText, ts: Date.now() },
+      { role: 'assistant', text: aiReply, ts: Date.now() },
+    ].slice(-5);
+
+    await chatDocRef.set({ messages: updatedMessages }, { merge: true });
+
+    return res.json({ success: true });
+
+  } catch (err) {
+    console.error('[Webhook] Unhandled error:', err.message);
+
+    // Best-effort fallback reply — extract sender from body for the error path
+    try {
+      const fallbackSender = req.body.mobile;
+
+      if (fallbackSender) {
+        // Try to build a storefront URL if we can — use a generic fallback if not
+        let fallbackUrl = 'https://wekerala.vercel.app';
+        try {
+          const db2 = getFirestore();
+          const snap = await db2
+            .collection('shops')
+            .where('gupshupAppName', '==', req.body.appName)
+            .limit(1)
+            .get();
+          if (!snap.empty) {
+            fallbackUrl = `https://wekerala.vercel.app/shop?shopId=${snap.docs[0].id}`;
+          }
+        } catch (_) { /* ignore */ }
+
+        await sendWhatsApp(fallbackSender, `I'll get back to you shortly. View our store: ${fallbackUrl}`);
+      }
+    } catch (fallbackErr) {
+      console.error('[Webhook] Fallback send error:', fallbackErr.message);
+    }
+
+    return res.json({ success: false });
+  }
+});
