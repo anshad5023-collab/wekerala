@@ -15,7 +15,8 @@ if (getApps().length === 0) {
 // and:          firebase functions:secrets:set GUPSHUP_APP_NAME
 const GUPSHUP_API_KEY = defineString('GUPSHUP_API_KEY', { default: '' });
 const GUPSHUP_APP_NAME = defineString('GUPSHUP_APP_NAME', { default: '' });
-const GUPSHUP_BASE_URL = 'https://api.gupshup.io/sm/api/v1/msg';
+const GUPSHUP_SOURCE_PHONE = defineString('GUPSHUP_SOURCE_PHONE', { default: '15559725142' });
+const GUPSHUP_BASE_URL = 'https://api.gupshup.io/wa/api/v1/msg';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -37,7 +38,7 @@ async function sendWhatsApp(phone, message, retries = 2) {
     try {
       const params = new URLSearchParams({
         channel: 'whatsapp',
-        source: GUPSHUP_APP_NAME.value(),
+        source: GUPSHUP_SOURCE_PHONE.value(),
         destination: e164,
         message: JSON.stringify({ type: 'text', text: message }),
         'src.name': appName,
