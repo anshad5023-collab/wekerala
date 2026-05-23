@@ -160,7 +160,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
 
     final shopId = biz['_id'] as String;
-    final shopName = biz['name'] as String? ?? 'Your Shop';
+    final shopName = biz['shopName'] as String? ?? 'Your Shop';
 
     // Watch new orders
     final ordersAsync = ref.watch(ordersStreamProvider(shopId));

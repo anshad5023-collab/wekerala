@@ -222,7 +222,8 @@ class _HubBody extends ConsumerWidget {
         _SettingsCard(children: [
           _SettingsTile(
             icon: Icons.currency_rupee_outlined,
-            title: 'Udhar Book',
+            title: 'Credit Ledger',
+            subtitle: 'Track customer balances',
             iconColor: const Color(0xFFF4A261),
             onTap: () => context.push('/credits'),
           ),

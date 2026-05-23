@@ -152,23 +152,20 @@ Rules you MUST follow:
 5. For ordering, say: "Tap any product above to add it to cart!"
 6. Be warm and helpful.${customNote ? `\n7. ${customNote}` : ''}`;
 
-    // Build conversation contents (last 5 messages + current)
+    // Build conversation contents: system prompt first, then full history, then current message
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const contents: any[] = [
-      { role: 'user', parts: [{ text: systemPrompt + '\n\nCustomer: ' + (history[0]?.text ?? message) }] },
+      { role: 'user', parts: [{ text: systemPrompt }] },
+      { role: 'model', parts: [{ text: 'Understood. I am ready to assist customers.' }] },
     ];
 
-    // Add history pairs (skip first since merged above)
-    const recentHistory = history.slice(1);
-    for (let i = 0; i < recentHistory.length; i++) {
-      const h = recentHistory[i];
-      contents.push({ role: h.role === 'user' ? 'user' : 'model', parts: [{ text: h.text }] });
+    // Add full conversation history
+    for (const h of history) {
+      contents.push({ role: h.role === 'user' ? 'user' : 'model', parts: [{ text: h.text ?? h.content ?? '' }] });
     }
 
-    // Add current message (if history existed)
-    if (history.length > 0) {
-      contents.push({ role: 'user', parts: [{ text: message }] });
-    }
+    // Add current customer message
+    contents.push({ role: 'user', parts: [{ text: message }] });
 
     const geminiRes = await fetch(GEMINI_URL, {
       method: 'POST',

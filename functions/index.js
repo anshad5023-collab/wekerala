@@ -37,7 +37,7 @@ async function sendWhatsApp(phone, message, retries = 2) {
     try {
       const params = new URLSearchParams({
         channel: 'whatsapp',
-        source: '15559725142',
+        source: GUPSHUP_APP_NAME.value(),
         destination: e164,
         message: JSON.stringify({ type: 'text', text: message }),
         'src.name': appName,
@@ -764,21 +764,44 @@ exports.whatsappWebhook = onRequest({ cors: true }, async (req, res) => {
 
   try {
     // 1. Extract sender phone, message text, and app name from Gupshup POST payload
-    const sender = req.body.mobile;
-    const messageText = req.body.message;
-    const appName = req.body.appName;
+    // Gupshup v2 format: { app, payload: { source, type, payload: { text } } }
+    // Gupshup v1 format: { mobile, message, appName }
+    const body = req.body;
+    console.log('[Webhook] Raw body:', JSON.stringify(body).slice(0, 500));
 
-    if (!sender || !messageText || !appName) {
+    let sender, messageText, appName;
+    if (body.payload && body.payload.source) {
+      // Gupshup v2 format
+      sender = body.payload.source;
+      messageText = body.payload.payload?.text || body.payload.payload?.caption || '';
+      appName = body.app || body.appName;
+    } else if (body.mobile) {
+      // Gupshup v1 format
+      sender = body.mobile;
+      messageText = body.message;
+      appName = body.appName;
+    } else {
+      // Try Meta/v3 format: { entry[0].changes[0].value.messages[0] }
+      const entry = body.entry?.[0];
+      const change = entry?.changes?.[0]?.value;
+      const msg = change?.messages?.[0];
+      if (msg) {
+        sender = msg.from;
+        messageText = msg.text?.body || msg.interactive?.button_reply?.title || '';
+        appName = change?.metadata?.display_phone_number || body.appName;
+      }
+    }
+
+    if (!sender || !messageText) {
       console.warn('[Webhook] Missing required fields:', { sender, messageText, appName });
       return res.json({ success: false });
     }
 
     // 2. Query Firestore shops collection to find the shop that owns this Gupshup app
-    const shopsSnap = await db
-      .collection('shops')
-      .where('gupshupAppName', '==', appName)
-      .limit(1)
-      .get();
+    // Try matching by gupshupAppName first, then fall back to whatsappNumber
+    let shopsSnap = appName
+      ? await db.collection('shops').where('gupshupAppName', '==', appName).limit(1).get()
+      : { empty: true, docs: [] };
 
     if (shopsSnap.empty) {
       console.warn('[Webhook] No shop found for gupshupAppName:', appName);
