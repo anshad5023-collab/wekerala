@@ -585,69 +585,6 @@ exports.onProductStockUpdate = onDocumentUpdated(
   }
 );
 
-// ─── Function 5: Order Status → Customer WhatsApp ────────────────────────────
-
-exports.onOrderStatusChanged = onDocumentUpdated(
-  'shops/{shopId}/orders/{orderId}',
-  async (event) => {
-    try {
-      const newData = event.data.after.data();
-      const oldData = event.data.before.data();
-
-      if (!newData || !oldData) return;
-
-      const newStatus = newData.status;
-      const oldStatus = oldData.status;
-
-      // Only send if status actually changed
-      if (newStatus === oldStatus) return;
-
-      const customerPhone = newData.customerPhone || '';
-      if (!customerPhone || customerPhone.length < 10) return;
-
-      const shopId = event.params.shopId;
-      const db = getFirestore();
-
-      const shopSnap = await db.collection('shops').doc(shopId).get();
-      const shop = shopSnap.data();
-      const shopName = (shop && (shop.shopName || shop.name)) || 'your shop';
-
-      let msg = null;
-
-      switch (newStatus) {
-        case 'confirmed':
-          msg = `✅ Your order at ${shopName} has been confirmed! We're preparing it now.`;
-          break;
-        case 'ready': {
-          const deliveryType = newData.deliveryType || '';
-          const pickupNote =
-            deliveryType === 'pickup' ? 'Please collect it.' : 'Out for delivery soon.';
-          msg = `🎉 Your order at ${shopName} is ready! ${pickupNote}`;
-          break;
-        }
-        case 'delivered':
-          msg = `✅ Order delivered! Thank you for shopping at ${shopName}. 🙏`;
-          break;
-        case 'cancelled':
-          msg = `❌ Your order at ${shopName} has been cancelled. Contact us for details.`;
-          break;
-        default:
-          // Skip unknown/intermediate statuses
-          return;
-      }
-
-      if (msg) {
-        await sendWhatsApp(customerPhone, msg);
-        console.log(
-          `Order status message (${newStatus}) sent for order ${event.params.orderId} in shop ${shopId}`
-        );
-      }
-    } catch (err) {
-      console.error('Error in onOrderStatusChanged:', err.message);
-    }
-  }
-);
-
 // ─── Function 9: Order Status Change → Rich Customer WhatsApp Notification ───
 
 // Fires whenever an order document is updated under any shop.
@@ -1202,3 +1139,53 @@ exports.processFlashSales = onSchedule(
     }
   }
 );
+
+// ─── Function 14: Broadcast WhatsApp Message to Recent Customers ──────────────
+
+const { onCall } = require('firebase-functions/v2/https');
+
+exports.sendBroadcast = onCall({ maxInstances: 1 }, async (request) => {
+  if (!request.auth) throw new Error('Unauthenticated');
+
+  const { shopId, message } = request.data;
+  if (!shopId || !message) throw new Error('Missing shopId or message');
+
+  const db = getFirestore();
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+
+  const ordersSnap = await db.collection('shops').doc(shopId)
+    .collection('orders')
+    .where('createdAt', '>=', Timestamp.fromDate(ninetyDaysAgo))
+    .get();
+
+  const phones = new Set();
+  ordersSnap.forEach(doc => {
+    const phone = doc.data().customerPhone;
+    if (phone) phones.add(phone);
+  });
+
+  const phoneList = Array.from(phones).slice(0, 200);
+  let sent = 0;
+  let failed = 0;
+
+  for (const phone of phoneList) {
+    try {
+      await sendWhatsApp(phone, message);
+      sent++;
+      await new Promise(r => setTimeout(r, 300));
+    } catch (err) {
+      failed++;
+      console.error('Broadcast failed for', phone, err);
+    }
+  }
+
+  // Log broadcast
+  await db.collection('shops').doc(shopId).collection('broadcasts').add({
+    message,
+    sentAt: FieldValue.serverTimestamp(),
+    recipientCount: sent,
+    failedCount: failed,
+  });
+
+  return { sent, failed };
+});
