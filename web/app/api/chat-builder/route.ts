@@ -151,7 +151,7 @@ RULES:
 // ── Gemini Flash call ─────────────────────────────────────────────────────────
 
 async function callGemini(systemPrompt: string, userMessage: string): Promise<AiAction> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
   const body = {
     system_instruction: { parts: [{ text: systemPrompt }] },
