@@ -835,6 +835,75 @@ function FestivalLayout({ config, shop, products, shopId }: Props) {
   );
 }
 
+// ── REVIEWS / TESTIMONIALS ───────────────────────────────────────────────────────
+// Hardcoded sample reviews — in a real implementation these would come from Firestore
+// For now, use 3 placeholder reviews that look realistic
+const SAMPLE_REVIEWS = [
+  { name: 'Anitha K.', rating: 5, text: 'Very fresh vegetables! Delivery was on time and packaging was good.', date: '2 days ago' },
+  { name: 'Muhammed R.', rating: 5, text: 'Best prices in the area. The coconut oil is authentic. Will order again!', date: '1 week ago' },
+  { name: 'Priya S.', rating: 4, text: 'Good quality products. The customer service via WhatsApp is very helpful.', date: '2 weeks ago' },
+]
+
+function StarRating({ rating }: { rating: number }) {
+  return (
+    <span>
+      {'★'.repeat(rating)}{'☆'.repeat(5 - rating)}
+    </span>
+  )
+}
+
+function ReviewsSection({ config }: { config: WebsiteConfig }) {
+  if (!config.reviewsEnabled) return null
+
+  return (
+    <section style={{ background: '#f9f9f9', padding: '40px 16px' }}>
+      <h2 style={{
+        textAlign: 'center',
+        fontFamily: config.fontFamily || 'Poppins',
+        color: config.primaryColor || '#2D6A4F',
+        fontSize: '1.5rem',
+        fontWeight: 700,
+        marginBottom: '8px'
+      }}>
+        What Our Customers Say
+      </h2>
+      <p style={{ textAlign: 'center', color: '#666', fontSize: '0.9rem', marginBottom: '32px' }}>
+        Trusted by families in the neighborhood
+      </p>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+        gap: '16px',
+        maxWidth: '960px',
+        margin: '0 auto'
+      }}>
+        {SAMPLE_REVIEWS.map((review, i) => (
+          <div key={i} style={{
+            background: '#fff',
+            borderRadius: '12px',
+            padding: '20px',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px'
+          }}>
+            <div style={{ color: config.primaryColor || '#F59E0B', fontSize: '1.1rem' }}>
+              <StarRating rating={review.rating} />
+            </div>
+            <p style={{ fontSize: '0.875rem', color: '#374151', lineHeight: 1.6, flex: 1 }}>
+              &ldquo;{review.text}&rdquo;
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#111' }}>{review.name}</span>
+              <span style={{ fontSize: '0.75rem', color: '#9CA3AF' }}>{review.date}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 // ── ANNOUNCEMENT BAR ─────────────────────────────────────────────────────────────
 function AnnouncementBar({ config }: { config: WebsiteConfig }) {
   if (!config.announcementBarEnabled || !config.announcementBar) return null;
@@ -931,6 +1000,7 @@ export default function ThemeRenderer({ config, shop, products, shopId }: Props)
       {theme.layout === 'flipkart' && <FlipkartLayout {...layoutProps} />}
       {theme.layout === 'swiggy' && <SwiggyLayout {...layoutProps} />}
       {theme.layout === 'zomato' && <ZomatoLayout {...layoutProps} />}
+      <ReviewsSection config={config} />
       <PolicyFooter config={config} shopId={shopId} />
     </>
   );

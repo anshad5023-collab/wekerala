@@ -9,6 +9,27 @@ import { THEMES, GOOGLE_FONTS, getTheme, defaultConfig, type ThemeConfig, type W
 type Tab = 'theme' | 'design' | 'pages' | 'offers' | 'plugins';
 const ALL_SECTIONS = ['hero', 'products', 'about', 'contact'];
 
+// ── Improvement 1: Color Palette Presets ──────────────────────────────────────
+const COLOR_SCHEMES = [
+  { name: 'Kerala Green',  primary: '#2D6A4F', secondary: '#74C69D' },
+  { name: 'Saffron',       primary: '#E76F51', secondary: '#F4A261' },
+  { name: 'Ocean Blue',    primary: '#023E8A', secondary: '#0077B6' },
+  { name: 'Festival',      primary: '#FF9500', secondary: '#FFD700' },
+  { name: 'Rose',          primary: '#C77DFF', secondary: '#E0AAFF' },
+  { name: 'Midnight',      primary: '#1B263B', secondary: '#415A77' },
+  { name: 'Fresh Mint',    primary: '#2EC4B6', secondary: '#CBF3F0' },
+  { name: 'Crimson',       primary: '#9D0208', secondary: '#E85D04' },
+  { name: 'Pure White',    primary: '#1E293B', secondary: '#3B82F6' },
+  { name: 'Forest',        primary: '#1B4332', secondary: '#40916C' },
+];
+
+// ── Improvement 7: Viewport config ───────────────────────────────────────────
+const VIEWPORTS = {
+  desktop: { width: '100%',  label: '💻 Desktop' },
+  tablet:  { width: '768px', label: '⬛ Tablet' },
+  mobile:  { width: '390px', label: '📱 Mobile' },
+} as const;
+
 function ThemeMiniPreview({ theme }: { theme: ThemeConfig }) {
   const { defaults, layout } = theme;
   const isDark = ['dark', 'neopop', 'luxury'].includes(layout);
@@ -114,6 +135,19 @@ function BuilderContent() {
   const [draftSaved, setDraftSaved] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
+  // ── Improvement 3: Upload state ───────────────────────────────────────────
+  const [uploading, setUploading] = useState<Record<string, boolean>>({});
+
+  // ── Improvement 4: Drag-to-reorder state ──────────────────────────────────
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+
+  // ── Improvement 5: Expanded section settings state ────────────────────────
+  const [expandedSection, setExpandedSection] = useState<string | null>(null);
+
+  // ── Improvement 7: Viewport & preview key state ───────────────────────────
+  const [viewport, setViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
+  const [previewKey, setPreviewKey] = useState(0);
+
   const setC = (partial: Partial<WebsiteConfig>) => { setConfig(prev => ({ ...prev, ...partial })); setDraftSaved(false); };
 
   // AI bridge — register window functions so Flutter can apply/undo AI patches
@@ -161,6 +195,16 @@ function BuilderContent() {
     };
   }, [config]); // keep bridge up to date with latest config
 
+  // ── Improvement 2: Inject Google Fonts for visual font picker ─────────────
+  useEffect(() => {
+    const styleId = 'wb-google-fonts';
+    if (document.getElementById(styleId)) return;
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&family=Inter:wght@400;600&family=Playfair+Display:wght@400;600&family=Montserrat:wght@400;600&family=Roboto:wght@400;600&family=Raleway:wght@400;600&family=Nunito:wght@400;600&family=DM+Sans:wght@400;600&family=Space+Grotesk:wght@400;600&family=Outfit:wght@400;600&family=Lato:wght@400;600&family=Open+Sans:wght@400;600&family=Josefin+Sans:wght@400;600&family=Bebas+Neue&family=Sora:wght@400;600&display=swap');`;
+    document.head.appendChild(style);
+  }, []);
+
   useEffect(() => {
     if (uid) setUser(uid, '');
     if (!shopId) return;
@@ -195,12 +239,37 @@ function BuilderContent() {
     return () => clearTimeout(t);
   }, [config, shopId, uid, loaded, draftSaved]);
 
-  const moveSection = (i: number, dir: -1 | 1) => {
-    const secs = [...config.sections];
-    const t = i + dir;
-    if (t < 0 || t >= secs.length) return;
-    [secs[i], secs[t]] = [secs[t], secs[i]];
-    setC({ sections: secs });
+  // ── Improvement 3: Upload handler ─────────────────────────────────────────
+  const handleUpload = async (field: 'logoUrl' | 'faviconUrl', file: File) => {
+    setUploading(prev => ({ ...prev, [field]: true }));
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('shopId', shopId);
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.url) setConfig(prev => ({ ...prev, [field]: data.url }));
+    } catch (e) {
+      console.error('Upload failed', e);
+    } finally {
+      setUploading(prev => ({ ...prev, [field]: false }));
+    }
+  };
+
+  const handleBannerUpload = async (file: File) => {
+    setUploading(prev => ({ ...prev, banner: true }));
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('shopId', shopId);
+      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const data = await res.json();
+      if (data.url) setC({ banners: [...(config.banners || []), data.url] });
+    } catch (e) {
+      console.error('Banner upload failed', e);
+    } finally {
+      setUploading(prev => ({ ...prev, banner: false }));
+    }
   };
 
   const addBanner = () => {
@@ -253,6 +322,69 @@ function BuilderContent() {
   const currentTheme = getTheme(config.themeId);
   const socialLinks = config.socialLinks || { instagram: '', facebook: '', youtube: '', twitter: '' };
 
+  // ── Improvement 5: Section-level settings panels ───────────────────────────
+  const SECTION_SETTINGS: Record<string, React.ReactElement> = {
+    products: (
+      <div className="mt-2 pl-4 space-y-2 border-l-2 border-blue-100">
+        <div>
+          <label className="text-xs text-gray-500">Grid Columns</label>
+          <div className="flex gap-2 mt-1">
+            {[2, 3, 4, 5].map(n => (
+              <button
+                key={n}
+                onClick={() => setConfig(prev => ({ ...prev, productColumns: n } as any))}
+                className={`px-3 py-1 text-xs rounded border ${(config as any).productColumns === n ? 'bg-blue-500 text-white border-blue-500' : 'border-gray-300'}`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+        <label className="flex items-center gap-2 text-xs">
+          <input type="checkbox" checked={(config as any).showProductPrice !== false} onChange={e => setConfig(prev => ({ ...prev, showProductPrice: e.target.checked } as any))} />
+          Show price
+        </label>
+        <label className="flex items-center gap-2 text-xs">
+          <input type="checkbox" checked={(config as any).showProductRating !== false} onChange={e => setConfig(prev => ({ ...prev, showProductRating: e.target.checked } as any))} />
+          Show rating
+        </label>
+      </div>
+    ),
+    hero: (
+      <div className="mt-2 pl-4 space-y-2 border-l-2 border-blue-100">
+        <div>
+          <label className="text-xs text-gray-500">Hero Height</label>
+          <select
+            value={(config as any).heroHeight || 'medium'}
+            onChange={e => setConfig(prev => ({ ...prev, heroHeight: e.target.value } as any))}
+            className="mt-1 w-full text-xs border border-gray-300 rounded p-1"
+          >
+            <option value="small">Small (300px)</option>
+            <option value="medium">Medium (450px)</option>
+            <option value="large">Large (600px)</option>
+            <option value="fullscreen">Full Screen</option>
+          </select>
+        </div>
+      </div>
+    ),
+    about: (
+      <div className="mt-2 pl-4 space-y-2 border-l-2 border-blue-100">
+        <div>
+          <label className="text-xs text-gray-500">Layout</label>
+          <select
+            value={(config as any).aboutLayout || 'text-only'}
+            onChange={e => setConfig(prev => ({ ...prev, aboutLayout: e.target.value } as any))}
+            className="mt-1 w-full text-xs border border-gray-300 rounded p-1"
+          >
+            <option value="text-only">Text only</option>
+            <option value="text-image">Text + Image</option>
+            <option value="centered">Centered</option>
+          </select>
+        </div>
+      </div>
+    ),
+  };
+
   return (
     <div className="flex flex-col h-screen bg-[#f8f9fa]" style={{ maxHeight: '100dvh' }}>
 
@@ -286,487 +418,665 @@ function BuilderContent() {
         </button>
       </header>
 
-      {/* ── Scrollable content ── */}
-      <main className="flex-1 overflow-y-auto">
+      {/* ── Improvement 7: Split-view layout ── */}
+      <div className="flex flex-1 overflow-hidden">
 
-        {publishStatus === 'success' && (
-          <div className="bg-green-50 border-b border-green-200 px-4 py-3 space-y-1">
-            <p className="text-green-800 font-medium text-sm">✓ Your site is live!</p>
-            <p className="text-green-700 text-xs break-all font-mono">{siteUrl}</p>
-            <div className="flex gap-3 mt-1.5">
-              <button onClick={() => navigator.clipboard.writeText(siteUrl)}
-                className="text-xs text-green-700 underline">Copy link</button>
-              <a href={siteUrl} target="_blank" rel="noopener noreferrer"
-                className="text-xs text-green-700 underline">Open site →</a>
-            </div>
-            {slugUrl && slugUrl !== siteUrl && (
-              <p className="text-green-600 text-xs break-all">Also accessible at: {slugUrl}</p>
+        {/* ── LEFT: Settings Panel ── */}
+        <div className="w-full lg:w-[420px] lg:min-w-[420px] flex flex-col border-r border-gray-200 overflow-hidden">
+
+          {/* Scrollable content area */}
+          <main className="flex-1 overflow-y-auto">
+
+            {publishStatus === 'success' && (
+              <div className="bg-green-50 border-b border-green-200 px-4 py-3 space-y-1">
+                <p className="text-green-800 font-medium text-sm">✓ Your site is live!</p>
+                <p className="text-green-700 text-xs break-all font-mono">{siteUrl}</p>
+                <div className="flex gap-3 mt-1.5">
+                  <button onClick={() => navigator.clipboard.writeText(siteUrl)}
+                    className="text-xs text-green-700 underline">Copy link</button>
+                  <a href={siteUrl} target="_blank" rel="noopener noreferrer"
+                    className="text-xs text-green-700 underline">Open site →</a>
+                </div>
+                {slugUrl && slugUrl !== siteUrl && (
+                  <p className="text-green-600 text-xs break-all">Also accessible at: {slugUrl}</p>
+                )}
+              </div>
             )}
-          </div>
-        )}
-        {publishStatus === 'error' && (
-          <div className="bg-red-50 border-b border-red-200 px-4 py-3">
-            <p className="text-red-700 text-sm font-medium">
-              {publishError?.includes('already taken') ? '⚠ Site name taken' : '✕ Failed to publish'}
-            </p>
-            <p className="text-red-600 text-xs mt-0.5">{publishError}</p>
-          </div>
-        )}
+            {publishStatus === 'error' && (
+              <div className="bg-red-50 border-b border-red-200 px-4 py-3">
+                <p className="text-red-700 text-sm font-medium">
+                  {publishError?.includes('already taken') ? '⚠ Site name taken' : '✕ Failed to publish'}
+                </p>
+                <p className="text-red-600 text-xs mt-0.5">{publishError}</p>
+              </div>
+            )}
 
-        {/* Draft status banner — shown when there are unsaved AI changes on a live site */}
-        {!draftSaved && config.isPublished && (
-          <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center gap-2 text-sm text-amber-800">
-            <span>⚡</span>
-            <span>You have unpublished changes from AI. Preview them or publish when ready.</span>
-          </div>
-        )}
+            {/* Draft status banner — shown when there are unsaved AI changes on a live site */}
+            {!draftSaved && config.isPublished && (
+              <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center gap-2 text-sm text-amber-800">
+                <span>⚡</span>
+                <span>You have unpublished changes from AI. Preview them or publish when ready.</span>
+              </div>
+            )}
 
-        {/* ──── THEME TAB ──── */}
-        {activeTab === 'theme' && (
-          <div className="p-4">
-            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-              {tags.map(tag => (
-                <button key={tag} onClick={() => setThemeFilter(tag)}
-                  className="shrink-0 px-3 py-1 rounded-full text-xs font-medium"
-                  style={themeFilter === tag
-                    ? { backgroundColor: '#283618', color: '#fefae0' }
-                    : { backgroundColor: '#e5e7eb', color: '#374151' }}>
-                  {tag}
-                </button>
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              {filtered.map(theme => {
-                const active = config.themeId === theme.id;
-                return (
-                  <div key={theme.id} className="rounded-xl overflow-hidden border-2 bg-white"
-                    style={{ borderColor: active ? '#283618' : '#e5e7eb' }}>
-                    <ThemeMiniPreview theme={theme} />
-                    <div className="p-2.5">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-semibold text-sm truncate">{theme.name}</span>
-                        <span className="shrink-0 text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">{theme.tag}</span>
+            {/* ──── THEME TAB ──── */}
+            {activeTab === 'theme' && (
+              <div className="p-4">
+                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                  {tags.map(tag => (
+                    <button key={tag} onClick={() => setThemeFilter(tag)}
+                      className="shrink-0 px-3 py-1 rounded-full text-xs font-medium"
+                      style={themeFilter === tag
+                        ? { backgroundColor: '#283618', color: '#fefae0' }
+                        : { backgroundColor: '#e5e7eb', color: '#374151' }}>
+                      {tag}
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  {filtered.map(theme => {
+                    const active = config.themeId === theme.id;
+                    return (
+                      <div key={theme.id} className="rounded-xl overflow-hidden border-2 bg-white"
+                        style={{ borderColor: active ? '#283618' : '#e5e7eb' }}>
+                        <ThemeMiniPreview theme={theme} />
+                        <div className="p-2.5">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="font-semibold text-sm truncate">{theme.name}</span>
+                            <span className="shrink-0 text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">{theme.tag}</span>
+                          </div>
+                          <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{theme.description}</p>
+                          <button
+                            onClick={() => {
+                              setC({ themeId: theme.id, primaryColor: theme.defaults.primaryColor, secondaryColor: theme.defaults.secondaryColor, fontFamily: theme.defaults.fontFamily });
+                              setActiveTab('design');
+                            }}
+                            className="w-full mt-2 py-1.5 rounded-lg text-xs font-semibold"
+                            style={active ? { backgroundColor: '#283618', color: '#fefae0' } : { backgroundColor: '#f3f4f6', color: '#374151' }}>
+                            {active ? '✓ Selected' : 'Use This →'}
+                          </button>
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{theme.description}</p>
-                      <button
-                        onClick={() => {
-                          setC({ themeId: theme.id, primaryColor: theme.defaults.primaryColor, secondaryColor: theme.defaults.secondaryColor, fontFamily: theme.defaults.fontFamily });
-                          setActiveTab('design');
-                        }}
-                        className="w-full mt-2 py-1.5 rounded-lg text-xs font-semibold"
-                        style={active ? { backgroundColor: '#283618', color: '#fefae0' } : { backgroundColor: '#f3f4f6', color: '#374151' }}>
-                        {active ? '✓ Selected' : 'Use This →'}
-                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ──── DESIGN TAB ──── */}
+            {activeTab === 'design' && (
+              <div className="p-4 space-y-5">
+                {/* Current theme indicator */}
+                <div className="flex items-center gap-2 p-2.5 bg-white rounded-xl border">
+                  <div className="w-24 shrink-0 rounded-xl overflow-hidden"><ThemeMiniPreview theme={currentTheme} /></div>
+                  <div className="pl-1 flex-1 min-w-0">
+                    <p className="font-semibold text-sm">{currentTheme.name}</p>
+                    <p className="text-xs text-gray-400">{currentTheme.tag}</p>
+                    <button onClick={() => setActiveTab('theme')} className="text-xs text-[#283618] underline mt-1">Change theme</button>
+                  </div>
+                </div>
+
+                {/* Announcement bar */}
+                <section className="bg-white rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-sm text-gray-700">📢 Announcement Bar</h3>
+                    <Switch checked={config.announcementBarEnabled || false} onCheckedChange={v => setC({ announcementBarEnabled: v })} />
+                  </div>
+                  {config.announcementBarEnabled && (
+                    <>
+                      <input value={config.announcementBar || ''} onChange={e => setC({ announcementBar: e.target.value })}
+                        className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
+                        placeholder="🎉 Free delivery on orders above ₹500!" />
+                      <div className="flex items-center gap-3">
+                        <label className="text-xs text-gray-500 shrink-0">Bar colour</label>
+                        <input type="color" value={config.announcementBarColor || config.primaryColor}
+                          onChange={e => setC({ announcementBarColor: e.target.value })}
+                          className="w-9 h-9 rounded-lg border cursor-pointer p-0.5" />
+                        <span className="text-xs text-gray-400 font-mono">{config.announcementBarColor || config.primaryColor}</span>
+                      </div>
+                    </>
+                  )}
+                </section>
+
+                {/* Site info */}
+                <section className="bg-white rounded-xl p-4 space-y-3">
+                  <h3 className="font-semibold text-sm text-gray-700">Site Info</h3>
+                  <div>
+                    <label className="text-xs text-gray-500">Site Name</label>
+                    <input value={config.siteName} onChange={e => setC({ siteName: e.target.value })}
+                      className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
+                      placeholder="My Shop" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Tagline</label>
+                    <input value={config.tagline} onChange={e => setC({ tagline: e.target.value })}
+                      className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
+                      placeholder="Fresh & quality, delivered fast" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">About Text</label>
+                    <textarea value={config.aboutText} onChange={e => setC({ aboutText: e.target.value })}
+                      rows={3} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
+                      placeholder="Tell customers about your shop…" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Order Button Text</label>
+                    <input value={config.primaryButtonText || 'Order Now'} onChange={e => setC({ primaryButtonText: e.target.value })}
+                      className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
+                      placeholder="Order Now" />
+                  </div>
+                </section>
+
+                {/* Colours & font */}
+                <section className="bg-white rounded-xl p-4 space-y-3">
+                  <h3 className="font-semibold text-sm text-gray-700">Colours & Font</h3>
+
+                  {/* ── Improvement 1: Color Palette Presets ── */}
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-2">Quick Presets</label>
+                    <div className="grid grid-cols-5 gap-2 mb-4">
+                      {COLOR_SCHEMES.map(scheme => (
+                        <button
+                          key={scheme.name}
+                          onClick={() => setConfig(prev => ({ ...prev, primaryColor: scheme.primary, secondaryColor: scheme.secondary }))}
+                          className="flex flex-col items-center gap-1 p-2 rounded-lg border border-gray-200 hover:border-blue-400 transition-colors"
+                          title={scheme.name}
+                        >
+                          <div className="flex gap-1">
+                            <div className="w-4 h-4 rounded-full border border-gray-300" style={{ background: scheme.primary }} />
+                            <div className="w-4 h-4 rounded-full border border-gray-300" style={{ background: scheme.secondary }} />
+                          </div>
+                          <span className="text-[10px] text-gray-500 text-center leading-tight">{scheme.name}</span>
+                        </button>
+                      ))}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
-        {/* ──── DESIGN TAB ──── */}
-        {activeTab === 'design' && (
-          <div className="p-4 space-y-5">
-            {/* Current theme indicator */}
-            <div className="flex items-center gap-2 p-2.5 bg-white rounded-xl border">
-              <div className="w-24 shrink-0 rounded-xl overflow-hidden"><ThemeMiniPreview theme={currentTheme} /></div>
-              <div className="pl-1 flex-1 min-w-0">
-                <p className="font-semibold text-sm">{currentTheme.name}</p>
-                <p className="text-xs text-gray-400">{currentTheme.tag}</p>
-                <button onClick={() => setActiveTab('theme')} className="text-xs text-[#283618] underline mt-1">Change theme</button>
-              </div>
-            </div>
-
-            {/* Announcement bar */}
-            <section className="bg-white rounded-xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-sm text-gray-700">📢 Announcement Bar</h3>
-                <Switch checked={config.announcementBarEnabled || false} onCheckedChange={v => setC({ announcementBarEnabled: v })} />
-              </div>
-              {config.announcementBarEnabled && (
-                <>
-                  <input value={config.announcementBar || ''} onChange={e => setC({ announcementBar: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
-                    placeholder="🎉 Free delivery on orders above ₹500!" />
-                  <div className="flex items-center gap-3">
-                    <label className="text-xs text-gray-500 shrink-0">Bar colour</label>
-                    <input type="color" value={config.announcementBarColor || config.primaryColor}
-                      onChange={e => setC({ announcementBarColor: e.target.value })}
-                      className="w-9 h-9 rounded-lg border cursor-pointer p-0.5" />
-                    <span className="text-xs text-gray-400 font-mono">{config.announcementBarColor || config.primaryColor}</span>
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <label className="text-xs text-gray-500">Primary</label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <input type="color" value={config.primaryColor} onChange={e => setC({ primaryColor: e.target.value })}
+                          className="w-10 h-10 rounded-lg border cursor-pointer p-0.5" />
+                        <span className="text-xs text-gray-400 font-mono">{config.primaryColor}</span>
+                      </div>
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-xs text-gray-500">Secondary</label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <input type="color" value={config.secondaryColor} onChange={e => setC({ secondaryColor: e.target.value })}
+                          className="w-10 h-10 rounded-lg border cursor-pointer p-0.5" />
+                        <span className="text-xs text-gray-400 font-mono">{config.secondaryColor}</span>
+                      </div>
+                    </div>
                   </div>
-                </>
-              )}
-            </section>
 
-            {/* Site info */}
-            <section className="bg-white rounded-xl p-4 space-y-3">
-              <h3 className="font-semibold text-sm text-gray-700">Site Info</h3>
-              <div>
-                <label className="text-xs text-gray-500">Site Name</label>
-                <input value={config.siteName} onChange={e => setC({ siteName: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
-                  placeholder="My Shop" />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500">Tagline</label>
-                <input value={config.tagline} onChange={e => setC({ tagline: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
-                  placeholder="Fresh & quality, delivered fast" />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500">About Text</label>
-                <textarea value={config.aboutText} onChange={e => setC({ aboutText: e.target.value })}
-                  rows={3} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
-                  placeholder="Tell customers about your shop…" />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500">Order Button Text</label>
-                <input value={config.primaryButtonText || 'Order Now'} onChange={e => setC({ primaryButtonText: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
-                  placeholder="Order Now" />
-              </div>
-            </section>
-
-            {/* Colours & font */}
-            <section className="bg-white rounded-xl p-4 space-y-3">
-              <h3 className="font-semibold text-sm text-gray-700">Colours & Font</h3>
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="text-xs text-gray-500">Primary</label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <input type="color" value={config.primaryColor} onChange={e => setC({ primaryColor: e.target.value })}
-                      className="w-10 h-10 rounded-lg border cursor-pointer p-0.5" />
-                    <span className="text-xs text-gray-400 font-mono">{config.primaryColor}</span>
+                  {/* ── Improvement 2: Font Visual Picker ── */}
+                  <div>
+                    <label className="text-xs text-gray-500 block mb-2">Font Family</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {GOOGLE_FONTS.map(font => (
+                        <button
+                          key={font}
+                          onClick={() => setConfig(prev => ({ ...prev, fontFamily: font }))}
+                          className={`p-3 rounded-lg border text-left transition-colors ${
+                            config.fontFamily === font
+                              ? 'border-blue-500 bg-blue-50'
+                              : 'border-gray-200 hover:border-gray-400'
+                          }`}
+                        >
+                          <span style={{ fontFamily: font }} className="text-sm block">
+                            {font}
+                          </span>
+                          <span style={{ fontFamily: font }} className="text-xs text-gray-500 block">
+                            Fresh Vegetables Daily
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-                <div className="flex-1">
-                  <label className="text-xs text-gray-500">Secondary</label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <input type="color" value={config.secondaryColor} onChange={e => setC({ secondaryColor: e.target.value })}
-                      className="w-10 h-10 rounded-lg border cursor-pointer p-0.5" />
-                    <span className="text-xs text-gray-400 font-mono">{config.secondaryColor}</span>
+                </section>
+
+                {/* Social Links */}
+                <section className="bg-white rounded-xl p-4 space-y-3">
+                  <h3 className="font-semibold text-sm text-gray-700">Social Links</h3>
+                  {([
+                    { key: 'instagram', label: '📸 Instagram', placeholder: 'https://instagram.com/yourshop' },
+                    { key: 'facebook',  label: '📘 Facebook',  placeholder: 'https://facebook.com/yourpage' },
+                    { key: 'youtube',   label: '📺 YouTube',   placeholder: 'https://youtube.com/@yourshop' },
+                    { key: 'twitter',   label: '🐦 Twitter/X', placeholder: 'https://x.com/yourshop' },
+                  ] as { key: keyof typeof socialLinks; label: string; placeholder: string }[]).map(({ key, label, placeholder }) => (
+                    <div key={key}>
+                      <label className="text-xs text-gray-500">{label}</label>
+                      <input
+                        value={socialLinks[key] || ''}
+                        onChange={e => setC({ socialLinks: { ...socialLinks, [key]: e.target.value } })}
+                        className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
+                        placeholder={placeholder} />
+                    </div>
+                  ))}
+                </section>
+
+                {/* SEO */}
+                <section className="bg-white rounded-xl p-4 space-y-3">
+                  <h3 className="font-semibold text-sm text-gray-700">🔍 SEO Settings</h3>
+                  <p className="text-xs text-gray-400">Controls how your site appears on Google search.</p>
+                  <div>
+                    <label className="text-xs text-gray-500">Page Title (for Google)</label>
+                    <input value={config.seoTitle || ''} onChange={e => setC({ seoTitle: e.target.value })}
+                      className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
+                      placeholder={config.siteName || 'My Shop — Kerala'} />
                   </div>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500">Font Family</label>
-                <select value={config.fontFamily} onChange={e => setC({ fontFamily: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none bg-white"
-                  style={{ fontFamily: config.fontFamily }}>
-                  {GOOGLE_FONTS.map(f => <option key={f} value={f} style={{ fontFamily: f }}>{f}</option>)}
-                </select>
-              </div>
-            </section>
+                  <div>
+                    <label className="text-xs text-gray-500">Meta Description</label>
+                    <textarea value={config.seoDescription || ''} onChange={e => setC({ seoDescription: e.target.value })}
+                      rows={2} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
+                      placeholder="Best shop in Kerala. Fresh products, fast delivery to your door." />
+                  </div>
+                </section>
 
-            {/* Social Links */}
-            <section className="bg-white rounded-xl p-4 space-y-3">
-              <h3 className="font-semibold text-sm text-gray-700">Social Links</h3>
-              {([
-                { key: 'instagram', label: '📸 Instagram', placeholder: 'https://instagram.com/yourshop' },
-                { key: 'facebook',  label: '📘 Facebook',  placeholder: 'https://facebook.com/yourpage' },
-                { key: 'youtube',   label: '📺 YouTube',   placeholder: 'https://youtube.com/@yourshop' },
-                { key: 'twitter',   label: '🐦 Twitter/X', placeholder: 'https://x.com/yourshop' },
-              ] as { key: keyof typeof socialLinks; label: string; placeholder: string }[]).map(({ key, label, placeholder }) => (
-                <div key={key}>
-                  <label className="text-xs text-gray-500">{label}</label>
-                  <input
-                    value={socialLinks[key] || ''}
-                    onChange={e => setC({ socialLinks: { ...socialLinks, [key]: e.target.value } })}
-                    className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
-                    placeholder={placeholder} />
-                </div>
-              ))}
-            </section>
+                {/* Branding — Improvement 3: Image Uploader */}
+                <section className="bg-white rounded-xl p-4 space-y-3">
+                  <h3 className="font-semibold text-sm text-gray-700">Branding</h3>
+                  <div>
+                    <label className="text-xs text-gray-500">Logo URL (override shop logo)</label>
+                    <div className="flex gap-2 mt-1">
+                      <input value={config.logoUrl || ''} onChange={e => setC({ logoUrl: e.target.value })}
+                        className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
+                        placeholder="https://... (leave blank to use shop logo)" />
+                      <label className="cursor-pointer px-3 py-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-300 flex items-center gap-1 whitespace-nowrap">
+                        {uploading['logoUrl'] ? '...' : '📎 Upload'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload('logoUrl', f); }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Favicon URL</label>
+                    <div className="flex gap-2 mt-1">
+                      <input value={config.faviconUrl || ''} onChange={e => setC({ faviconUrl: e.target.value })}
+                        className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
+                        placeholder="https://... 32×32px icon" />
+                      <label className="cursor-pointer px-3 py-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-300 flex items-center gap-1 whitespace-nowrap">
+                        {uploading['faviconUrl'] ? '...' : '📎 Upload'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload('faviconUrl', f); }}
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </section>
 
-            {/* SEO */}
-            <section className="bg-white rounded-xl p-4 space-y-3">
-              <h3 className="font-semibold text-sm text-gray-700">🔍 SEO Settings</h3>
-              <p className="text-xs text-gray-400">Controls how your site appears on Google search.</p>
-              <div>
-                <label className="text-xs text-gray-500">Page Title (for Google)</label>
-                <input value={config.seoTitle || ''} onChange={e => setC({ seoTitle: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
-                  placeholder={config.siteName || 'My Shop — Kerala'} />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500">Meta Description</label>
-                <textarea value={config.seoDescription || ''} onChange={e => setC({ seoDescription: e.target.value })}
-                  rows={2} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
-                  placeholder="Best shop in Kerala. Fresh products, fast delivery to your door." />
-              </div>
-            </section>
+                {/* Sections — Improvements 4 & 5: Drag-to-reorder + Section settings */}
+                <section className="bg-white rounded-xl p-4 space-y-2">
+                  <h3 className="font-semibold text-sm text-gray-700">Sections</h3>
+                  <p className="text-xs text-gray-400">Drag to reorder. Click ▶ for section settings.</p>
+                  {config.sections.map((sec, i) => (
+                    <div key={sec}>
+                      <div
+                        draggable
+                        onDragStart={() => setDragIdx(i)}
+                        onDragOver={e => { e.preventDefault(); }}
+                        onDrop={() => {
+                          if (dragIdx === null || dragIdx === i) return;
+                          const newSections = [...config.sections];
+                          const [moved] = newSections.splice(dragIdx, 1);
+                          newSections.splice(i, 0, moved);
+                          setConfig(prev => ({ ...prev, sections: newSections }));
+                          setDragIdx(null);
+                        }}
+                        className={`flex items-center gap-2 p-2 rounded-lg border bg-white cursor-grab active:cursor-grabbing transition-opacity ${
+                          dragIdx === i ? 'opacity-50' : 'opacity-100'
+                        }`}
+                      >
+                        <span className="text-gray-400 cursor-grab select-none">⠿</span>
+                        <span className="flex-1 text-sm capitalize font-medium">{sec}</span>
+                        {SECTION_SETTINGS[sec] && (
+                          <button
+                            onClick={() => setExpandedSection(expandedSection === sec ? null : sec)}
+                            className={`text-xs px-1.5 py-0.5 rounded transition-colors ${expandedSection === sec ? 'text-blue-600 bg-blue-50' : 'text-gray-400 hover:text-gray-600'}`}
+                          >
+                            {expandedSection === sec ? '▼' : '▶'}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setConfig(prev => ({ ...prev, sections: prev.sections.filter(s => s !== sec) }))}
+                          className="text-gray-400 hover:text-red-500 text-xs px-1"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                      {expandedSection === sec && SECTION_SETTINGS[sec] && (
+                        <div className="px-2 pb-1">
+                          {SECTION_SETTINGS[sec]}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {ALL_SECTIONS.filter(s => !config.sections.includes(s)).map(sec => (
+                    <button key={sec} onClick={() => setC({ sections: [...config.sections, sec] })}
+                      className="w-full p-2 border-2 border-dashed border-gray-200 rounded-lg text-sm text-gray-400 hover:border-[#dda15e] hover:text-[#dda15e]">
+                      + Add {sec} section
+                    </button>
+                  ))}
+                </section>
 
-            {/* Branding */}
-            <section className="bg-white rounded-xl p-4 space-y-3">
-              <h3 className="font-semibold text-sm text-gray-700">Branding</h3>
-              <div>
-                <label className="text-xs text-gray-500">Logo URL (override shop logo)</label>
-                <input value={config.logoUrl || ''} onChange={e => setC({ logoUrl: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
-                  placeholder="https://... (leave blank to use shop logo)" />
-              </div>
-              <div>
-                <label className="text-xs text-gray-500">Favicon URL</label>
-                <input value={config.faviconUrl || ''} onChange={e => setC({ faviconUrl: e.target.value })}
-                  className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
-                  placeholder="https://... 32×32px icon" />
-              </div>
-            </section>
+                {/* WhatsApp */}
+                <section className="bg-white rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-sm text-gray-700">💬 WhatsApp Button</h3>
+                    <Switch checked={config.whatsappEnabled} onCheckedChange={v => setC({ whatsappEnabled: v })} />
+                  </div>
+                  {config.whatsappEnabled && (
+                    <input value={config.whatsappNumber} onChange={e => setC({ whatsappNumber: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
+                      placeholder="919876543210 (with country code)" />
+                  )}
+                </section>
 
-            {/* Sections */}
-            <section className="bg-white rounded-xl p-4 space-y-2">
-              <h3 className="font-semibold text-sm text-gray-700">Sections</h3>
-              <p className="text-xs text-gray-400">Reorder with arrows. Remove or re-add sections.</p>
-              {config.sections.map((sec, i) => (
-                <div key={sec} className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
-                  <span className="flex-1 text-sm capitalize font-medium">{sec}</span>
-                  <button onClick={() => moveSection(i, -1)} disabled={i === 0}
-                    className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:bg-gray-200 disabled:opacity-20 text-base">↑</button>
-                  <button onClick={() => moveSection(i, 1)} disabled={i === config.sections.length - 1}
-                    className="w-7 h-7 flex items-center justify-center rounded text-gray-400 hover:bg-gray-200 disabled:opacity-20 text-base">↓</button>
-                  <button onClick={() => setC({ sections: config.sections.filter(s => s !== sec) })}
-                    className="w-7 h-7 flex items-center justify-center rounded text-red-400 hover:bg-red-50 text-sm">✕</button>
-                </div>
-              ))}
-              {ALL_SECTIONS.filter(s => !config.sections.includes(s)).map(sec => (
-                <button key={sec} onClick={() => setC({ sections: [...config.sections, sec] })}
-                  className="w-full p-2 border-2 border-dashed border-gray-200 rounded-lg text-sm text-gray-400 hover:border-[#dda15e] hover:text-[#dda15e]">
-                  + Add {sec} section
-                </button>
-              ))}
-            </section>
+                {/* Store Hours */}
+                <section className="bg-white rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-sm text-gray-700">🕐 Store Hours</h3>
+                    <Switch checked={config.storeHoursEnabled} onCheckedChange={v => setC({ storeHoursEnabled: v })} />
+                  </div>
+                  {config.storeHoursEnabled && (
+                    <input value={config.storeHoursText} onChange={e => setC({ storeHoursText: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
+                      placeholder="Mon–Sat: 9am–9pm, Sun: Closed" />
+                  )}
+                </section>
 
-            {/* WhatsApp */}
-            <section className="bg-white rounded-xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-sm text-gray-700">💬 WhatsApp Button</h3>
-                <Switch checked={config.whatsappEnabled} onCheckedChange={v => setC({ whatsappEnabled: v })} />
-              </div>
-              {config.whatsappEnabled && (
-                <input value={config.whatsappNumber} onChange={e => setC({ whatsappNumber: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
-                  placeholder="919876543210 (with country code)" />
-              )}
-            </section>
+                {/* Delivery Settings */}
+                <section className="bg-white rounded-xl p-4 space-y-3">
+                  <h3 className="font-semibold text-sm text-gray-700">🚚 Delivery Settings</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-500">Delivery Charge (₹)</label>
+                      <input type="number" min="0"
+                        value={config.deliveryCharge ?? 0}
+                        onChange={e => setC({ deliveryCharge: Number(e.target.value) })}
+                        className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
+                        placeholder="0 = Free" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500">Free Above (₹)</label>
+                      <input type="number" min="0"
+                        value={config.freeDeliveryAbove ?? 0}
+                        onChange={e => setC({ freeDeliveryAbove: Number(e.target.value) })}
+                        className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
+                        placeholder="0 = always" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Minimum Order Amount (₹)</label>
+                    <input type="number" min="0"
+                      value={config.minOrderAmount ?? 0}
+                      onChange={e => setC({ minOrderAmount: Number(e.target.value) })}
+                      className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
+                      placeholder="0 = no minimum" />
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    {(config.deliveryCharge ?? 0) === 0
+                      ? 'Free delivery on all orders'
+                      : (config.freeDeliveryAbove ?? 0) > 0
+                        ? `₹${config.deliveryCharge} delivery · Free above ₹${config.freeDeliveryAbove}`
+                        : `₹${config.deliveryCharge} delivery charge`}
+                  </p>
+                </section>
 
-            {/* Store Hours */}
-            <section className="bg-white rounded-xl p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-sm text-gray-700">🕐 Store Hours</h3>
-                <Switch checked={config.storeHoursEnabled} onCheckedChange={v => setC({ storeHoursEnabled: v })} />
-              </div>
-              {config.storeHoursEnabled && (
-                <input value={config.storeHoursText} onChange={e => setC({ storeHoursText: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
-                  placeholder="Mon–Sat: 9am–9pm, Sun: Closed" />
-              )}
-            </section>
-
-            {/* Delivery Settings */}
-            <section className="bg-white rounded-xl p-4 space-y-3">
-              <h3 className="font-semibold text-sm text-gray-700">🚚 Delivery Settings</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-gray-500">Delivery Charge (₹)</label>
-                  <input type="number" min="0"
-                    value={config.deliveryCharge ?? 0}
-                    onChange={e => setC({ deliveryCharge: Number(e.target.value) })}
-                    className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
-                    placeholder="0 = Free" />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-500">Free Above (₹)</label>
-                  <input type="number" min="0"
-                    value={config.freeDeliveryAbove ?? 0}
-                    onChange={e => setC({ freeDeliveryAbove: Number(e.target.value) })}
-                    className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
-                    placeholder="0 = always" />
-                </div>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500">Minimum Order Amount (₹)</label>
-                <input type="number" min="0"
-                  value={config.minOrderAmount ?? 0}
-                  onChange={e => setC({ minOrderAmount: Number(e.target.value) })}
-                  className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
-                  placeholder="0 = no minimum" />
-              </div>
-              <p className="text-xs text-gray-400">
-                {(config.deliveryCharge ?? 0) === 0
-                  ? 'Free delivery on all orders'
-                  : (config.freeDeliveryAbove ?? 0) > 0
-                    ? `₹${config.deliveryCharge} delivery · Free above ₹${config.freeDeliveryAbove}`
-                    : `₹${config.deliveryCharge} delivery charge`}
-              </p>
-            </section>
-
-            {/* Extra banners */}
-            <section className="bg-white rounded-xl p-4 space-y-3">
-              <h3 className="font-semibold text-sm text-gray-700">Extra Banners <span className="text-gray-400 font-normal text-xs">(for hero carousel)</span></h3>
-              {(config.banners || []).map((url, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  <p className="flex-1 text-xs text-gray-500 truncate">{url}</p>
-                  <button onClick={() => setC({ banners: config.banners.filter((_, idx) => idx !== i) })}
-                    className="text-red-400 text-sm shrink-0">✕</button>
-                </div>
-              ))}
-              <div className="flex gap-2">
-                <input value={newBanner} onChange={e => setNewBanner(e.target.value)}
-                  className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none"
-                  placeholder="https://... image URL" />
-                <button onClick={addBanner} className="px-3 py-2 rounded-lg text-sm font-medium text-white"
-                  style={{ backgroundColor: '#283618' }}>+ Add</button>
-              </div>
-            </section>
-          </div>
-        )}
-
-        {/* ──── PAGES TAB ──── */}
-        {activeTab === 'pages' && (
-          <div className="p-4 space-y-4">
-            <p className="text-xs text-gray-500">Custom pages appear in your site navigation when enabled.</p>
-            {([
-              { label: 'About Us',        contentKey: 'customAbout' as const,    visibleKey: 'showAboutPage' as const },
-              { label: 'Contact Us',       contentKey: 'customContact' as const,  visibleKey: 'showContactPage' as const },
-              { label: 'Shipping Policy',  contentKey: 'customShipping' as const, visibleKey: 'showShippingPage' as const },
-              { label: 'Return Policy',    contentKey: 'customReturn' as const,   visibleKey: 'showReturnPage' as const },
-              { label: 'Privacy Policy',   contentKey: 'customPrivacy' as const,  visibleKey: 'showPrivacyPage' as const },
-            ]).map(page => (
-              <section key={page.label} className="bg-white rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-sm text-gray-700">{page.label}</h3>
-                  <Switch checked={config[page.visibleKey] as boolean} onCheckedChange={v => setC({ [page.visibleKey]: v })} />
-                </div>
-                {config[page.visibleKey] && (
-                  <textarea
-                    value={config[page.contentKey] as string}
-                    onChange={e => setC({ [page.contentKey]: e.target.value })}
-                    rows={5}
-                    className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
-                    placeholder={`Write your ${page.label} here…`} />
-                )}
-              </section>
-            ))}
-          </div>
-        )}
-
-        {/* ──── OFFERS TAB ──── */}
-        {activeTab === 'offers' && (
-          <div className="p-4 space-y-4">
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-              <p className="text-xs text-amber-800 font-semibold mb-1">🎟 Coupon Codes</p>
-              <p className="text-xs text-amber-700">Customers enter these codes at checkout to get a discount. Codes are case-insensitive.</p>
-            </div>
-
-            {(config.couponCodes || []).length === 0 && (
-              <div className="text-center py-8">
-                <p className="text-3xl mb-2">🎁</p>
-                <p className="text-sm text-gray-500">No coupon codes yet.</p>
+                {/* Extra banners — Improvement 3: Banner upload */}
+                <section className="bg-white rounded-xl p-4 space-y-3">
+                  <h3 className="font-semibold text-sm text-gray-700">Extra Banners <span className="text-gray-400 font-normal text-xs">(for hero carousel)</span></h3>
+                  {(config.banners || []).map((url, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <p className="flex-1 text-xs text-gray-500 truncate">{url}</p>
+                      <button onClick={() => setC({ banners: config.banners.filter((_, idx) => idx !== i) })}
+                        className="text-red-400 text-sm shrink-0">✕</button>
+                    </div>
+                  ))}
+                  <div className="flex gap-2">
+                    <input value={newBanner} onChange={e => setNewBanner(e.target.value)}
+                      className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none"
+                      placeholder="https://... image URL" />
+                    <button onClick={addBanner} className="px-3 py-2 rounded-lg text-sm font-medium text-white"
+                      style={{ backgroundColor: '#283618' }}>+ Add</button>
+                  </div>
+                  <label className="cursor-pointer flex items-center gap-2 px-3 py-2 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-300 w-full justify-center">
+                    {uploading['banner'] ? 'Uploading...' : '📎 Upload Banner Image'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleBannerUpload(f); }}
+                    />
+                  </label>
+                </section>
               </div>
             )}
 
-            {(config.couponCodes || []).map((coupon, i) => (
-              <div key={i} className="bg-white rounded-xl p-4 flex items-center gap-3 border border-gray-100">
-                <div className="flex-1 min-w-0">
-                  <p className="font-mono font-bold text-sm text-gray-800 tracking-wider">{coupon.code}</p>
-                  <p className="text-xs text-gray-500 mt-0.5">{coupon.discountPercent}% off entire order</p>
-                </div>
-                <Switch checked={coupon.active} onCheckedChange={v => {
-                  const codes = [...(config.couponCodes || [])];
-                  codes[i] = { ...codes[i], active: v };
-                  setC({ couponCodes: codes });
-                }} />
-                <button onClick={() => {
-                  const codes = [...(config.couponCodes || [])];
-                  codes.splice(i, 1);
-                  setC({ couponCodes: codes });
-                }} className="text-red-400 hover:text-red-600 text-base shrink-0">✕</button>
+            {/* ──── PAGES TAB ──── */}
+            {activeTab === 'pages' && (
+              <div className="p-4 space-y-4">
+                <p className="text-xs text-gray-500">Custom pages appear in your site navigation when enabled.</p>
+                {([
+                  { label: 'About Us',        contentKey: 'customAbout' as const,    visibleKey: 'showAboutPage' as const },
+                  { label: 'Contact Us',       contentKey: 'customContact' as const,  visibleKey: 'showContactPage' as const },
+                  { label: 'Shipping Policy',  contentKey: 'customShipping' as const, visibleKey: 'showShippingPage' as const },
+                  { label: 'Return Policy',    contentKey: 'customReturn' as const,   visibleKey: 'showReturnPage' as const },
+                  { label: 'Privacy Policy',   contentKey: 'customPrivacy' as const,  visibleKey: 'showPrivacyPage' as const },
+                ]).map(page => (
+                  <section key={page.label} className="bg-white rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-sm text-gray-700">{page.label}</h3>
+                      <Switch checked={config[page.visibleKey] as boolean} onCheckedChange={v => setC({ [page.visibleKey]: v })} />
+                    </div>
+                    {config[page.visibleKey] && (
+                      <textarea
+                        value={config[page.contentKey] as string}
+                        onChange={e => setC({ [page.contentKey]: e.target.value })}
+                        rows={5}
+                        className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
+                        placeholder={`Write your ${page.label} here…`} />
+                    )}
+                  </section>
+                ))}
               </div>
+            )}
+
+            {/* ──── OFFERS TAB ──── */}
+            {activeTab === 'offers' && (
+              <div className="p-4 space-y-4">
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  <p className="text-xs text-amber-800 font-semibold mb-1">🎟 Coupon Codes</p>
+                  <p className="text-xs text-amber-700">Customers enter these codes at checkout to get a discount. Codes are case-insensitive.</p>
+                </div>
+
+                {(config.couponCodes || []).length === 0 && (
+                  <div className="text-center py-8">
+                    <p className="text-3xl mb-2">🎁</p>
+                    <p className="text-sm text-gray-500">No coupon codes yet.</p>
+                  </div>
+                )}
+
+                {(config.couponCodes || []).map((coupon, i) => (
+                  <div key={i} className="bg-white rounded-xl p-4 flex items-center gap-3 border border-gray-100">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-mono font-bold text-sm text-gray-800 tracking-wider">{coupon.code}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{coupon.discountPercent}% off entire order</p>
+                    </div>
+                    <Switch checked={coupon.active} onCheckedChange={v => {
+                      const codes = [...(config.couponCodes || [])];
+                      codes[i] = { ...codes[i], active: v };
+                      setC({ couponCodes: codes });
+                    }} />
+                    <button onClick={() => {
+                      const codes = [...(config.couponCodes || [])];
+                      codes.splice(i, 1);
+                      setC({ couponCodes: codes });
+                    }} className="text-red-400 hover:text-red-600 text-base shrink-0">✕</button>
+                  </div>
+                ))}
+
+                <AddCouponForm onAdd={c => setC({ couponCodes: [...(config.couponCodes || []), c] })} />
+              </div>
+            )}
+
+            {/* ──── PLUGINS TAB ──── */}
+            {activeTab === 'plugins' && (
+              <div className="p-4 space-y-4">
+                <p className="text-xs text-gray-500">Paste the ID from each service. Leave blank to disable.</p>
+
+                <section className="bg-white rounded-xl p-4 space-y-2">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">📊</span>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-sm">Google Analytics</h3>
+                      <p className="text-xs text-gray-400 mt-0.5">Track visitors — get your ID from analytics.google.com</p>
+                      <input value={config.googleAnalyticsId} onChange={e => setC({ googleAnalyticsId: e.target.value })}
+                        className="w-full mt-2 px-3 py-2 border rounded-lg text-sm focus:outline-none font-mono"
+                        placeholder="G-XXXXXXXXXX" />
+                    </div>
+                  </div>
+                </section>
+
+                <section className="bg-white rounded-xl p-4 space-y-2">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">📱</span>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-sm">Facebook Pixel</h3>
+                      <p className="text-xs text-gray-400 mt-0.5">Track for Facebook/Instagram Ads — get ID from Meta Business Suite</p>
+                      <input value={config.facebookPixelId} onChange={e => setC({ facebookPixelId: e.target.value })}
+                        className="w-full mt-2 px-3 py-2 border rounded-lg text-sm focus:outline-none font-mono"
+                        placeholder="1234567890" />
+                    </div>
+                  </div>
+                </section>
+
+                <section className="bg-white rounded-xl p-4 space-y-2">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">💬</span>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-sm">Live Chat — Tawk.To (Free)</h3>
+                      <p className="text-xs text-gray-400 mt-0.5">Adds a live chat bubble — get property ID from tawk.to</p>
+                      <input value={config.tawkPropertyId} onChange={e => setC({ tawkPropertyId: e.target.value })}
+                        className="w-full mt-2 px-3 py-2 border rounded-lg text-sm focus:outline-none font-mono"
+                        placeholder="abc123def456/1hxyz..." />
+                    </div>
+                  </div>
+                </section>
+
+                <section className="bg-white rounded-xl p-4">
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">⭐</span>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-sm">Customer Reviews</h3>
+                      <p className="text-xs text-gray-400 mt-0.5">Show star ratings on product cards</p>
+                    </div>
+                    <Switch checked={config.reviewsEnabled} onCheckedChange={v => setC({ reviewsEnabled: v })} />
+                  </div>
+                </section>
+
+                {/* ── Improvement 6: Custom HTML Editor ── */}
+                <section className="bg-white rounded-xl p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">Custom Code</p>
+                      <p className="text-xs text-gray-500">Add custom HTML/CSS/JS to your site footer</p>
+                    </div>
+                  </div>
+                  <textarea
+                    value={(config as any).customHtml || ''}
+                    onChange={e => setConfig(prev => ({ ...prev, customHtml: e.target.value } as any))}
+                    placeholder="<!-- Add custom HTML, CSS, or tracking scripts here -->"
+                    rows={6}
+                    className="w-full text-xs font-mono border border-gray-300 rounded-lg p-3 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    spellCheck={false}
+                  />
+                  <p className="text-xs text-gray-400">⚠️ Only add code you trust. Injected into every page.</p>
+                </section>
+              </div>
+            )}
+
+          </main>
+
+          {/* ── Bottom Tabs ── */}
+          <nav className="shrink-0 bg-white border-t border-gray-200 flex z-30">
+            {([
+              { id: 'theme',   label: 'Theme',   icon: '🎨' },
+              { id: 'design',  label: 'Design',  icon: '✏️' },
+              { id: 'pages',   label: 'Pages',   icon: '📄' },
+              { id: 'offers',  label: 'Offers',  icon: '🎟' },
+              { id: 'plugins', label: 'Plugins', icon: '🔌' },
+            ] as { id: Tab; label: string; icon: string }[]).map(tab => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                className="relative flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs font-medium transition-colors"
+                style={{ color: activeTab === tab.id ? '#283618' : '#9ca3af' }}>
+                <span className="text-base leading-none">{tab.icon}</span>
+                <span className="text-[10px]">{tab.label}</span>
+                {activeTab === tab.id && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-full" style={{ backgroundColor: '#283618' }} />}
+              </button>
             ))}
+          </nav>
 
-            <AddCouponForm onAdd={c => setC({ couponCodes: [...(config.couponCodes || []), c] })} />
+        </div>
+
+        {/* ── RIGHT: Live Preview Panel (Improvement 7) — hidden on mobile ── */}
+        <div className="hidden lg:flex flex-1 flex-col bg-gray-100">
+
+          {/* Viewport toggle bar */}
+          <div className="flex items-center gap-2 p-3 border-b border-gray-200 bg-white shrink-0">
+            {(Object.entries(VIEWPORTS) as [keyof typeof VIEWPORTS, typeof VIEWPORTS[keyof typeof VIEWPORTS]][]).map(([key, val]) => (
+              <button
+                key={key}
+                onClick={() => setViewport(key)}
+                className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${viewport === key ? 'bg-blue-500 text-white' : 'bg-gray-100 hover:bg-gray-200'}`}
+              >
+                {val.label}
+              </button>
+            ))}
+            <div className="flex-1" />
+            <button
+              onClick={() => setPreviewKey(k => k + 1)}
+              className="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            >
+              ↻ Refresh
+            </button>
           </div>
-        )}
 
-        {/* ──── PLUGINS TAB ──── */}
-        {activeTab === 'plugins' && (
-          <div className="p-4 space-y-4">
-            <p className="text-xs text-gray-500">Paste the ID from each service. Leave blank to disable.</p>
-
-            <section className="bg-white rounded-xl p-4 space-y-2">
-              <div className="flex items-start gap-3">
-                <span className="text-2xl">📊</span>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-sm">Google Analytics</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Track visitors — get your ID from analytics.google.com</p>
-                  <input value={config.googleAnalyticsId} onChange={e => setC({ googleAnalyticsId: e.target.value })}
-                    className="w-full mt-2 px-3 py-2 border rounded-lg text-sm focus:outline-none font-mono"
-                    placeholder="G-XXXXXXXXXX" />
-                </div>
-              </div>
-            </section>
-
-            <section className="bg-white rounded-xl p-4 space-y-2">
-              <div className="flex items-start gap-3">
-                <span className="text-2xl">📱</span>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-sm">Facebook Pixel</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Track for Facebook/Instagram Ads — get ID from Meta Business Suite</p>
-                  <input value={config.facebookPixelId} onChange={e => setC({ facebookPixelId: e.target.value })}
-                    className="w-full mt-2 px-3 py-2 border rounded-lg text-sm focus:outline-none font-mono"
-                    placeholder="1234567890" />
-                </div>
-              </div>
-            </section>
-
-            <section className="bg-white rounded-xl p-4 space-y-2">
-              <div className="flex items-start gap-3">
-                <span className="text-2xl">💬</span>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-sm">Live Chat — Tawk.To (Free)</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Adds a live chat bubble — get property ID from tawk.to</p>
-                  <input value={config.tawkPropertyId} onChange={e => setC({ tawkPropertyId: e.target.value })}
-                    className="w-full mt-2 px-3 py-2 border rounded-lg text-sm focus:outline-none font-mono"
-                    placeholder="abc123def456/1hxyz..." />
-                </div>
-              </div>
-            </section>
-
-            <section className="bg-white rounded-xl p-4">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">⭐</span>
-                <div className="flex-1">
-                  <h3 className="font-semibold text-sm">Customer Reviews</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">Show star ratings on product cards</p>
-                </div>
-                <Switch checked={config.reviewsEnabled} onCheckedChange={v => setC({ reviewsEnabled: v })} />
-              </div>
-            </section>
+          {/* Preview iframe container */}
+          <div className="flex-1 overflow-auto flex items-start justify-center p-4">
+            <div
+              style={{
+                width: VIEWPORTS[viewport].width,
+                maxWidth: '100%',
+                height: '100%',
+                minHeight: '600px',
+                transition: 'width 0.3s ease',
+              }}
+              className="shadow-lg rounded-lg overflow-hidden bg-white"
+            >
+              <iframe
+                key={previewKey}
+                src={shopId ? `/sites/${shopId}?preview=true` : 'about:blank'}
+                className="w-full h-full border-0"
+                style={{ minHeight: '600px' }}
+                title="Site Preview"
+              />
+            </div>
           </div>
-        )}
 
-      </main>
+        </div>
 
-      {/* ── Bottom Tabs ── */}
-      <nav className="shrink-0 bg-white border-t border-gray-200 flex z-30">
-        {([
-          { id: 'theme',   label: 'Theme',   icon: '🎨' },
-          { id: 'design',  label: 'Design',  icon: '✏️' },
-          { id: 'pages',   label: 'Pages',   icon: '📄' },
-          { id: 'offers',  label: 'Offers',  icon: '🎟' },
-          { id: 'plugins', label: 'Plugins', icon: '🔌' },
-        ] as { id: Tab; label: string; icon: string }[]).map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            className="relative flex-1 flex flex-col items-center gap-0.5 py-2.5 text-xs font-medium transition-colors"
-            style={{ color: activeTab === tab.id ? '#283618' : '#9ca3af' }}>
-            <span className="text-base leading-none">{tab.icon}</span>
-            <span className="text-[10px]">{tab.label}</span>
-            {activeTab === tab.id && <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-full" style={{ backgroundColor: '#283618' }} />}
-          </button>
-        ))}
-      </nav>
+      </div>
+      {/* end split-view layout */}
 
     </div>
   );
