@@ -218,11 +218,3 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Next.js App Router handles multipart/form-data natively via request.formData().
-// The legacy pages/api bodyParser config is not needed here, but it is kept for
-// clarity in case this file is ever migrated to the pages router.
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-}
