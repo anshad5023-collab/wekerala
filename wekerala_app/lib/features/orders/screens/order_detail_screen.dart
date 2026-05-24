@@ -254,6 +254,15 @@ class _OrderContent extends StatelessWidget {
           ),
         ),
 
+        if (order.cancelReason.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _SectionCard(
+            title: 'Cancellation Reason',
+            child: Text(order.cancelReason,
+                style: const TextStyle(color: Colors.red)),
+          ),
+        ],
+
         if (order.orderNote.isNotEmpty) ...[
           const SizedBox(height: 12),
           _SectionCard(
@@ -454,7 +463,24 @@ class _PaymentStatusRow extends StatelessWidget {
             )).toList(),
             onChanged: (val) async {
               if (val == null) return;
-              await orderRef.update({'paymentStatus': val});
+              try {
+                await orderRef.update({'paymentStatus': val});
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text('Payment marked as ${val.toUpperCase()}'),
+                    backgroundColor: val == 'paid' ? Colors.green : Colors.orange,
+                    behavior: SnackBarBehavior.floating,
+                  ));
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('Failed to update payment status'),
+                    backgroundColor: Colors.red,
+                    behavior: SnackBarBehavior.floating,
+                  ));
+                }
+              }
             },
           ),
         ],

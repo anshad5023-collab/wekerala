@@ -92,7 +92,8 @@ export function ShopViewById({ shopId }: { shopId: string }) {
     if (digits.length === 10) return `91${digits}`;
     if (digits.length === 12 && digits.startsWith('91')) return digits;
     if (digits.length === 11 && digits.startsWith('0')) return `91${digits.slice(1)}`;
-    return digits;
+    if (digits.length === 13 && digits.startsWith('091')) return digits.slice(1);
+    return digits.length >= 10 ? `91${digits.slice(-10)}` : digits;
   }
 
   const handleConfirmOrder = async (details: CustomerDetails) => {
@@ -117,7 +118,7 @@ export function ShopViewById({ shopId }: { shopId: string }) {
       const deliveryFee = details.deliveryCharge ?? 0;
       const finalTotal = subtotal - discountAmount + deliveryFee;
       const now = new Date().toISOString();
-      const orderId = `ORD-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+      const orderId = `ORD-${Date.now()}-${Math.random().toString(36).slice(2, 9).toUpperCase()}`;
       const normalizedPhone = normalizePhone(details.phone);
       const response = await fetch(`/api/orders?shopId=${shopId}`, {
         method: 'POST',

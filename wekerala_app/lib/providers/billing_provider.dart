@@ -226,6 +226,19 @@ class BillingNotifier extends Notifier<BillingState> {
           customerName: bill.customerName,
           orderAmount: bill.finalAmount,
         ));
+
+        // For udhar sales, also track the outstanding balance on the customer record
+        if (bill.isUdhar) {
+          unawaited(FirebaseFirestore.instance
+              .collection('shops')
+              .doc(shopId)
+              .collection('customers')
+              .doc(bill.customerPhone)
+              .set({
+            'udharBalance': FieldValue.increment(bill.finalAmount),
+            'lastUdharDate': Timestamp.fromDate(bill.createdAt),
+          }, SetOptions(merge: true)));
+        }
       }
 
       state = state.copyWith(isLoading: false);

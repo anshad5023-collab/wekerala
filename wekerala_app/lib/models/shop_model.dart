@@ -53,8 +53,8 @@ class ShopModel {
   final String? ondcSellerId;
   // AI chat widget settings
   final Map<String, dynamic> aiSettings;
-  // Gupshup WhatsApp integration
-  final String gupshupAppName;
+  // Meta WhatsApp Cloud API — phone number ID for this shop's WhatsApp number
+  final String whatsappPhoneNumberId;
   // Loyalty program configuration
   final Map<String, dynamic> loyaltySettings;
 
@@ -106,7 +106,7 @@ class ShopModel {
     this.autoSendWhatsappReceipt = false,
     this.ondcSellerId,
     this.aiSettings = const {},
-    this.gupshupAppName = '',
+    this.whatsappPhoneNumberId = '',
     this.loyaltySettings = const {},
   });
 
@@ -166,7 +166,7 @@ class ShopModel {
       autoSendWhatsappReceipt: (d['autoSendWhatsappReceipt'] as bool?) ?? false,
       ondcSellerId: d['ondcSellerId'] as String?,
       aiSettings: Map<String, dynamic>.from(d['aiSettings'] as Map? ?? {}),
-      gupshupAppName: d['gupshupAppName'] as String? ?? '',
+      whatsappPhoneNumberId: d['whatsappPhoneNumberId'] as String? ?? '',
       loyaltySettings: Map<String, dynamic>.from(d['loyaltySettings'] as Map? ?? {}),
     );
   }
@@ -221,7 +221,7 @@ class ShopModel {
       'autoSendWhatsappReceipt': autoSendWhatsappReceipt,
       if (ondcSellerId != null) 'ondcSellerId': ondcSellerId,
       'aiSettings': aiSettings,
-      'gupshupAppName': gupshupAppName,
+      if (whatsappPhoneNumberId.isNotEmpty) 'whatsappPhoneNumberId': whatsappPhoneNumberId,
       'loyaltySettings': loyaltySettings,
     };
   }
@@ -251,7 +251,7 @@ class ShopModel {
     bool? autoSendWhatsappReceipt,
     Object? ondcSellerId = _shopSentinel,
     Map<String, dynamic>? aiSettings,
-    String? gupshupAppName,
+    String? whatsappPhoneNumberId,
     Map<String, dynamic>? loyaltySettings,
   }) {
     return ShopModel(
@@ -301,7 +301,7 @@ class ShopModel {
       autoSendWhatsappReceipt: autoSendWhatsappReceipt ?? this.autoSendWhatsappReceipt,
       ondcSellerId: ondcSellerId == _shopSentinel ? this.ondcSellerId : ondcSellerId as String?,
       aiSettings: aiSettings ?? this.aiSettings,
-      gupshupAppName: gupshupAppName ?? this.gupshupAppName,
+      whatsappPhoneNumberId: whatsappPhoneNumberId ?? this.whatsappPhoneNumberId,
       loyaltySettings: loyaltySettings ?? this.loyaltySettings,
     );
   }

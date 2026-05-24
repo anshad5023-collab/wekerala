@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../providers/shop_provider.dart';
@@ -19,18 +20,22 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
   bool _answerHours = true;
   String _replyLanguage = 'auto';
   final _noteCtrl = TextEditingController();
-  final _gupshupCtrl = TextEditingController();
+  final _phoneNumberIdCtrl = TextEditingController();
   bool _saving = false;
   bool _loaded = false;
+
+  static const _webhookUrl =
+      'https://us-central1-shoplink-prod.cloudfunctions.net/whatsappWebhook';
+  static const _verifyToken = 'wekerala_webhook_secret';
 
   @override
   void dispose() {
     _noteCtrl.dispose();
-    _gupshupCtrl.dispose();
+    _phoneNumberIdCtrl.dispose();
     super.dispose();
   }
 
-  void _loadFrom(Map<String, dynamic> s, String gupshupAppName) {
+  void _loadFrom(Map<String, dynamic> s, String phoneNumberId) {
     if (_loaded) return;
     _loaded = true;
     setState(() {
@@ -41,7 +46,7 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
       _answerHours = s['answerHoursQuestions'] as bool? ?? true;
       _replyLanguage = s['replyLanguage'] as String? ?? 'auto';
       _noteCtrl.text = s['customNote'] as String? ?? '';
-      _gupshupCtrl.text = gupshupAppName;
+      _phoneNumberIdCtrl.text = phoneNumberId;
     });
   }
 
@@ -62,8 +67,7 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
           'neverDiscussCompetitors': true,
           'autoSendStorefrontLink': true,
         },
-        // gupshupAppName lives at root level so the webhook query works
-        'gupshupAppName': _gupshupCtrl.text.trim(),
+        'whatsappPhoneNumberId': _phoneNumberIdCtrl.text.trim(),
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -85,6 +89,15 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
     }
   }
 
+  void _copy(String text) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Copied to clipboard'),
+      behavior: SnackBarBehavior.floating,
+      duration: Duration(seconds: 1),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final shopAsync = ref.watch(activeShopIdProvider);
@@ -97,7 +110,7 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
           return const Scaffold(body: Center(child: Text('No shop found')));
         }
         final shopStream = ref.watch(shopStreamProvider(shopId));
-        shopStream.whenData((shop) => _loadFrom(shop.aiSettings, shop.gupshupAppName));
+        shopStream.whenData((shop) => _loadFrom(shop.aiSettings, shop.whatsappPhoneNumberId));
 
         return Scaffold(
           backgroundColor: const Color(0xFFF5F5F5),
@@ -109,39 +122,16 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              // Info banner
-              Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8F5E9),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFA5D6A7)),
-                ),
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline, color: Color(0xFF2D6A4F)),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'The AI chat widget appears on your storefront. Customers can ask questions and get instant answers — free, no WhatsApp costs.',
-                        style: TextStyle(fontSize: 13, color: Colors.grey[800]),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
               // Master toggle
               _Card(children: [
                 SwitchListTile(
                   value: _enabled,
                   onChanged: (v) => setState(() => _enabled = v),
                   activeColor: AppColors.primary,
-                  title: const Text('Enable AI Chat Widget',
+                  title: const Text('Enable AI Auto-Reply',
                       style: TextStyle(fontWeight: FontWeight.w600)),
                   subtitle: Text(
-                    _enabled ? 'Chat button visible on your storefront' : 'Chat button hidden',
+                    _enabled ? 'AI will reply to customer WhatsApp messages' : 'AI replies are off',
                     style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                   ),
                   secondary: Container(
@@ -159,38 +149,89 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
               ]),
               const SizedBox(height: 16),
 
-              // Gupshup setup
+              // Meta setup
+              _SectionLabel('Meta WhatsApp Setup'),
               Card(
-                margin: const EdgeInsets.only(bottom: 12),
+                margin: EdgeInsets.zero,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Gupshup Setup', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                      const SizedBox(height: 4),
-                      const Text('Enter your Gupshup App Name to receive customer messages.', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      Row(children: [
+                        Container(
+                          width: 32, height: 32,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF1877F2).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.facebook, color: Color(0xFF1877F2), size: 20),
+                        ),
+                        const SizedBox(width: 10),
+                        const Text('Connect via Meta Developer',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                      ]),
+                      const SizedBox(height: 12),
+                      _StepTile(
+                        step: '1',
+                        text: 'Go to developers.facebook.com → Create App → Add WhatsApp product',
+                      ),
+                      _StepTile(
+                        step: '2',
+                        text: 'Register your shop WhatsApp number and verify it with an OTP',
+                      ),
+                      _StepTile(
+                        step: '3',
+                        text: 'Copy your Phone Number ID from the API Setup page and paste below',
+                      ),
+                      _StepTile(
+                        step: '4',
+                        text: 'Under Webhooks, set the Callback URL and Verify Token shown below',
+                      ),
                       const SizedBox(height: 12),
                       TextField(
-                        controller: _gupshupCtrl,
+                        controller: _phoneNumberIdCtrl,
                         decoration: const InputDecoration(
-                          labelText: 'Gupshup App Name',
-                          hintText: 'e.g. myshop_whatsapp',
+                          labelText: 'Phone Number ID',
+                          hintText: 'e.g. 123456789012345',
                           border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.phonelink_setup),
+                          prefixIcon: Icon(Icons.tag),
                         ),
+                      ),
+                      const SizedBox(height: 12),
+                      _CopyBox(
+                        label: 'Webhook Callback URL',
+                        value: _webhookUrl,
+                        onCopy: () => _copy(_webhookUrl),
+                      ),
+                      const SizedBox(height: 8),
+                      _CopyBox(
+                        label: 'Verify Token',
+                        value: _verifyToken,
+                        onCopy: () => _copy(_verifyToken),
                       ),
                       const SizedBox(height: 8),
                       Container(
                         padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(color: const Color(0xFFFFF3E0), borderRadius: BorderRadius.circular(8)),
-                        child: const Text('Webhook URL to set in Gupshup dashboard:\nhttps://us-central1-shoplink-prod.cloudfunctions.net/whatsappWebhook', style: TextStyle(fontSize: 11, fontFamily: 'monospace')),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE8F5E9),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(children: [
+                          Icon(Icons.check_circle_outline, color: Color(0xFF2D6A4F), size: 16),
+                          SizedBox(width: 8),
+                          Expanded(child: Text(
+                            'Meta gives 1000 free conversations/month. Customer-initiated messages cost nothing.',
+                            style: TextStyle(fontSize: 12, color: Color(0xFF2D6A4F)),
+                          )),
+                        ]),
                       ),
                     ],
                   ),
                 ),
               ),
+              const SizedBox(height: 16),
 
               // What AI can share
               _SectionLabel('What AI Can Share'),
@@ -255,7 +296,6 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
               ]),
               const SizedBox(height: 24),
 
-              // Save button
               SizedBox(
                 width: double.infinity,
                 height: 50,
@@ -279,6 +319,60 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
       },
     );
   }
+}
+
+class _StepTile extends StatelessWidget {
+  final String step;
+  final String text;
+  const _StepTile({required this.step, required this.text});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(
+        width: 22, height: 22,
+        decoration: BoxDecoration(
+          color: const Color(0xFF2D6A4F),
+          borderRadius: BorderRadius.circular(11),
+        ),
+        child: Center(child: Text(step,
+            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold))),
+      ),
+      const SizedBox(width: 10),
+      Expanded(child: Text(text, style: const TextStyle(fontSize: 13))),
+    ]),
+  );
+}
+
+class _CopyBox extends StatelessWidget {
+  final String label;
+  final String value;
+  final VoidCallback onCopy;
+  const _CopyBox({required this.label, required this.value, required this.onCopy});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+    decoration: BoxDecoration(
+      color: const Color(0xFFF5F5F5),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: Colors.grey[300]!),
+    ),
+    child: Row(children: [
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+        const SizedBox(height: 2),
+        Text(value, style: const TextStyle(fontSize: 12, fontFamily: 'monospace')),
+      ])),
+      IconButton(
+        icon: const Icon(Icons.copy, size: 18),
+        onPressed: onCopy,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(),
+      ),
+    ]),
+  );
 }
 
 class _Card extends StatelessWidget {

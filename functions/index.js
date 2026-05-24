@@ -11,47 +11,54 @@ if (getApps().length === 0) {
   initializeApp();
 }
 
-// Set these via: firebase functions:secrets:set GUPSHUP_API_KEY
-// and:          firebase functions:secrets:set GUPSHUP_APP_NAME
-const GUPSHUP_API_KEY = defineString('GUPSHUP_API_KEY', { default: '' });
-const GUPSHUP_APP_NAME = defineString('GUPSHUP_APP_NAME', { default: '' });
-const GUPSHUP_SOURCE_PHONE = defineString('GUPSHUP_SOURCE_PHONE', { default: '15559725142' });
-const GUPSHUP_BASE_URL = 'https://api.gupshup.io/wa/api/v1/msg';
+// Meta WhatsApp Cloud API credentials
+// Set via functions/.env — each shop can also override with their own credentials in Firestore
+const META_VERIFY_TOKEN = defineString('META_VERIFY_TOKEN', { default: 'wekerala_webhook_secret' });
+const META_PHONE_NUMBER_ID = defineString('META_PHONE_NUMBER_ID', { default: '' });
+const META_ACCESS_TOKEN = defineString('META_ACCESS_TOKEN', { default: '' });
+const GEMINI_API_KEY = defineString('GEMINI_API_KEY', { default: '' });
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-async function sendWhatsApp(phone, message, retries = 2) {
-  const apiKey = GUPSHUP_API_KEY.value();
-  const appName = GUPSHUP_APP_NAME.value();
-  console.log(`[WA] Sending to ${phone}, apiKey present: ${!!apiKey}, appName: ${appName}`);
-  if (!apiKey || !appName) {
-    console.error('[WA] Missing Gupshup credentials — check functions/.env');
+async function sendWhatsApp(toPhone, message, shopData = null, retries = 2) {
+  const phoneNumberId = shopData?.whatsappPhoneNumberId || META_PHONE_NUMBER_ID.value();
+  const accessToken = shopData?.whatsappAccessToken || META_ACCESS_TOKEN.value();
+
+  if (!phoneNumberId || !accessToken) {
+    console.error('[WA] Missing Meta credentials — set META_PHONE_NUMBER_ID and META_ACCESS_TOKEN in functions/.env');
     return false;
   }
-  const digits = phone.replace(/\D/g, '').slice(-10);
-  if (digits.length < 10) {
-    console.error(`[WA] Invalid phone number: ${phone}`);
-    return false;
-  }
-  const e164 = `91${digits}`;
+
+  const digits = toPhone.replace(/\D/g, '');
+  const e164 = digits.startsWith('91') && digits.length === 12
+    ? digits
+    : `91${digits.slice(-10)}`;
+
+  console.log(`[WA] Sending to ${e164} via phone_number_id: ${phoneNumberId}`);
+
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const params = new URLSearchParams({
-        channel: 'whatsapp',
-        source: GUPSHUP_SOURCE_PHONE.value(),
-        destination: e164,
-        message: JSON.stringify({ type: 'text', text: message }),
-        'src.name': appName,
-      });
-      const resp = await axios.post(GUPSHUP_BASE_URL, params, {
-        headers: { apikey: apiKey },
-        timeout: 10000,
-      });
-      console.log(`[WA] Gupshup response ${resp.status}:`, JSON.stringify(resp.data));
+      const resp = await axios.post(
+        `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
+        {
+          messaging_product: 'whatsapp',
+          to: e164,
+          type: 'text',
+          text: { body: message },
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 10000,
+        }
+      );
+      console.log(`[WA] Meta response ${resp.status}:`, JSON.stringify(resp.data));
       return true;
     } catch (err) {
       const isLast = attempt === retries;
-      console.error(`[WA] Send error (attempt ${attempt + 1}/${retries + 1}):`, err.response?.data ?? err.message);
+      console.error(`[WA] Meta send error (attempt ${attempt + 1}/${retries + 1}):`, err.response?.data ?? err.message);
       if (!isLast) await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
     }
   }
@@ -649,10 +656,6 @@ exports.onOrderStatusChange = onDocumentUpdated(
   }
 );
 
-// ─── Gemini API Key ──────────────────────────────────────────────────────────
-// Set via: firebase functions:secrets:set GEMINI_API_KEY
-const GEMINI_API_KEY = defineString('GEMINI_API_KEY', { default: '' });
-
 // ─── Function 6: Monthly Business Report (1st of month, 8 AM IST = 02:30 UTC) ─
 
 exports.sendMonthlyReport = onSchedule(
@@ -758,77 +761,59 @@ exports.sendMonthlyReport = onSchedule(
   }
 );
 
-// ─── Function 8: WhatsApp Webhook — Gupshup inbound + Gemini AI auto-reply ───
+// ─── Function 8: WhatsApp Webhook — Meta Cloud API inbound + Gemini AI auto-reply ───
 
 exports.whatsappWebhook = onRequest({ cors: true }, async (req, res) => {
   const db = getFirestore();
 
+  // Meta webhook verification (GET request sent once when you register the webhook)
+  if (req.method === 'GET') {
+    const mode = req.query['hub.mode'];
+    const token = req.query['hub.verify_token'];
+    const challenge = req.query['hub.challenge'];
+    if (mode === 'subscribe' && token === META_VERIFY_TOKEN.value()) {
+      console.log('[Webhook] Meta verification successful');
+      return res.status(200).send(challenge);
+    }
+    return res.status(403).send('Forbidden');
+  }
+
   try {
-    // 1. Parse body — Gupshup sends form-encoded OR JSON depending on format
-    let body = req.body;
-    const rawBody = req.rawBody ? req.rawBody.toString() : '';
-    console.log('[Webhook] Content-Type:', req.headers['content-type']);
-    console.log('[Webhook] Raw body:', rawBody.slice(0, 500));
+    // 1. Parse Meta Cloud API payload
+    const body = req.body;
+    console.log('[Webhook] Raw body:', JSON.stringify(body).slice(0, 500));
 
-    // If body is empty, try parsing rawBody manually
-    if (!body || Object.keys(body).length === 0) {
-      try {
-        if (rawBody.startsWith('{') || rawBody.startsWith('[')) {
-          body = JSON.parse(rawBody);
-        } else {
-          // form-encoded: key=value&key2=value2
-          body = Object.fromEntries(new URLSearchParams(rawBody));
-          // Gupshup v2 sends payload as a JSON string inside form field
-          if (body.payload && typeof body.payload === 'string') {
-            body.payload = JSON.parse(body.payload);
-          }
-        }
-      } catch (e) {
-        console.error('[Webhook] Body parse error:', e.message);
-      }
+    // Ignore status updates (delivery receipts, read receipts) — only process messages
+    if (body.object !== 'whatsapp_business_account') {
+      return res.sendStatus(200);
     }
 
-    console.log('[Webhook] Parsed body keys:', Object.keys(body || {}));
+    const change = body.entry?.[0]?.changes?.[0]?.value;
+    const msg = change?.messages?.[0];
 
-    let sender, messageText, appName;
-
-    // Gupshup v2 form-encoded: payload is a JSON object with source + payload.text
-    if (body.payload && (body.payload.source || body.payload.sender)) {
-      sender = body.payload.source || body.payload.sender?.phone;
-      messageText = body.payload.payload?.text || body.payload.payload?.caption || body.payload.text || '';
-      appName = body.app || body['app.name'] || body.appName;
-    } else if (body.mobile) {
-      // Gupshup v1
-      sender = body.mobile;
-      messageText = body.message;
-      appName = body.appName;
-    } else if (body.entry?.[0]) {
-      // Meta/v3 format
-      const change = body.entry[0]?.changes?.[0]?.value;
-      const msg = change?.messages?.[0];
-      if (msg) {
-        sender = msg.from;
-        messageText = msg.text?.body || '';
-        appName = change?.metadata?.display_phone_number || body.appName;
-      }
+    if (!msg || msg.type !== 'text') {
+      return res.sendStatus(200); // not a text message — ignore
     }
+
+    const sender = msg.from;
+    const messageText = msg.text?.body || '';
+    const phoneNumberId = change?.metadata?.phone_number_id;
 
     if (!sender || !messageText) {
-      console.warn('[Webhook] Could not extract fields. Body:', JSON.stringify(body).slice(0, 300));
-      return res.json({ success: false });
+      console.warn('[Webhook] Could not extract sender/message');
+      return res.sendStatus(200);
     }
 
-    console.log('[Webhook] Extracted — sender:', sender, 'message:', messageText, 'app:', appName);
+    console.log('[Webhook] Extracted — sender:', sender, 'message:', messageText, 'phoneNumberId:', phoneNumberId);
 
-    // 2. Query Firestore shops collection to find the shop that owns this Gupshup app
-    // Try matching by gupshupAppName first, then fall back to whatsappNumber
-    let shopsSnap = appName
-      ? await db.collection('shops').where('gupshupAppName', '==', appName).limit(1).get()
+    // 2. Find the shop that owns this Meta phone number
+    let shopsSnap = phoneNumberId
+      ? await db.collection('shops').where('whatsappPhoneNumberId', '==', phoneNumberId).limit(1).get()
       : { empty: true, docs: [] };
 
     if (shopsSnap.empty) {
-      console.warn('[Webhook] No shop found for gupshupAppName:', appName);
-      return res.json({ success: false });
+      console.warn('[Webhook] No shop found for phoneNumberId:', phoneNumberId);
+      return res.sendStatus(200);
     }
 
     const shopDoc = shopsSnap.docs[0];
@@ -874,8 +859,53 @@ exports.whatsappWebhook = onRequest({ cors: true }, async (req, res) => {
     const existingMessages = chatSnap.exists ? (chatSnap.data().messages || []) : [];
     const recentHistory = existingMessages.slice(-5);
 
-    // 6. Check for human hand-off keyword before calling Gemini
+    // 6. Keyword shortcuts — instant replies without Gemini
     const lowerMessage = messageText.toLowerCase();
+
+    const matchKw = (keywords) => keywords.some((k) => lowerMessage.includes(k));
+
+    const saveChat = (reply) => chatDocRef.set({
+      messages: [...recentHistory, { role: 'user', text: messageText, ts: Date.now() }, { role: 'assistant', text: reply, ts: Date.now() }].slice(-5),
+    }, { merge: true });
+
+    if (matchKw(['price', 'rate', 'cost', 'how much', 'എത്ര', 'വില', 'നിരക്ക്']) && aiSettings.shareProductPrices) {
+      const priceList = products.slice(0, 10)
+        .map((p) => `• ${p.name} — ₹${p.price}${p.inStock ? '' : ' (out of stock)'}`)
+        .join('\n');
+      const reply = priceList
+        ? `*${shopName} Products:*\n${priceList}\n\nOrder here: ${storefrontUrl}`
+        : `Browse our products here: ${storefrontUrl}`;
+      await sendWhatsApp(sender, reply, shop);
+      await saveChat(reply);
+      return res.sendStatus(200);
+    }
+
+    if (matchKw(['open', 'time', 'hours', 'close', 'when', 'സമയം', 'തുറക്കുന്ന']) && aiSettings.answerHoursQuestions) {
+      const reply = `*${shopName}* hours: ${shop.workingHours || 'Please contact us for timings.'}`;
+      await sendWhatsApp(sender, reply, shop);
+      await saveChat(reply);
+      return res.sendStatus(200);
+    }
+
+    if (matchKw(['delivery', 'deliver', 'charge', 'ഡെലിവറി']) && aiSettings.answerDeliveryQuestions) {
+      const dc = shop.deliveryCharge || 0;
+      const mo = shop.minOrderValue || 0;
+      const reply = dc === 0
+        ? `*${shopName}*: Free delivery! Min order ₹${mo}. Order: ${storefrontUrl}`
+        : `*${shopName}*: Delivery ₹${dc}. Min order ₹${mo}. Order: ${storefrontUrl}`;
+      await sendWhatsApp(sender, reply, shop);
+      await saveChat(reply);
+      return res.sendStatus(200);
+    }
+
+    if (matchKw(['order', 'buy', 'purchase', 'cart', 'ഓർഡർ', 'വാങ്ങ'])) {
+      const reply = `To order from *${shopName}*, tap here: ${storefrontUrl}`;
+      await sendWhatsApp(sender, reply, shop);
+      await saveChat(reply);
+      return res.sendStatus(200);
+    }
+
+    // Human hand-off keyword
     const handoffKeyword = aiSettings.humanHandoffKeyword
       ? aiSettings.humanHandoffKeyword.toLowerCase()
       : null;
@@ -888,18 +918,9 @@ exports.whatsappWebhook = onRequest({ cors: true }, async (req, res) => {
         handoffReply = 'Please contact us directly.';
       }
 
-      await sendWhatsApp(sender, handoffReply);
-
-      // Save this exchange to chat history
-      const updatedMessages = [
-        ...recentHistory,
-        { role: 'user', text: messageText, ts: Date.now() },
-        { role: 'assistant', text: handoffReply, ts: Date.now() },
-      ].slice(-5);
-
-      await chatDocRef.set({ messages: updatedMessages }, { merge: true });
-
-      return res.json({ success: true });
+      await sendWhatsApp(sender, handoffReply, shop);
+      await saveChat(handoffReply);
+      return res.sendStatus(200);
     }
 
     // 7. Build the Gemini system prompt dynamically from aiSettings
@@ -936,8 +957,8 @@ Keep replies short (under 100 words). Detect language and reply in the same lang
 
     if (!GEMINI_KEY) {
       console.error('[Webhook] Missing GEMINI_API_KEY');
-      await sendWhatsApp(sender, `I'll get back to you shortly. View our store: ${storefrontUrl}`);
-      return res.json({ success: false });
+      await sendWhatsApp(sender, `I'll get back to you shortly. View our store: ${storefrontUrl}`, shop);
+      return res.sendStatus(200);
     }
 
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
@@ -957,49 +978,15 @@ Keep replies short (under 100 words). Detect language and reply in the same lang
       aiReply = `I'll get back to you shortly. View our store: ${storefrontUrl}`;
     }
 
-    // 10. Send the AI reply via WhatsApp
-    await sendWhatsApp(sender, aiReply);
+    // 10. Send the AI reply
+    await sendWhatsApp(sender, aiReply, shop);
+    await saveChat(aiReply);
 
-    // 11. Save updated conversation — keep only the last 5 messages
-    const updatedMessages = [
-      ...recentHistory,
-      { role: 'user', text: messageText, ts: Date.now() },
-      { role: 'assistant', text: aiReply, ts: Date.now() },
-    ].slice(-5);
-
-    await chatDocRef.set({ messages: updatedMessages }, { merge: true });
-
-    return res.json({ success: true });
+    return res.sendStatus(200);
 
   } catch (err) {
     console.error('[Webhook] Unhandled error:', err.message);
-
-    // Best-effort fallback reply — extract sender from body for the error path
-    try {
-      const fallbackSender = req.body.mobile;
-
-      if (fallbackSender) {
-        // Try to build a storefront URL if we can — use a generic fallback if not
-        let fallbackUrl = 'https://wekerala.vercel.app';
-        try {
-          const db2 = getFirestore();
-          const snap = await db2
-            .collection('shops')
-            .where('gupshupAppName', '==', req.body.appName)
-            .limit(1)
-            .get();
-          if (!snap.empty) {
-            fallbackUrl = `https://wekerala.vercel.app/shop?shopId=${snap.docs[0].id}`;
-          }
-        } catch (_) { /* ignore */ }
-
-        await sendWhatsApp(fallbackSender, `I'll get back to you shortly. View our store: ${fallbackUrl}`);
-      }
-    } catch (fallbackErr) {
-      console.error('[Webhook] Fallback send error:', fallbackErr.message);
-    }
-
-    return res.json({ success: false });
+    return res.sendStatus(200); // always 200 to Meta so it doesn't retry
   }
 });
 
