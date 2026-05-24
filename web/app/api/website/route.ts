@@ -44,6 +44,46 @@ function toFirestoreValue(v: unknown): FVal {
   return { nullValue: null };
 }
 
+// Lazy migration: if versions/published doesn't exist yet, seed it from shops/{shopId}.website
+async function ensureMigrated(shopId: string, existingWebsite: Record<string, unknown> | null, apiKey: string) {
+  const publishedUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/shops/${shopId}/versions/published?key=${apiKey}`;
+  const check = await fetch(publishedUrl);
+
+  if (check.status === 404 && existingWebsite) {
+    // Not yet migrated — copy existing website to versions/published and versions/draft
+    const now = new Date().toISOString();
+
+    // Write to versions/published
+    await fetch(publishedUrl, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fields: {
+          config: toFirestoreValue(existingWebsite),
+          publishedAt: toFirestoreValue(now),
+          publishedBy: toFirestoreValue('migration'),
+          version: toFirestoreValue(1),
+        }
+      })
+    });
+
+    // Write to versions/draft
+    const draftUrl = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/shops/${shopId}/versions/draft?key=${apiKey}`;
+    await fetch(draftUrl, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fields: {
+          config: toFirestoreValue(existingWebsite),
+          savedAt: toFirestoreValue(now),
+          savedBy: toFirestoreValue('migration'),
+          hasPendingDraft: toFirestoreValue(false),
+        }
+      })
+    });
+  }
+}
+
 // GET /api/website?shopId=X — returns website config for a shop
 export async function GET(req: NextRequest) {
   const shopId = req.nextUrl.searchParams.get('shopId');
@@ -55,6 +95,26 @@ export async function GET(req: NextRequest) {
   const json = await res.json();
   const fields = parseFields(json.fields ?? {}) as Record<string, unknown>;
 
+  // Try versions/published first; fall back to shops/{shopId}.website
+  let websiteConfig: unknown = null;
+  try {
+    const publishedRes = await fetch(
+      `${BASE_REST}/shops/${shopId}/versions/published?key=${API_KEY}`
+    );
+    if (publishedRes.ok) {
+      const publishedJson = await publishedRes.json();
+      const publishedFields = parseFields(publishedJson.fields ?? {}) as Record<string, unknown>;
+      websiteConfig = publishedFields['config'] ?? null;
+    }
+  } catch {
+    // Ignore errors reading versions/published — fall through to legacy field
+  }
+
+  // Fall back to legacy shops/{shopId}.website field
+  if (websiteConfig === null) {
+    websiteConfig = fields['website'] ?? null;
+  }
+
   return NextResponse.json({
     shopId,
     shopName: fields['shopName'] ?? '',
@@ -64,7 +124,7 @@ export async function GET(req: NextRequest) {
     ownerPhone: fields['ownerPhone'] ?? fields['phone'] ?? fields['ownerWhatsApp'] ?? '',
     logoUrl: fields['logoUrl'] ?? '',
     bannerImageUrl: fields['bannerImageUrl'] ?? '',
-    website: fields['website'] ?? null,
+    website: websiteConfig,
   });
 }
 
@@ -105,13 +165,14 @@ export async function POST(req: NextRequest) {
   const existingSlug = (shopFields['shopSlug'] as string) || '';
   const slug = toSlug(shopName, shopId);
 
+  // Existing website data for migration check
+  const existingWebsiteData = (shopFields['website'] as Record<string, unknown>) ?? null;
+
+  // Ensure legacy data is migrated to versioned subcollection structure
+  await ensureMigrated(shopId, existingWebsiteData, API_KEY);
+
   // Check slug uniqueness only when slug would change
   if (slug !== existingSlug) {
-    const queryUrl = `${BASE_REST}/shops?key=${API_KEY}&pageSize=2` +
-      `&structuredQuery.from[0].collectionId=shops` +
-      `&structuredQuery.where.fieldFilter.field.fieldPath=shopSlug` +
-      `&structuredQuery.where.fieldFilter.op=EQUAL` +
-      `&structuredQuery.where.fieldFilter.value.stringValue=${encodeURIComponent(slug)}`;
     // Use simpler Firestore REST query
     const slugCheckUrl = `${BASE_REST}:runQuery?key=${API_KEY}`;
     const slugCheckBody = {
@@ -149,11 +210,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const now = new Date().toISOString();
+
   const websiteData = draft
     ? { ...config, slug }
-    : { ...config, isPublished: true, publishedAt: new Date().toISOString(), slug };
+    : { ...config, isPublished: true, publishedAt: now, slug };
 
-  // PATCH website + shopSlug fields using updateMask
+  // PATCH website + shopSlug fields using updateMask (backward compat — keep writing shops/{shopId}.website)
   const patchUrl = `${BASE_REST}/shops/${shopId}?key=${API_KEY}&updateMask.fieldPaths=website&updateMask.fieldPaths=shopSlug`;
   try {
     const patchRes = await fetch(patchUrl, {
@@ -172,6 +235,85 @@ export async function POST(req: NextRequest) {
       const msg = (errJson as { error?: { message?: string } })?.error?.message ?? 'Firestore write failed';
       console.error('[website POST] Firestore PATCH failed:', msg, 'shopId:', shopId);
       return NextResponse.json({ error: msg }, { status: 500 });
+    }
+
+    if (draft) {
+      // Auto-save from builder: also write to versions/draft subcollection
+      const draftVersionUrl = `${BASE_REST}/shops/${shopId}/versions/draft?key=${API_KEY}`;
+      await fetch(draftVersionUrl, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fields: {
+            config: toFirestoreValue(websiteData),
+            savedAt: toFirestoreValue(now),
+            savedBy: toFirestoreValue('builder'),
+            hasPendingDraft: toFirestoreValue(true),
+          },
+        }),
+      });
+    } else {
+      // Publishing: read current version number from versions/published to increment it
+      let currentVersion = 1;
+      try {
+        const prevPublishedRes = await fetch(
+          `${BASE_REST}/shops/${shopId}/versions/published?key=${API_KEY}`
+        );
+        if (prevPublishedRes.ok) {
+          const prevJson = await prevPublishedRes.json();
+          const prevFields = parseFields(prevJson.fields ?? {}) as Record<string, unknown>;
+          const prevVersion = prevFields['version'];
+          if (typeof prevVersion === 'number' && !isNaN(prevVersion)) {
+            currentVersion = prevVersion + 1;
+          }
+        }
+      } catch {
+        // If we can't read the previous version, start at 1
+      }
+
+      // Write to versions/published
+      const publishedVersionUrl = `${BASE_REST}/shops/${shopId}/versions/published?key=${API_KEY}`;
+      await fetch(publishedVersionUrl, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fields: {
+            config: toFirestoreValue(websiteData),
+            publishedAt: toFirestoreValue(now),
+            publishedBy: toFirestoreValue('owner'),
+            version: toFirestoreValue(currentVersion),
+          },
+        }),
+      });
+
+      // Write to versions/draft (now in sync with published)
+      const draftVersionUrl = `${BASE_REST}/shops/${shopId}/versions/draft?key=${API_KEY}`;
+      await fetch(draftVersionUrl, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fields: {
+            config: toFirestoreValue(websiteData),
+            savedAt: toFirestoreValue(now),
+            savedBy: toFirestoreValue('owner'),
+            hasPendingDraft: toFirestoreValue(false),
+          },
+        }),
+      });
+
+      // Create version snapshot at versions/{ISO_timestamp}
+      const snapshotUrl = `${BASE_REST}/shops/${shopId}/versions/${encodeURIComponent(now)}?key=${API_KEY}`;
+      await fetch(snapshotUrl, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fields: {
+            config: toFirestoreValue(websiteData),
+            publishedAt: toFirestoreValue(now),
+            version: toFirestoreValue(currentVersion),
+          },
+        }),
+      });
     }
 
     // Use shopId (direct doc lookup) as primary URL — always works even if slug isn't saved yet

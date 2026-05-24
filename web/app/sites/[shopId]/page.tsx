@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import ThemeRenderer from '@/components/ThemeRenderer';
 import { SaveShopButton } from '@/components/SaveShopButton';
 import { type WebsiteConfig } from '@/lib/theme-engine';
+import { validatePreviewToken } from '@/lib/preview-token';
 
 function parseFirestoreValue(val: unknown): unknown {
   if (!val || typeof val !== 'object') return null;
@@ -71,7 +72,6 @@ export default async function SitePage({
 }) {
   const { shopId: param } = await params;
   const { preview } = await searchParams;
-  const isPreview = preview === 'true';
 
   const API_KEY = _API_KEY;
   const BASE = _BASE;
@@ -114,19 +114,60 @@ export default async function SitePage({
     );
   }
 
-  const parsed = parseFields(shopJson.fields as Record<string, unknown>);
-  const website = parsed.website as Record<string, unknown> | null ?? null;
+  // Resolve preview mode via HMAC token validation (not a plain 'true' flag)
+  const resolvedShopId = shopId;
+  const isPreview = preview ? validatePreviewToken(preview, resolvedShopId) : false;
 
-  if (!website || website.isPublished !== true) {
-    if (!isPreview) {
-      return (
-        <div className="min-h-screen bg-[#283618] flex flex-col items-center justify-center p-4">
-          <h1 className="text-4xl font-bold text-[#fefae0] text-center mb-4">{(parsed.shopName as string) || 'Shop'}</h1>
-          <p className="text-xl text-[#fefae0]/80">Website coming soon</p>
-        </div>
-      );
+  const parsed = parseFields(shopJson.fields as Record<string, unknown>);
+
+  // ── Read website config from versioned subcollection with legacy fallback ───
+  // isPreview → try draft first, fall back to shop.website
+  // public   → try published first, fall back to shop.website
+  let website: Record<string, unknown> | null = null;
+
+  const versionDocId = isPreview ? 'draft' : 'published';
+  try {
+    const versionRes = await fetch(
+      `${BASE}/shops/${resolvedShopId}/versions/${versionDocId}?key=${API_KEY}`,
+      { cache: 'no-store' }
+    );
+    if (versionRes.ok) {
+      const versionJson = await versionRes.json() as Record<string, unknown>;
+      if (versionJson.fields) {
+        const versionFields = parseFields(versionJson.fields as Record<string, unknown>);
+        if (versionFields['config'] && typeof versionFields['config'] === 'object') {
+          website = versionFields['config'] as Record<string, unknown>;
+        }
+      }
     }
+  } catch {
+    // Version doc fetch failed — fall through to legacy field
+  }
+
+  // Fallback: read from top-level shop.website field (old format / unmigrated shops)
+  // Track whether the config came from the versioned subcollection so we can
+  // skip the isPublished guard (versioned 'published' doc is always considered live).
+  let websiteFromVersionedDoc = website !== null;
+  if (!website) {
+    website = (parsed.website as Record<string, unknown> | null) ?? null;
+    websiteFromVersionedDoc = false;
+  }
+
+  // A site is considered published if:
+  //  - It came from the versioned 'published' subcollection (new architecture), OR
+  //  - It came from the legacy shop.website field with isPublished === true
+  const siteIsPublished = websiteFromVersionedDoc || website?.isPublished === true;
+
+  if (!website || (!isPreview && !siteIsPublished)) {
     if (!website) {
+      if (!isPreview) {
+        return (
+          <div className="min-h-screen bg-[#283618] flex flex-col items-center justify-center p-4">
+            <h1 className="text-4xl font-bold text-[#fefae0] text-center mb-4">{(parsed.shopName as string) || 'Shop'}</h1>
+            <p className="text-xl text-[#fefae0]/80">Website coming soon</p>
+          </div>
+        );
+      }
       return (
         <div className="min-h-screen bg-[#283618] flex flex-col items-center justify-center p-4">
           <h1 className="text-4xl font-bold text-[#fefae0] text-center mb-4">{(parsed.shopName as string) || 'Shop'}</h1>
@@ -135,6 +176,13 @@ export default async function SitePage({
         </div>
       );
     }
+    // website exists but is not published and this is a public request
+    return (
+      <div className="min-h-screen bg-[#283618] flex flex-col items-center justify-center p-4">
+        <h1 className="text-4xl font-bold text-[#fefae0] text-center mb-4">{(parsed.shopName as string) || 'Shop'}</h1>
+        <p className="text-xl text-[#fefae0]/80">Website coming soon</p>
+      </div>
+    );
   }
 
   // custom HTML theme

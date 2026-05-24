@@ -1,5 +1,77 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// ─── Firestore REST helpers for analytics cache ───────────────────────────────
+
+const _PROJECT_ID = (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? 'shoplink-prod').replace(/^﻿/, '');
+const _API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? 'AIzaSyCFB9YZL3_bXjvRMoWaYFv8nTs_ote52GQ';
+const _FBASE = `https://firestore.googleapis.com/v1/projects/${_PROJECT_ID}/databases/(default)/documents`;
+
+type FVal =
+  | { stringValue: string }
+  | { integerValue: string }
+  | { doubleValue: number }
+  | { booleanValue: boolean }
+  | { nullValue: null }
+  | { arrayValue: { values?: FVal[] } }
+  | { mapValue: { fields?: Record<string, FVal> } };
+
+function _parseValue(v: FVal): unknown {
+  if ('stringValue' in v) return v.stringValue;
+  if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return v.doubleValue;
+  if ('booleanValue' in v) return v.booleanValue;
+  if ('nullValue' in v) return null;
+  if ('arrayValue' in v) return (v.arrayValue.values ?? []).map(_parseValue);
+  if ('mapValue' in v) return _parseFields(v.mapValue.fields ?? {});
+  return null;
+}
+
+function _parseFields(fields: Record<string, FVal>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, _parseValue(v)]));
+}
+
+function _toFVal(v: unknown): FVal {
+  if (v === null || v === undefined) return { nullValue: null };
+  if (typeof v === 'boolean') return { booleanValue: v };
+  if (typeof v === 'number')
+    return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+  if (typeof v === 'string') return { stringValue: v };
+  if (Array.isArray(v)) return { arrayValue: { values: v.map(_toFVal) } };
+  if (typeof v === 'object') {
+    return {
+      mapValue: {
+        fields: Object.fromEntries(
+          Object.entries(v as Record<string, unknown>).map(([k, val]) => [k, _toFVal(val)])
+        ),
+      },
+    };
+  }
+  return { nullValue: null };
+}
+
+async function _getCacheDoc(path: string): Promise<Record<string, unknown> | null> {
+  try {
+    const res = await fetch(`${_FBASE}/${path}?key=${_API_KEY}`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json.fields) return null;
+    return _parseFields(json.fields as Record<string, FVal>);
+  } catch {
+    return null;
+  }
+}
+
+function _writeCacheDoc(path: string, data: Record<string, unknown>): void {
+  const fields = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, _toFVal(v)]));
+  fetch(`${_FBASE}/${path}?key=${_API_KEY}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fields }),
+  }).catch(() => {});
+}
+
+// ─── Period helper ────────────────────────────────────────────────────────────
+
 function periodStart(period: string): Date {
   const now = new Date();
   if (period === 'day') return new Date(now.getTime() - 24 * 60 * 60 * 1000);
@@ -7,10 +79,32 @@ function periodStart(period: string): Date {
   return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 }
 
+// ─── GET /api/analytics ───────────────────────────────────────────────────────
+
 export async function GET(req: NextRequest) {
   const shopId = req.nextUrl.searchParams.get('shopId');
   const period = req.nextUrl.searchParams.get('period') ?? 'month';
   if (!shopId) return NextResponse.json({ error: 'Missing shopId' }, { status: 400 });
+
+  // ── Cache read: try shops/{shopId}/analytics/summary ────────────────────────
+  // Cache is keyed by shopId + period so different periods are cached independently.
+  const cacheDocPath = `shops/${shopId}/analytics/summary_${period}`;
+  const CACHE_TTL_MS = 60 * 60 * 1000; // 60 minutes
+
+  const cached = await _getCacheDoc(cacheDocPath);
+  if (cached && typeof cached['computedAt'] === 'string') {
+    const age = Date.now() - new Date(cached['computedAt'] as string).getTime();
+    if (age < CACHE_TTL_MS) {
+      // Return cached response directly — skip all order fetching
+      const {
+        computedAt: _ca,
+        computedForDate: _cd,
+        ...cachePayload
+      } = cached as Record<string, unknown>;
+      return NextResponse.json(cachePayload);
+    }
+  }
+  // ── End cache read ──────────────────────────────────────────────────────────
 
   const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
   if (!serviceAccountJson) {
@@ -70,7 +164,30 @@ export async function GET(req: NextRequest) {
       .map(([date, v]) => ({ date, revenue: Math.round(v.revenue), orders: v.orders }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    return NextResponse.json({ totalRevenue: Math.round(totalRevenue), orderCount, avgOrderValue, topProducts, dailyRevenue });
+    // Count pending orders across the full collection (not period-filtered)
+    const allOrders = snap.docs.map((d) => d.data());
+    const pendingOrders = allOrders.filter(
+      (o) => o['status'] === 'new' || o['status'] === 'confirmed'
+    ).length;
+
+    const result = {
+      totalRevenue: Math.round(totalRevenue),
+      orderCount,
+      avgOrderValue,
+      topProducts,
+      dailyRevenue,
+    };
+
+    // ── Cache write: fire-and-forget ─────────────────────────────────────────
+    _writeCacheDoc(cacheDocPath, {
+      ...result,
+      pendingOrders,
+      computedAt: new Date().toISOString(),
+      computedForDate: new Date().toISOString().slice(0, 10),
+    });
+    // ── End cache write ──────────────────────────────────────────────────────
+
+    return NextResponse.json(result);
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: 'Internal error', detail: String(e) }, { status: 500 });

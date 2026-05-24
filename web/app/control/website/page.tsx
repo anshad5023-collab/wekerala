@@ -116,6 +116,51 @@ function BuilderContent() {
 
   const setC = (partial: Partial<WebsiteConfig>) => { setConfig(prev => ({ ...prev, ...partial })); setDraftSaved(false); };
 
+  // AI bridge — register window functions so Flutter can apply/undo AI patches
+  useEffect(() => {
+    // Called by Flutter via evaluateJavascript when AI applies a change
+    (window as any).__applyAiPatch = (patchJson: string) => {
+      try {
+        const patch = JSON.parse(patchJson) as Partial<WebsiteConfig>;
+        // Save checkpoint for undo (only set once per session)
+        if (!(window as any).__aiCheckpointSet) {
+          (window as any).__aiCheckpoint = JSON.stringify(config);
+          (window as any).__aiCheckpointSet = true;
+        }
+        setConfig(prev => ({ ...prev, ...patch }));
+        setDraftSaved(false);
+        // Notify Flutter that patch was applied
+        (window as any).__aiPatchApplied = true;
+      } catch (e) {
+        console.error('[AI Bridge] Failed to apply patch:', e);
+      }
+    };
+
+    // Called by Flutter to undo last AI changes
+    (window as any).__undoAiChanges = () => {
+      const checkpoint = (window as any).__aiCheckpoint;
+      if (checkpoint) {
+        try {
+          setConfig(JSON.parse(checkpoint));
+          setDraftSaved(false);
+          (window as any).__aiCheckpointSet = false;
+          (window as any).__aiCheckpoint = null;
+        } catch (e) {
+          console.error('[AI Bridge] Failed to undo:', e);
+        }
+      }
+    };
+
+    // Called by Flutter to get current config as JSON string
+    (window as any).__getCurrentConfig = () => JSON.stringify(config);
+
+    return () => {
+      delete (window as any).__applyAiPatch;
+      delete (window as any).__undoAiChanges;
+      delete (window as any).__getCurrentConfig;
+    };
+  }, [config]); // keep bridge up to date with latest config
+
   useEffect(() => {
     if (uid) setUser(uid, '');
     if (!shopId) return;
@@ -164,6 +209,21 @@ function BuilderContent() {
     setNewBanner('');
   };
 
+  const handlePreview = async () => {
+    try {
+      const res = await fetch('/api/website/preview-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shopId, uid }),
+      });
+      const data = await res.json();
+      window.open(data.previewUrl, '_blank');
+    } catch {
+      // Fallback to old behavior if token generation fails
+      window.open(`/sites/${shopId}?preview=true`, '_blank');
+    }
+  };
+
   const handlePublish = async () => {
     setPublishStatus('publishing');
     setPublishError('');
@@ -202,7 +262,7 @@ function BuilderContent() {
         <span className="flex-1 font-semibold text-sm truncate">Website Builder</span>
         {draftSaved && <span className="text-xs text-[#fefae0]/50">Saved</span>}
         <button
-          onClick={() => window.open(`/sites/${shopId}?preview=true`, '_blank')}
+          onClick={handlePreview}
           className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[#fefae0]/40 hover:bg-[#fefae0]/10">
           Preview
         </button>
@@ -250,6 +310,14 @@ function BuilderContent() {
               {publishError?.includes('already taken') ? '⚠ Site name taken' : '✕ Failed to publish'}
             </p>
             <p className="text-red-600 text-xs mt-0.5">{publishError}</p>
+          </div>
+        )}
+
+        {/* Draft status banner — shown when there are unsaved AI changes on a live site */}
+        {!draftSaved && config.isPublished && (
+          <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center gap-2 text-sm text-amber-800">
+            <span>⚡</span>
+            <span>You have unpublished changes from AI. Preview them or publish when ready.</span>
           </div>
         )}
 
