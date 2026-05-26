@@ -120,7 +120,14 @@ class WebsiteChatNotifier extends StateNotifier<WebsiteChatState> {
       final body = jsonDecode(resp.body) as Map<String, dynamic>;
       final requiresConfirmation = body['requiresConfirmation'] == true;
       final confirmPrompt = body['confirmPrompt'] as String?;
-      final action = body['action'] as Map<String, dynamic>?;
+      // analyticsMessage is embedded in action.humanMessage by the server,
+      // but keep this fallback for older deployments.
+      final analyticsMessage = body['analyticsMessage'] as String?;
+      var action = body['action'] as Map<String, dynamic>?;
+      // Patch analyticsMessage into action so _handleAction can display it
+      if (action != null && analyticsMessage != null && action['humanMessage'] == null) {
+        action = {...action, 'humanMessage': analyticsMessage};
+      }
 
       if (action == null) {
         _addMessage(ChatMessage.aiText('I didn\'t understand that. Try again.'));

@@ -87,14 +87,14 @@ function checkLocalRules(message: string): LocalRuleResult {
   const m = message.toLowerCase().trim();
 
   const pairs: Array<[RegExp, Partial<WebsiteConfig>, string]> = [
-    [/\b(enable|turn on|activate)\b.*whatsapp/i, { whatsappEnabled: true }, 'WhatsApp ordering has been enabled.'],
+    [/\b(enable|turn on|activate|add)\b.*whatsapp/i, { whatsappEnabled: true }, 'WhatsApp ordering has been enabled.'],
     [/\b(disable|turn off|deactivate)\b.*whatsapp/i, { whatsappEnabled: false }, 'WhatsApp ordering will be turned off.'],
-    [/\b(enable|turn on|activate)\b.*review/i, { reviewsEnabled: true }, 'Customer reviews have been enabled.'],
-    [/\b(disable|turn off|deactivate)\b.*review/i, { reviewsEnabled: false }, 'Customer reviews have been disabled.'],
+    [/\b(enable|turn on|activate|add)\b.*review/i, { reviewsEnabled: true }, 'Customer reviews section has been enabled.'],
+    [/\b(disable|turn off|deactivate|remove)\b.*review/i, { reviewsEnabled: false }, 'Customer reviews have been disabled.'],
     [/\bhide\b.*about( page)?/i, { showAboutPage: false }, 'The About page has been hidden.'],
     [/\bshow\b.*about( page)?/i, { showAboutPage: true }, 'The About page is now visible.'],
-    [/\b(enable|turn on|activate)\b.*announcement/i, { announcementBarEnabled: true }, 'Announcement bar has been enabled.'],
-    [/\b(disable|turn off|deactivate|hide)\b.*announcement/i, { announcementBarEnabled: false }, 'Announcement bar has been disabled.'],
+    [/\b(enable|turn on|activate|add)\b.*announcement/i, { announcementBarEnabled: true }, 'Announcement bar has been enabled! Now go to the Pages tab to set the announcement text.'],
+    [/\b(disable|turn off|deactivate|hide|remove)\b.*announcement/i, { announcementBarEnabled: false }, 'Announcement bar has been disabled.'],
   ];
 
   for (const [pattern, changes, humanMessage] of pairs) {
@@ -160,6 +160,7 @@ async function callGemini(systemPrompt: string, userMessage: string): Promise<Ai
       temperature: 0.2,
       maxOutputTokens: 512,
       responseMimeType: 'application/json',
+      thinkingConfig: { thinkingBudget: 0 },
     },
   };
 
@@ -506,15 +507,14 @@ export async function POST(req: NextRequest) {
     console.error('[chat-builder] Failed to log ai_action:', e);
   });
 
-  // 10. Handle ANALYTICS_QUERY
+  // 10. Handle ANALYTICS_QUERY — embed formatted data into humanMessage so Flutter reads it
   if (action.type === 'ANALYTICS_QUERY') {
     const { metric, period } = action;
     const summary = await fetchAnalyticsSummary(shopId, period);
     const formattedMessage = formatAnalyticsResponse(metric, period, summary);
 
     return NextResponse.json({
-      action,
-      analyticsMessage: formattedMessage,
+      action: { ...action, humanMessage: formattedMessage },
     });
   }
 
