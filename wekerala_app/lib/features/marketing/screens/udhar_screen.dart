@@ -71,8 +71,6 @@ final _udharStreamProvider =
 class UdharScreen extends ConsumerWidget {
   const UdharScreen({super.key});
 
-  static const _green = Color(0xFF2D6A4F);
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final shopAsync = ref.watch(activeShopIdProvider);
@@ -172,7 +170,7 @@ class _UdharBody extends ConsumerWidget {
         ),
         data: (entries) {
           final totalOutstanding =
-              entries.fold<double>(0, (sum, e) => sum + e.amount);
+              entries.fold<double>(0, (acc, e) => acc + e.amount);
           final customerCount = entries.length;
 
           return CustomScrollView(
@@ -339,8 +337,6 @@ class _UdharCard extends ConsumerWidget {
     required this.shopName,
     required this.index,
   });
-
-  static const _green = Color(0xFF2D6A4F);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

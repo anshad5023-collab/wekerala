@@ -477,15 +477,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // 3. Fetch current website config
+  // 3. Fetch current website config.
+  // versions/draft document is a wrapper: { config: {...WebsiteConfig...}, savedAt, hasPendingDraft }
+  // We must extract the nested 'config' field to get the actual WebsiteConfig.
   let currentConfig: Partial<WebsiteConfig> = {};
 
-  // Try shops/{shopId}/versions/draft first
-  const draftConfig = await firestoreGet(`shops/${shopId}/versions/draft`);
-  if (draftConfig) {
-    currentConfig = draftConfig as Partial<WebsiteConfig>;
-  } else {
-    // Fallback: shops/{shopId}.website field (old format)
+  const draftDoc = await firestoreGet(`shops/${shopId}/versions/draft`);
+  if (draftDoc?.['config'] && typeof draftDoc['config'] === 'object') {
+    currentConfig = draftDoc['config'] as Partial<WebsiteConfig>;
+  } else if (draftDoc && !draftDoc['config']) {
+    // Legacy draft: the document IS the config (old format before versioning)
+    currentConfig = draftDoc as Partial<WebsiteConfig>;
+  }
+
+  // Fallback to shops/{shopId}.website legacy field
+  if (!currentConfig.themeId) {
     const websiteField = shopFields['website'];
     if (websiteField && typeof websiteField === 'object') {
       currentConfig = websiteField as Partial<WebsiteConfig>;

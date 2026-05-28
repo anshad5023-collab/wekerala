@@ -107,7 +107,7 @@ class ChatMessageBubble extends StatelessWidget {
           color: _aiBg,
           borderRadius: _aiRadius,
           border: Border.all(
-            color: AppColors.success.withOpacity(0.4),
+            color: AppColors.success.withValues(alpha: 0.4),
             width: 1.2,
           ),
         ),
@@ -128,10 +128,10 @@ class ChatMessageBubble extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: AppColors.success.withOpacity(0.12),
+        color: AppColors.success.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: AppColors.success.withOpacity(0.5),
+          color: AppColors.success.withValues(alpha: 0.5),
         ),
       ),
       child: Row(
@@ -192,10 +192,10 @@ class ChatMessageBubble extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: AppColors.primary.withOpacity(0.09),
+          color: AppColors.primary.withValues(alpha: 0.09),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: AppColors.primary.withOpacity(0.35),
+            color: AppColors.primary.withValues(alpha: 0.35),
           ),
         ),
         child: Text(
@@ -277,10 +277,10 @@ class ChatMessageBubble extends StatelessWidget {
         margin: const EdgeInsets.only(right: 60),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: AppColors.error.withOpacity(0.08),
+          color: AppColors.error.withValues(alpha: 0.08),
           borderRadius: _aiRadius,
           border: Border.all(
-            color: AppColors.error.withOpacity(0.35),
+            color: AppColors.error.withValues(alpha: 0.35),
           ),
         ),
         child: Column(

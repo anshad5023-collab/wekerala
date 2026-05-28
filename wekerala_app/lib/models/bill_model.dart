@@ -55,7 +55,7 @@ class BillItemModel {
       unit: map['unit'] as String? ?? 'piece',
       price: (map['price'] as num?)?.toDouble() ?? 0,
       subtotal: (map['subtotal'] as num?)?.toDouble() ?? 0,
-      gstRate: (map['gstRate'] as int?) ?? 0,
+      gstRate: (map['gstRate'] as num?)?.toInt() ?? 0,
       hsnCode: map['hsnCode'] as String?,
       priceIncludesGst: (map['priceIncludesGst'] as bool?) ?? true,
     );
@@ -128,7 +128,9 @@ class BillModel {
       isUdhar: d['isUdhar'] as bool? ?? false,
       createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       gstBreakdown: (d['gstBreakdown'] as Map<String, dynamic>? ?? {}).map(
-        (k, v) => MapEntry(k, Map<String, double>.from(v as Map)),
+        (k, v) => MapEntry(k, (v as Map).map(
+          (kk, vv) => MapEntry(kk.toString(), (vv as num?)?.toDouble() ?? 0.0),
+        )),
       ),
       totalTax: (d['totalTax'] as num?)?.toDouble() ?? 0.0,
       gstinSnapshot: d['gstinSnapshot'] as String?,

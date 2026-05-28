@@ -9,9 +9,9 @@ import '../../../providers/shop_provider.dart';
 
 class _KotItem {
   final String name;
-  int qty;
-  final String notes;
-  _KotItem({required this.name, this.qty = 1, this.notes = ''});
+  int qty = 1;
+  final String notes = '';
+  _KotItem({required this.name});
 }
 
 class _KotOrder {
@@ -19,14 +19,13 @@ class _KotOrder {
   final String table;
   final List<_KotItem> items;
   final DateTime createdAt;
-  String status; // 'pending' | 'preparing' | 'ready' | 'served'
+  String status = 'pending'; // 'pending' | 'preparing' | 'ready' | 'served'
 
   _KotOrder({
     required this.id,
     required this.table,
     required this.items,
     required this.createdAt,
-    this.status = 'pending',
   });
 }
 
@@ -43,7 +42,7 @@ class _KotScreenState extends ConsumerState<KotScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final List<_KotOrder> _orders = [];
-  String _selectedTable = 'Table 1';
+  final String _selectedTable = 'Table 1';
 
   static const _tables = [
     'Table 1', 'Table 2', 'Table 3', 'Table 4',

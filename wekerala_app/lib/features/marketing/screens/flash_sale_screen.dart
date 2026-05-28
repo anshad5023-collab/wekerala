@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../../core/constants/app_colors.dart';
 
 class FlashSaleScreen extends ConsumerStatefulWidget {
   const FlashSaleScreen({super.key});
@@ -130,10 +129,9 @@ class _FlashSaleScreenState extends ConsumerState<FlashSaleScreen> {
                   label: Text('Ends: ${endTime.day}/${endTime.month} ${endTime.hour}:${endTime.minute.toString().padLeft(2,'0')}'),
                   onPressed: () async {
                     final d = await showDatePicker(context: ctx, initialDate: endTime, firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 30)));
-                    if (d != null) {
-                      final t = await showTimePicker(context: ctx, initialTime: TimeOfDay.fromDateTime(endTime));
-                      if (t != null) setS(() => endTime = DateTime(d.year, d.month, d.day, t.hour, t.minute));
-                    }
+                    if (d == null || !ctx.mounted) return;
+                    final t = await showTimePicker(context: ctx, initialTime: TimeOfDay.fromDateTime(endTime));
+                    if (t != null) setS(() => endTime = DateTime(d.year, d.month, d.day, t.hour, t.minute));
                   },
                 )),
               ]),
@@ -151,7 +149,9 @@ class _FlashSaleScreenState extends ConsumerState<FlashSaleScreen> {
                     'expired': false,
                     'createdAt': FieldValue.serverTimestamp(),
                   });
+                  if (!ctx.mounted) return;
                   Navigator.pop(ctx);
+                  if (!mounted) return;
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Flash sale created! 🔥')));
                 },
                 child: const Text('Create Sale', style: TextStyle(fontSize: 16)),

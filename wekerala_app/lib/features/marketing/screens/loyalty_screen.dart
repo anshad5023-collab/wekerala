@@ -50,6 +50,7 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> with SingleTicker
         'valuePerPoint': _valuePerPoint,
       }
     });
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Loyalty settings saved!')));
   }
 

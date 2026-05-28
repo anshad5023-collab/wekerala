@@ -86,6 +86,7 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
       setState(() => _imported = i + chunk.length);
     }
     setState(() => _loading = false);
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('✅ $_imported products imported!')));
     setState(() => _parsed = []);
   }

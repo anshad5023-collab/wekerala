@@ -104,9 +104,9 @@ class _ProductsBody extends ConsumerWidget {
           // KPI computations
           final total = products.length;
           final lowStockCount = products.where((p) => p.isLowStock).length;
-          final totalValue = products.fold<double>(0, (sum, p) {
+          final totalValue = products.fold<double>(0, (acc, p) {
             final qty = (p.stockQty ?? 0).clamp(0, 999999);
-            return sum + (p.price * qty);
+            return acc + (p.price * qty);
           });
 
           // Filtered list

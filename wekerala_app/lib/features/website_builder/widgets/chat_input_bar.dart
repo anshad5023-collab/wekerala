@@ -44,7 +44,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = AppColors.primary.withOpacity(0.25);
+    final borderColor = AppColors.primary.withValues(alpha: 0.25);
 
     return Container(
       decoration: BoxDecoration(
@@ -168,13 +168,13 @@ class _SuggestionChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         decoration: BoxDecoration(
           color: enabled
-              ? AppColors.primary.withOpacity(0.08)
-              : AppColors.primary.withOpacity(0.04),
+              ? AppColors.primary.withValues(alpha: 0.08)
+              : AppColors.primary.withValues(alpha: 0.04),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: enabled
-                ? AppColors.primary.withOpacity(0.4)
-                : AppColors.primary.withOpacity(0.2),
+                ? AppColors.primary.withValues(alpha: 0.4)
+                : AppColors.primary.withValues(alpha: 0.2),
           ),
         ),
         child: Text(
@@ -207,7 +207,7 @@ class _SendButton extends StatelessWidget {
         height: 42,
         decoration: BoxDecoration(
           color: isLoading
-              ? AppColors.primary.withOpacity(0.5)
+              ? AppColors.primary.withValues(alpha: 0.5)
               : AppColors.primary,
           shape: BoxShape.circle,
         ),

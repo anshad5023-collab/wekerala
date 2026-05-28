@@ -387,10 +387,9 @@ class _SectionCard extends StatelessWidget {
 class _InfoRow extends StatelessWidget {
   final String label;
   final String value;
-  final Color? valueColor;
   final Widget? trailing;
 
-  const _InfoRow({required this.label, required this.value, this.valueColor, this.trailing});
+  const _InfoRow({required this.label, required this.value, this.trailing});
 
   @override
   Widget build(BuildContext context) {
@@ -402,9 +401,9 @@ class _InfoRow extends StatelessWidget {
               style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
           const Spacer(),
           Text(value,
-              style: TextStyle(
+              style: const TextStyle(
                   fontWeight: FontWeight.w500,
-                  color: valueColor ?? AppColors.textPrimary)),
+                  color: AppColors.textPrimary)),
           if (trailing != null) trailing!,
         ],
       ),

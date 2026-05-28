@@ -131,7 +131,7 @@ class WhatsAppService {
     required String offerText,
     required String storefrontUrl,
   }) async {
-    final msg = '🎉 *${festivalName} Wishes from $shopName!*\n\n'
+    final msg = '🎉 *$festivalName Wishes from $shopName!*\n\n'
         'Dear $customerName,\n'
         '$offerText\n\n'
         'Shop now: $storefrontUrl\n\n'

@@ -1484,7 +1484,7 @@ class _PaymentBarState extends ConsumerState<_PaymentBar> {
                 final shopAsync = ref.watch(shopStreamProvider(shopId));
                 return shopAsync.when(
                   data: (shop) {
-                    if (shop == null || shop.upiId.isEmpty) {
+                    if (shop.upiId.isEmpty) {
                       return const SizedBox.shrink();
                     }
                     return Padding(
