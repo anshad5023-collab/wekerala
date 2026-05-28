@@ -152,10 +152,13 @@ function BuilderContent() {
 
   // AI bridge — register window functions so Flutter can apply/undo AI patches
   useEffect(() => {
-    // Called by Flutter via evaluateJavascript when AI applies a change
-    (window as any).__applyAiPatch = (patchJson: string) => {
+    // Called by Flutter via evaluateJavascript when AI applies a change.
+    // Accepts either a JSON string OR a plain JS object (Flutter passes an object).
+    (window as any).__applyAiPatch = (patchOrJson: string | Partial<WebsiteConfig>) => {
       try {
-        const patch = JSON.parse(patchJson) as Partial<WebsiteConfig>;
+        const patch: Partial<WebsiteConfig> = typeof patchOrJson === 'string'
+          ? JSON.parse(patchOrJson) as Partial<WebsiteConfig>
+          : patchOrJson;
         // Save checkpoint for undo (only set once per session)
         if (!(window as any).__aiCheckpointSet) {
           (window as any).__aiCheckpoint = JSON.stringify(config);
@@ -164,7 +167,9 @@ function BuilderContent() {
         setConfig(prev => ({ ...prev, ...patch }));
         setDraftSaved(false);
         // Notify Flutter that patch was applied
-        (window as any).__aiPatchApplied = true;
+        try {
+          (window as any).WekeralaAI?.postMessage(JSON.stringify({ type: 'patch_applied' }));
+        } catch {/* ignore */}
       } catch (e) {
         console.error('[AI Bridge] Failed to apply patch:', e);
       }

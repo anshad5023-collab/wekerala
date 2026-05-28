@@ -75,6 +75,60 @@ async function firestorePost(path: string, data: Record<string, unknown>): Promi
   });
 }
 
+async function firestorePatch(path: string, data: Record<string, unknown>, fieldMask?: string[]): Promise<void> {
+  let url = `${BASE_REST}/${path}?key=${API_KEY}`;
+  if (fieldMask && fieldMask.length > 0) {
+    url += fieldMask.map((f) => `&updateMask.fieldPaths=${encodeURIComponent(f)}`).join('');
+  }
+  await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fields: Object.fromEntries(
+        Object.entries(data).map(([k, v]) => [k, toFirestoreValue(v)]),
+      ),
+    }),
+  });
+}
+
+/** Publish AI changes directly to Firestore — no manual Publish button needed. */
+async function publishAiChanges(
+  shopId: string,
+  currentConfig: Partial<Record<string, unknown>>,
+  changes: Record<string, unknown>,
+): Promise<void> {
+  const now = new Date().toISOString();
+  const merged = { ...currentConfig, ...changes, isPublished: true, publishedAt: now };
+
+  // Read current version number
+  let nextVersion = 1;
+  try {
+    const existingPublished = await firestoreGet(`shops/${shopId}/versions/published`);
+    const ver = existingPublished?.['version'];
+    if (typeof ver === 'number') nextVersion = ver + 1;
+    else if (typeof ver === 'string') nextVersion = (parseInt(ver, 10) || 0) + 1;
+  } catch { /* start at 1 */ }
+
+  // Write published version
+  await firestorePatch(`shops/${shopId}/versions/published`, {
+    config: merged,
+    publishedAt: now,
+    publishedBy: 'ai',
+    version: nextVersion,
+  });
+
+  // Write draft (keep in sync with published)
+  await firestorePatch(`shops/${shopId}/versions/draft`, {
+    config: merged,
+    savedAt: now,
+    savedBy: 'ai',
+    hasPendingDraft: false,
+  });
+
+  // Write legacy shops/{shopId}.website field for backward compat
+  await firestorePatch(`shops/${shopId}`, { website: merged }, ['website']);
+}
+
 // ── Local rules fast-path ─────────────────────────────────────────────────────
 
 interface LocalRuleResult {
@@ -517,7 +571,15 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 9. Log action to Firestore (non-blocking)
+  // 9. Auto-publish UPDATE_CONFIG changes directly to live website (non-blocking)
+  if (action.type === 'UPDATE_CONFIG') {
+    const aiChanges = (action as UpdateConfigAction).changes as Record<string, unknown>;
+    void publishAiChanges(shopId, currentConfig, aiChanges).catch((e: unknown) => {
+      console.error('[chat-builder] Auto-publish failed (non-fatal):', e);
+    });
+  }
+
+  // 10. Log action to Firestore (non-blocking)
   void firestorePost(`shops/${shopId}/ai_actions`, {
     type: action.type,
     originalIntent: action.originalIntent,
@@ -541,7 +603,7 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // 11. Return
+  // 12. Return
   const response: {
     action: AiAction;
     requiresConfirmation?: boolean;
