@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../../core/constants/app_colors.dart';
 import '../models/chat_message.dart';
@@ -219,18 +220,23 @@ class _WebsiteChatScreenState extends ConsumerState<WebsiteChatScreen> {
   }
 
   void _handleNavigate(String tab) {
-    if (tab.toLowerCase() == 'preview') {
-      widget.onPreviewRequested();
-    } else {
-      // For other tabs (orders, products…), show the tab name in a snackbar
-      // and let the developer extend this with GoRouter navigation if needed.
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Navigate to $tab'),
-          backgroundColor: AppColors.primary,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+    switch (tab.toLowerCase()) {
+      case 'preview':
+        widget.onPreviewRequested();
+      case 'orders':
+        context.push('/orders');
+      case 'products':
+        context.push('/products');
+      case 'analytics':
+        context.push('/analytics');
+      default:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Navigate to $tab'),
+            backgroundColor: AppColors.primary,
+            duration: const Duration(seconds: 2),
+          ),
+        );
     }
   }
 }

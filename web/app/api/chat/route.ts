@@ -161,7 +161,7 @@ Rules you MUST follow:
 
     // Add full conversation history
     for (const h of history) {
-      contents.push({ role: h.role === 'user' ? 'user' : 'model', parts: [{ text: h.text ?? h.content ?? '' }] });
+      contents.push({ role: h.role === 'user' ? 'user' : 'model', parts: [{ text: h.text ?? '' }] });
     }
 
     // Add current customer message

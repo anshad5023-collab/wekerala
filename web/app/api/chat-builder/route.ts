@@ -127,35 +127,61 @@ INDIAN COLOR KNOWLEDGE:
 - peacock blue = #0078a8, peacock green = #00827f
 - laterite = Kerala red soil (#c45c3d)
 - traditional Kerala theme = dark red or forest green
+- neela/blue shades: #1565c0 (dark), #1e88e5 (medium), #42a5f5 (light)
+- pacha/green shades: #2e7d32 (dark), #43a047 (medium), #66bb6a (light)
+- chuvappu/red shades: #b71c1c (dark), #e53935 (medium), #ef5350 (light)
 
 Current config: themeId=${config.themeId ?? 'modern'}, primaryColor=${config.primaryColor ?? '#283618'}, sections=${currentSections}
+
+CONVERSATION CONTEXT: You may receive prior messages (conversation history) before the current message. Use them to understand follow-up requests like "make it darker", "change that font", "undo that color". The current config above reflects the LATEST state.
 
 RESPONSE FORMAT — choose exactly one:
 {"type":"UPDATE_CONFIG","confidence":0.95,"originalIntent":"...","changes":{...},"humanMessage":"..."}
 {"type":"ANALYTICS_QUERY","confidence":0.99,"originalIntent":"...","metric":"orders_today","period":"day"}
 {"type":"CLARIFY_NEEDED","confidence":0.80,"originalIntent":"...","question":"...","options":["...","..."],"context":"..."}
-{"type":"NAVIGATE","confidence":0.90,"originalIntent":"...","tab":"offers","humanMessage":"..."}
+{"type":"NAVIGATE","confidence":0.90,"originalIntent":"...","tab":"orders","humanMessage":"..."}
 {"type":"ERROR","confidence":0.75,"originalIntent":"...","reason":"out_of_scope","userMessage":"..."}
 
 RULES:
 1. Colors MUST be #RRGGBB hex — convert color names yourself
 2. Only include fields you are changing in "changes"
 3. NEVER change isPublished or publishedAt
-4. humanMessage/userMessage must be in the same language the owner used
-5. For vague requests ("make it nicer"), use CLARIFY_NEEDED with 3 specific options
-6. For "add products tab", "coupons", "plugins", etc. → use NAVIGATE to the right tab
-7. metric values for ANALYTICS_QUERY: orders_today, orders_week, orders_month, revenue_today, revenue_week, revenue_month, top_products, avg_order_value, pending_orders
-8. tab values for NAVIGATE: theme, design, pages, offers, plugins`;
+4. humanMessage/userMessage MUST be in the EXACT same language the owner used (Malayalam if they wrote in Malayalam, English if English)
+5. For vague requests ("make it nicer", "improve it"), use CLARIFY_NEEDED with 3 specific options
+6. For "show me orders", "go to products", "view analytics" → use NAVIGATE to the right tab
+7. For unimplemented features (plugins, coupons, bulk SMS) → use ERROR with reason "out_of_scope" and suggest what IS available
+8. metric values for ANALYTICS_QUERY: orders_today, orders_week, orders_month, revenue_today, revenue_week, revenue_month, top_products, avg_order_value, pending_orders
+9. tab values for NAVIGATE (ONLY these 4 work): preview (show website preview), orders (view orders), products (manage products), analytics (view sales analytics)
+10. For "darker/lighter color" follow-up: darken/lighten the CURRENT primaryColor by ~20%, compute hex yourself`;
 }
 
 // ── Gemini Flash call ─────────────────────────────────────────────────────────
 
-async function callGemini(systemPrompt: string, userMessage: string): Promise<AiAction> {
+interface HistoryItem {
+  role: 'user' | 'assistant';
+  text: string;
+}
+
+async function callGemini(
+  systemPrompt: string,
+  userMessage: string,
+  history: HistoryItem[] = [],
+): Promise<AiAction> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+  // Build multi-turn contents from history then append current message
+  const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
+  for (const item of history.slice(-8)) {
+    contents.push({
+      role: item.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: item.text }],
+    });
+  }
+  contents.push({ role: 'user', parts: [{ text: userMessage }] });
 
   const body = {
     system_instruction: { parts: [{ text: systemPrompt }] },
-    contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+    contents,
     generationConfig: {
       temperature: 0.2,
       maxOutputTokens: 512,
@@ -375,14 +401,14 @@ async function fetchAnalyticsSummary(shopId: string, period: string): Promise<An
 
 export async function POST(req: NextRequest) {
   // 1. Parse body
-  let body: { shopId?: string; uid?: string; message?: string; previousAction?: unknown };
+  let body: { shopId?: string; uid?: string; message?: string; history?: HistoryItem[] };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { shopId, uid, message, previousAction } = body;
+  const { shopId, uid, message, history } = body;
 
   if (!shopId || !uid || !message) {
     return NextResponse.json({ error: 'Missing shopId, uid, or message' }, { status: 400 });
@@ -441,12 +467,9 @@ export async function POST(req: NextRequest) {
       action = { ...fakeAction, changes: validation.cleanedChanges as typeof fakeAction.changes };
     }
   } else {
-    // 6. Call Gemini Flash
-    const contextMessage = previousAction
-      ? `[Previous action context: ${JSON.stringify(previousAction)}]\n\nUser message: ${message}`
-      : message;
-
-    action = await callGemini(systemPrompt, contextMessage);
+    // 6. Call Gemini Flash with conversation history
+    const safeHistory = Array.isArray(history) ? history : [];
+    action = await callGemini(systemPrompt, message, safeHistory);
   }
 
   // 7. Validate UPDATE_CONFIG actions

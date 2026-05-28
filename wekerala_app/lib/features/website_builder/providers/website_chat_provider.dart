@@ -82,18 +82,31 @@ class WebsiteChatNotifier extends StateNotifier<WebsiteChatState> {
   ) async {
     if (text.trim().isEmpty) return;
 
-    // 1. Add user bubble (optimistic)
+    // 1. Capture conversation history BEFORE adding the new user message
+    final priorMessages = state.messages
+        .where((m) =>
+            m.type != ChatMessageType.typing &&
+            m.type != ChatMessageType.error)
+        .toList();
+    final historySlice = priorMessages.length > 8
+        ? priorMessages.sublist(priorMessages.length - 8)
+        : priorMessages;
+    final history = historySlice
+        .map((m) => {'role': m.isUser ? 'user' : 'assistant', 'text': m.text})
+        .toList();
+
+    // 2. Add user bubble (optimistic)
     final userMsg = ChatMessage.user(text.trim());
     _addMessage(userMsg.markDone());
 
-    // 2. Add typing indicator
+    // 3. Add typing indicator
     final typingMsg = ChatMessage.typing();
     _addMessage(typingMsg);
 
     state = state.copyWith(isLoading: true, clearError: true);
 
     try {
-      // 3. POST to /api/chat-builder
+      // 4. POST to /api/chat-builder
       final resp = await http
           .post(
             Uri.parse('$_baseUrl/api/chat-builder'),
@@ -102,11 +115,12 @@ class WebsiteChatNotifier extends StateNotifier<WebsiteChatState> {
               'shopId': shopId,
               'uid': uid,
               'message': text.trim(),
+              'history': history,
             }),
           )
           .timeout(const Duration(seconds: 30));
 
-      // 4. Remove typing indicator
+      // 5. Remove typing indicator
       _removeTyping();
 
       if (resp.statusCode != 200) {
@@ -135,7 +149,7 @@ class WebsiteChatNotifier extends StateNotifier<WebsiteChatState> {
         return;
       }
 
-      // 5. If confirmation required, hold in pending state
+      // 6. If confirmation required, hold in pending state
       if (requiresConfirmation && confirmPrompt != null) {
         state = state.copyWith(
           isLoading: false,
@@ -146,7 +160,7 @@ class WebsiteChatNotifier extends StateNotifier<WebsiteChatState> {
         return;
       }
 
-      // 6. Handle action types
+      // 7. Handle action types
       await _handleAction(action, onApplyPatch);
     } catch (e) {
       _removeTyping();
