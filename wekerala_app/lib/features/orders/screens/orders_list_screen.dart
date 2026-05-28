@@ -579,9 +579,12 @@ class _OrderTile extends StatelessWidget {
                                 fontWeight: FontWeight.w600,
                                 color: AppColors.primary)),
                         const SizedBox(width: 6),
-                        Text('• ${order.items.length} ${t('orders_item_count')}',
-                            style: const TextStyle(
-                                color: AppColors.textSecondary, fontSize: 12)),
+                        Flexible(
+                          child: Text('• ${order.items.length} ${t('orders_item_count')}',
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: AppColors.textSecondary, fontSize: 12)),
+                        ),
                         const SizedBox(width: 6),
                         _DeliveryPill(isDelivery: isDelivery, t: t),
                         const Spacer(),
