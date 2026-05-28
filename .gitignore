@@ -39,3 +39,13 @@ functions/node_modules/
 # OS
 .DS_Store
 Thumbs.db
+
+# Auto-generated logs and build info
+firebase-debug.log
+web/tsconfig.tsbuildinfo
+
+# Claude Code internal files
+.claude/
+
+# Waste / scratch folder
+waste/
