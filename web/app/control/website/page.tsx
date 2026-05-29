@@ -151,6 +151,14 @@ function BuilderContent() {
 
   const setC = (partial: Partial<WebsiteConfig>) => { setConfig(prev => ({ ...prev, ...partial })); setDraftSaved(false); };
 
+  // Strip raw control chars (0x00-0x1F) from all strings in a config before sending to API
+  const sanitizeConfig = (obj: unknown): unknown => {
+    if (typeof obj === 'string') return obj.replace(/[\x00-\x1F]/g, '');
+    if (Array.isArray(obj)) return obj.map(sanitizeConfig);
+    if (obj && typeof obj === 'object') return Object.fromEntries(Object.entries(obj as Record<string, unknown>).map(([k, v]) => [k, sanitizeConfig(v)]));
+    return obj;
+  };
+
   // AI bridge — register window functions so Flutter can apply/undo AI patches
   useEffect(() => {
     // Called by Flutter via evaluateJavascript when AI applies a change.
@@ -250,7 +258,7 @@ function BuilderContent() {
         await fetch('/api/website', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ shopId, uid, config, draft: true }),
+          body: JSON.stringify({ shopId, uid, config: sanitizeConfig(config), draft: true }),
         });
         setDraftSaved(true);
         setPreviewKey(k => k + 1); // refresh iframe to show new font/colors
@@ -320,7 +328,7 @@ function BuilderContent() {
       const res = await fetch('/api/website', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shopId, uid, config }),
+        body: JSON.stringify({ shopId, uid, config: sanitizeConfig(config) }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));

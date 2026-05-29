@@ -140,9 +140,11 @@ function toSlug(name: string, fallback: string): string {
 // POST /api/website — save + publish website config via Admin SDK (bypasses security rules)
 // Body: { shopId, uid, config: WebsiteConfig, draft?: boolean }
 export async function POST(req: NextRequest) {
-  // Read raw text first so we can sanitize control chars Gemini/editors may embed
+  // Read raw text first so we can sanitize raw control chars that corrupt JSON.parse.
+  // JSON structure whitespace is redundant — stripping all 0x00-0x1F is safe because
+  // legitimate \n / \t in string values are already escaped as \n \t (two chars), not raw bytes.
   const rawText = await req.text();
-  const sanitized = rawText.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+  const sanitized = rawText.replace(/[\x00-\x1F]/g, '');
   let body: { shopId: string; uid: string; config: Record<string, unknown>; draft?: boolean };
   try {
     body = JSON.parse(sanitized);
