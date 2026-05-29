@@ -47,6 +47,8 @@ export interface Shop {
   shopType?: string;
   isApproved?: boolean;
   aiSettings?: AiSettings;
+  upiId?: string;
+  paymentMethods?: string[];
 }
 
 export interface ShopData extends Shop {
@@ -117,6 +119,8 @@ function firestoreToShop(raw: Record<string, any>, shopId: string): ShopData {
     shopArea: raw['shopArea'] ?? raw['district'],
     shopType: raw['shopType'],
     isApproved: raw['isApproved'] ?? raw['linkActive'] ?? true,
+    upiId: raw['upiId'],
+    paymentMethods: Array.isArray(raw['paymentMethods']) ? raw['paymentMethods'] : undefined,
   };
 }
 

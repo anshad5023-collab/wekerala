@@ -8,13 +8,24 @@ interface ProductGridProps {
   products: Product[];
   language: Language;
   onProductClick: (product: Product) => void;
+  isFiltered?: boolean;
 }
 
-export function ProductGrid({ products, language, onProductClick }: ProductGridProps) {
+export function ProductGrid({ products, language, onProductClick, isFiltered }: ProductGridProps) {
   if (products.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-        <p className="text-lg italic">{language === 'en' ? 'No products found' : 'ഉൽപ്പന്നങ്ങൾ കണ്ടെത്തിയില്ല'}</p>
+      <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+        <div className="mb-4 text-5xl">{isFiltered ? '🔍' : '🛒'}</div>
+        <p className="text-base font-semibold italic text-foreground mb-1">
+          {isFiltered
+            ? (language === 'en' ? 'No matching products' : 'പൊരുത്തപ്പെടുന്ന ഉൽപ്പന്നങ്ങൾ ഇല്ല')
+            : (language === 'en' ? 'No products yet' : 'ഉൽപ്പന്നങ്ങൾ ഇല്ല')}
+        </p>
+        <p className="text-sm italic text-muted-foreground">
+          {isFiltered
+            ? (language === 'en' ? 'Try a different search or category' : 'മറ്റൊരു തിരയൽ ശ്രമിക്കുക')
+            : (language === 'en' ? 'Check back soon!' : 'ഉടൻ തിരികെ വരൂ!')}
+        </p>
       </div>
     );
   }

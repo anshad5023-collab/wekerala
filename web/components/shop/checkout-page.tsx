@@ -15,6 +15,7 @@ interface CheckoutPageProps {
   shopId?: string;
   deliveryCharge?: number;
   freeDeliveryAbove?: number;
+  upiId?: string;
 }
 
 export interface CustomerDetails {
@@ -25,11 +26,12 @@ export interface CustomerDetails {
   couponCode?: string;
   discountPercent?: number;
   deliveryCharge?: number;
+  paymentMethod?: 'cash' | 'upi';
 }
 
 interface SavedAddress { id: string; label: string; address: string; isDefault: boolean; }
 
-export function CheckoutPage({ language, onBack, onConfirm, onLanguageToggle, shopId, deliveryCharge = 0, freeDeliveryAbove = 0 }: CheckoutPageProps) {
+export function CheckoutPage({ language, onBack, onConfirm, onLanguageToggle, shopId, deliveryCharge = 0, freeDeliveryAbove = 0, upiId }: CheckoutPageProps) {
   const t = translations[language];
   const subtotal = useCartStore((state) => state.getTotal());
   const { uid, phone: savedPhone } = useAuthStore();
@@ -46,6 +48,8 @@ export function CheckoutPage({ language, onBack, onConfirm, onLanguageToggle, sh
   const [couponApplying, setCouponApplying] = useState(false);
   const [couponError, setCouponError] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discountPercent: number } | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'upi'>('cash');
+  const [upiCopied, setUpiCopied] = useState(false);
 
   useEffect(() => {
     if (!uid) return;
@@ -104,6 +108,7 @@ export function CheckoutPage({ language, onBack, onConfirm, onLanguageToggle, sh
         couponCode: appliedCoupon?.code,
         discountPercent: appliedCoupon?.discountPercent,
         deliveryCharge: actualDelivery,
+        paymentMethod,
       });
     }
   };
@@ -230,6 +235,66 @@ export function CheckoutPage({ language, onBack, onConfirm, onLanguageToggle, sh
               rows={2}
               className="w-full resize-none rounded-lg border border-border bg-card px-4 py-3 italic text-card-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20"
             />
+          </div>
+
+          {/* Payment Method */}
+          <div className="space-y-2">
+            <p className="text-sm font-medium italic text-foreground">Payment Method</p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('cash')}
+                className={`flex flex-col items-center gap-1 rounded-xl border-2 p-3 transition-colors ${
+                  paymentMethod === 'cash'
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border bg-card text-muted-foreground hover:border-primary/40'
+                }`}
+              >
+                <span className="text-2xl">💵</span>
+                <span className="text-sm font-semibold italic">Cash on Delivery</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('upi')}
+                className={`flex flex-col items-center gap-1 rounded-xl border-2 p-3 transition-colors ${
+                  paymentMethod === 'upi'
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border bg-card text-muted-foreground hover:border-primary/40'
+                }`}
+              >
+                <span className="text-2xl">📱</span>
+                <span className="text-sm font-semibold italic">Pay via UPI</span>
+              </button>
+            </div>
+            {paymentMethod === 'upi' && upiId && (
+              <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-2">
+                <p className="text-xs italic text-muted-foreground">
+                  Pay <span className="font-bold text-primary">₹{finalTotal}</span> to:
+                </p>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono text-sm font-semibold text-foreground break-all">{upiId}</span>
+                  <button
+                    type="button"
+                    onClick={() => { navigator.clipboard.writeText(upiId); setUpiCopied(true); setTimeout(() => setUpiCopied(false), 2000); }}
+                    className="shrink-0 rounded-lg border border-primary/40 px-3 py-1.5 text-xs font-medium italic text-primary hover:bg-primary/10"
+                  >
+                    {upiCopied ? '✓ Copied' : 'Copy'}
+                  </button>
+                </div>
+                <a
+                  href={`upi://pay?pa=${encodeURIComponent(upiId)}&am=${finalTotal}&cu=INR&tn=Order+from+shop`}
+                  className="block w-full rounded-lg bg-[#5A2D82] py-2.5 text-center text-sm font-semibold italic text-white hover:opacity-90"
+                >
+                  Open UPI App (PhonePe / GPay / Paytm)
+                </a>
+                <p className="text-xs italic text-center text-muted-foreground">
+                  Pay first, then place the order below ↓
+                </p>
+              </div>
+            )}
+            {paymentMethod === 'upi' && !upiId && (
+              <p className="text-xs italic text-muted-foreground">This shop does not have UPI set up. Please pay cash on delivery.</p>
+            )}
           </div>
 
           {/* Coupon Code */}

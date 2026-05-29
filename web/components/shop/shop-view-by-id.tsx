@@ -138,7 +138,9 @@ export function ShopViewById({ shopId }: { shopId: string }) {
             variantName: '', qty: item.quantity, unit: item.product.unit,
             price: item.product.price, itemNote: item.note ?? '', subtotal: item.product.price * item.quantity,
           })),
-          totalAmount: finalTotal, paymentMethod: 'cash', paymentStatus: 'pending',
+          totalAmount: finalTotal,
+          paymentMethod: details.paymentMethod ?? 'cash',
+          paymentStatus: details.paymentMethod === 'upi' ? 'pending_verification' : 'pending',
           createdAt: now, updatedAt: now,
         }),
       });
@@ -160,7 +162,7 @@ export function ShopViewById({ shopId }: { shopId: string }) {
   );
 
   if (currentPage === 'checkout') return (
-    <CheckoutPage language={language} onBack={() => setCurrentPage('cart')} onConfirm={handleConfirmOrder} onLanguageToggle={() => setLanguage(language === 'en' ? 'ml' : 'en')} shopId={shopId} deliveryCharge={shopData.deliveryCharge} freeDeliveryAbove={0} />
+    <CheckoutPage language={language} onBack={() => setCurrentPage('cart')} onConfirm={handleConfirmOrder} onLanguageToggle={() => setLanguage(language === 'en' ? 'ml' : 'en')} shopId={shopId} deliveryCharge={shopData.deliveryCharge} freeDeliveryAbove={0} upiId={shopData.upiId} />
   );
 
   if (currentPage === 'confirmation') return (
@@ -189,7 +191,7 @@ export function ShopViewById({ shopId }: { shopId: string }) {
           <SearchBar language={language} value={searchQuery} onSearchClick={() => setShowSearchOverlay(true)} />
         </div>
         <CategoryFilter language={language} categories={categories} selectedCategory={selectedCategory} onSelectCategory={setSelectedCategory} />
-        <ProductGrid language={language} products={filteredProducts} onProductClick={setSelectedProduct} />
+        <ProductGrid language={language} products={filteredProducts} onProductClick={setSelectedProduct} isFiltered={!!(searchQuery || selectedCategory !== 'all')} />
       </div>
       <FloatingCartBar language={language} onClick={() => setCurrentPage('cart')} />
       <ChatWidget shopId={shopId} shopData={shopData} language={language} />

@@ -151,6 +151,30 @@ class LocalNotificationService {
     }
   }
 
+  // Show an immediate notification when a new order arrives (FCM foreground).
+  static Future<void> showNewOrderNotification({
+    required String amount,
+    required String customer,
+  }) async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    const androidDetails = AndroidNotificationDetails(
+      'wk_new_orders',
+      'New Orders',
+      channelDescription: 'Alert when a customer places a new order',
+      importance: Importance.max,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+      playSound: true,
+    );
+    await _plugin.show(
+      DateTime.now().millisecondsSinceEpoch % 100000,
+      '🛒 New Order!',
+      '₹$amount from $customer — tap to view',
+      const NotificationDetails(android: androidDetails),
+      payload: 'orders',
+    );
+  }
+
   static Future<void> cancelAll() async {
     await _plugin.cancelAll();
   }

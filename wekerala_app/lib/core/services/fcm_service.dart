@@ -5,6 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
+import 'local_notification_service.dart';
 
 
 @pragma('vm:entry-point')
@@ -28,6 +29,22 @@ class FcmService {
       await _saveToken(shopId, token);
     }
     messaging.onTokenRefresh.listen((t) => _saveToken(shopId, t));
+
+    // Show local notification when a new order FCM message arrives in foreground
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      final title = message.notification?.title ?? '';
+      if (title.contains('Order') || title.contains('order')) {
+        final body = message.notification?.body ?? '';
+        // Parse amount and customer from body "₹400 — Rahul"
+        final parts = body.split(' — ');
+        final amount = parts.isNotEmpty ? parts[0].replaceAll('₹', '') : '';
+        final customer = parts.length > 1 ? parts[1] : 'Customer';
+        LocalNotificationService.showNewOrderNotification(
+          amount: amount,
+          customer: customer,
+        );
+      }
+    });
 
     // Schedule the 9 PM daily sales report notification
     try {
