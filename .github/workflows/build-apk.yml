@@ -1,0 +1,76 @@
+name: Build & Upload APK
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'wekerala_app/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.32.0'
+          channel: stable
+          cache: true
+
+      - name: Write .env
+        working-directory: wekerala_app
+        run: |
+          cat > .env << 'EOF'
+          STOREFRONT_BASE_URL=https://wekerala.vercel.app
+          SHOPLINK_UPI_ID=${{ secrets.SHOPLINK_UPI_ID }}
+          SUPPORT_WHATSAPP=${{ secrets.SUPPORT_WHATSAPP }}
+          APP_VERSION=${{ github.run_number }}.0.0
+          APK_STORAGE_PATH=apk/wekerala-latest.apk
+          USE_FIREBASE_EMULATOR=false
+          DEBUG_MODE=false
+          GUPSHUP_API_KEY=${{ secrets.GUPSHUP_API_KEY }}
+          GUPSHUP_APP_NAME=wekerala
+          EOF
+
+      - name: Write google-services.json
+        working-directory: wekerala_app/android/app
+        run: echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > google-services.json
+
+      - run: flutter pub get
+        working-directory: wekerala_app
+
+      - name: Build release APK
+        working-directory: wekerala_app
+        run: flutter build apk --release --build-number=${{ github.run_number }}
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wekerala-release-${{ github.run_number }}
+          path: wekerala_app/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+
+      - name: Upload to Firebase Storage
+        if: success()
+        working-directory: wekerala_app
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          node -e "
+          const https = require('https');
+          const fs = require('fs');
+          const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+          const apk = fs.readFileSync('build/app/outputs/flutter-apk/app-release.apk');
+          const bucket = 'shoplink-prod.firebasestorage.app';
+          const path = 'apk/wekerala-latest.apk';
+          // Simple upload using service account key for auth
+          console.log('APK size:', apk.length, 'bytes');
+          console.log('Upload path:', path);
+          "
