@@ -140,12 +140,15 @@ function toSlug(name: string, fallback: string): string {
 // POST /api/website — save + publish website config via Admin SDK (bypasses security rules)
 // Body: { shopId, uid, config: WebsiteConfig, draft?: boolean }
 export async function POST(req: NextRequest) {
-  const body = (await req.json()) as {
-    shopId: string;
-    uid: string;
-    config: Record<string, unknown>;
-    draft?: boolean;
-  };
+  // Read raw text first so we can sanitize control chars Gemini/editors may embed
+  const rawText = await req.text();
+  const sanitized = rawText.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+  let body: { shopId: string; uid: string; config: Record<string, unknown>; draft?: boolean };
+  try {
+    body = JSON.parse(sanitized);
+  } catch (parseErr) {
+    return NextResponse.json({ error: `Invalid request body: ${(parseErr as Error).message}` }, { status: 400 });
+  }
   const { shopId, uid, config, draft } = body;
 
   if (!shopId || !uid || !config) {
