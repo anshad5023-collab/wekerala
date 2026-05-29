@@ -64,6 +64,22 @@ service cloud.firestore {
       match /kots/{kotId} {
         allow read, write: if isOwner(shopId);
       }
+
+      // Website version history — published is public; all writes go via Admin SDK in API routes
+      match /versions/{versionId} {
+        allow read: if true;
+        allow write: if false;
+      }
+
+      // AI chat history (WhatsApp auto-reply context) — owner only
+      match /aiChats/{customerId} {
+        allow read, write: if isOwner(shopId);
+      }
+
+      // Flash sales — owner only
+      match /flashSales/{saleId} {
+        allow read, write: if isOwner(shopId);
+      }
     }
 
     // ── Business listing collections ─────────────────────────────────────────

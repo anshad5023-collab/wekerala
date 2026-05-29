@@ -137,7 +137,7 @@ function toSlug(name: string, fallback: string): string {
   return slug || fallback.slice(0, 8);
 }
 
-// POST /api/website — save + publish website config via Firestore REST PATCH
+// POST /api/website — save + publish website config via Admin SDK (bypasses security rules)
 // Body: { shopId, uid, config: WebsiteConfig, draft?: boolean }
 export async function POST(req: NextRequest) {
   const body = (await req.json()) as {
@@ -152,171 +152,81 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing shopId, uid, or config' }, { status: 400 });
   }
 
-  // Verify ownership via REST
-  const shopRes = await fetch(`${BASE_REST}/shops/${shopId}?key=${API_KEY}`, { cache: 'no-store' });
-  if (!shopRes.ok) return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
-  const shopJson = await shopRes.json();
-  const shopFields = parseFields(shopJson.fields ?? {}) as Record<string, unknown>;
-  if (shopFields['ownerId'] !== uid) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  try {
+    const { getAdminDb } = await import('@/lib/firebase-admin');
+    const db = getAdminDb();
 
-  const shopName = (shopFields['shopName'] as string) || (shopFields['name'] as string) || '';
-  const existingSlug = (shopFields['shopSlug'] as string) || '';
-  const slug = toSlug(shopName, shopId);
+    // Verify ownership
+    const shopDoc = await db.collection('shops').doc(shopId).get();
+    if (!shopDoc.exists) return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
+    const shopData = shopDoc.data()!;
+    if (shopData['ownerId'] !== uid) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
-  // Existing website data for migration check
-  const existingWebsiteData = (shopFields['website'] as Record<string, unknown>) ?? null;
+    const shopName = (shopData['shopName'] as string) || (shopData['name'] as string) || '';
+    const existingSlug = (shopData['shopSlug'] as string) || '';
+    const slug = toSlug(shopName, shopId);
 
-  // Ensure legacy data is migrated to versioned subcollection structure
-  await ensureMigrated(shopId, existingWebsiteData, API_KEY);
-
-  // Check slug uniqueness only when slug would change
-  if (slug !== existingSlug) {
-    // Use simpler Firestore REST query
-    const slugCheckUrl = `${BASE_REST}:runQuery?key=${API_KEY}`;
-    const slugCheckBody = {
-      structuredQuery: {
-        from: [{ collectionId: 'shops' }],
-        where: {
-          fieldFilter: {
-            field: { fieldPath: 'shopSlug' },
-            op: 'EQUAL',
-            value: { stringValue: slug },
-          },
-        },
-        limit: 2,
-      },
-    };
-    const slugCheckRes = await fetch(slugCheckUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(slugCheckBody),
-    });
-    if (slugCheckRes.ok) {
-      const slugDocs = (await slugCheckRes.json()) as Array<{ document?: { name?: string } }>;
-      const conflict = slugDocs.find(
-        (d) => d.document && !d.document.name?.endsWith(`/shops/${shopId}`)
-      );
+    // Check slug uniqueness only when slug would change
+    if (slug !== existingSlug) {
+      const slugSnap = await db.collection('shops').where('shopSlug', '==', slug).limit(2).get();
+      const conflict = slugSnap.docs.find((d) => d.id !== shopId);
       if (conflict) {
         return NextResponse.json(
           {
-            error: `The site name "${slug}" is already taken. Try adding your city or area name — for example: "${slug}-calicut" or "${slug}-ernakulam".`,
+            error: `The site name "${slug}" is already taken. Try "${slug}-calicut" or "${slug}-ernakulam".`,
             code: 'SLUG_TAKEN',
           },
           { status: 409 }
         );
       }
     }
-  }
 
-  const now = new Date().toISOString();
+    const now = new Date().toISOString();
+    const websiteData = draft
+      ? { ...config, slug }
+      : { ...config, isPublished: true, publishedAt: now, slug };
 
-  const websiteData = draft
-    ? { ...config, slug }
-    : { ...config, isPublished: true, publishedAt: now, slug };
-
-  // PATCH website + shopSlug fields using updateMask (backward compat — keep writing shops/{shopId}.website)
-  const patchUrl = `${BASE_REST}/shops/${shopId}?key=${API_KEY}&updateMask.fieldPaths=website&updateMask.fieldPaths=shopSlug`;
-  try {
-    const patchRes = await fetch(patchUrl, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fields: {
-          website: toFirestoreValue(websiteData),
-          shopSlug: toFirestoreValue(slug),
-        },
-      }),
-    });
-
-    if (!patchRes.ok) {
-      const errJson = await patchRes.json().catch(() => ({}));
-      const msg = (errJson as { error?: { message?: string } })?.error?.message ?? 'Firestore write failed';
-      console.error('[website POST] Firestore PATCH failed:', msg, 'shopId:', shopId);
-      return NextResponse.json({ error: msg }, { status: 500 });
-    }
+    const versionsRef = db.collection('shops').doc(shopId).collection('versions');
 
     if (draft) {
-      // Auto-save from builder: also write to versions/draft subcollection
-      const draftVersionUrl = `${BASE_REST}/shops/${shopId}/versions/draft?key=${API_KEY}`;
-      await fetch(draftVersionUrl, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fields: {
-            config: toFirestoreValue(websiteData),
-            savedAt: toFirestoreValue(now),
-            savedBy: toFirestoreValue('builder'),
-            hasPendingDraft: toFirestoreValue(true),
-          },
-        }),
-      });
+      // Auto-save: write to shops/{shopId}.website + versions/draft
+      await Promise.all([
+        db.collection('shops').doc(shopId).update({ website: websiteData, shopSlug: slug }),
+        versionsRef.doc('draft').set(
+          { config: websiteData, savedAt: now, savedBy: 'builder', hasPendingDraft: true },
+          { merge: true }
+        ),
+      ]);
     } else {
-      // Publishing: read current version number from versions/published to increment it
+      // Publish: get current version number
       let currentVersion = 1;
       try {
-        const prevPublishedRes = await fetch(
-          `${BASE_REST}/shops/${shopId}/versions/published?key=${API_KEY}`
-        );
-        if (prevPublishedRes.ok) {
-          const prevJson = await prevPublishedRes.json();
-          const prevFields = parseFields(prevJson.fields ?? {}) as Record<string, unknown>;
-          const prevVersion = prevFields['version'];
-          if (typeof prevVersion === 'number' && !isNaN(prevVersion)) {
-            currentVersion = prevVersion + 1;
-          }
+        const prevPublished = await versionsRef.doc('published').get();
+        if (prevPublished.exists) {
+          const v = prevPublished.data()?.version;
+          if (typeof v === 'number') currentVersion = v + 1;
         }
-      } catch {
-        // If we can't read the previous version, start at 1
-      }
+      } catch { /* start at 1 */ }
 
-      // Write to versions/published
-      const publishedVersionUrl = `${BASE_REST}/shops/${shopId}/versions/published?key=${API_KEY}`;
-      await fetch(publishedVersionUrl, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fields: {
-            config: toFirestoreValue(websiteData),
-            publishedAt: toFirestoreValue(now),
-            publishedBy: toFirestoreValue('owner'),
-            version: toFirestoreValue(currentVersion),
-          },
+      // Write all three destinations in parallel
+      await Promise.all([
+        db.collection('shops').doc(shopId).update({ website: websiteData, shopSlug: slug }),
+        versionsRef.doc('published').set({
+          config: websiteData,
+          publishedAt: now,
+          publishedBy: 'owner',
+          version: currentVersion,
         }),
-      });
-
-      // Write to versions/draft (now in sync with published)
-      const draftVersionUrl = `${BASE_REST}/shops/${shopId}/versions/draft?key=${API_KEY}`;
-      await fetch(draftVersionUrl, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fields: {
-            config: toFirestoreValue(websiteData),
-            savedAt: toFirestoreValue(now),
-            savedBy: toFirestoreValue('owner'),
-            hasPendingDraft: toFirestoreValue(false),
-          },
-        }),
-      });
-
-      // Create version snapshot at versions/{ISO_timestamp}
-      const snapshotUrl = `${BASE_REST}/shops/${shopId}/versions/${encodeURIComponent(now)}?key=${API_KEY}`;
-      await fetch(snapshotUrl, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fields: {
-            config: toFirestoreValue(websiteData),
-            publishedAt: toFirestoreValue(now),
-            version: toFirestoreValue(currentVersion),
-          },
-        }),
-      });
+        versionsRef.doc('draft').set(
+          { config: websiteData, savedAt: now, savedBy: 'owner', hasPendingDraft: false },
+          { merge: true }
+        ),
+        versionsRef.doc(now).set({ config: websiteData, publishedAt: now, version: currentVersion }),
+      ]);
     }
 
-    // Use shopId (direct doc lookup) as primary URL — always works even if slug isn't saved yet
     const siteUrl = `https://wekerala.vercel.app/sites/${shopId}`;
     const slugUrl = slug ? `https://wekerala.vercel.app/sites/${slug}` : siteUrl;
     return NextResponse.json({ ok: true, siteUrl, slugUrl });

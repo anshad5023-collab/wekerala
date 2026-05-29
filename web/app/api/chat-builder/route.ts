@@ -91,7 +91,7 @@ async function firestorePatch(path: string, data: Record<string, unknown>, field
   });
 }
 
-/** Publish AI changes directly to Firestore — no manual Publish button needed. */
+/** Publish AI changes via Admin SDK — bypasses Firestore security rules. */
 async function publishAiChanges(
   shopId: string,
   currentConfig: Partial<Record<string, unknown>>,
@@ -100,33 +100,33 @@ async function publishAiChanges(
   const now = new Date().toISOString();
   const merged = { ...currentConfig, ...changes, isPublished: true, publishedAt: now };
 
+  const { getAdminDb } = await import('@/lib/firebase-admin');
+  const db = getAdminDb();
+  const versionsRef = db.collection('shops').doc(shopId).collection('versions');
+
   // Read current version number
   let nextVersion = 1;
   try {
-    const existingPublished = await firestoreGet(`shops/${shopId}/versions/published`);
-    const ver = existingPublished?.['version'];
-    if (typeof ver === 'number') nextVersion = ver + 1;
-    else if (typeof ver === 'string') nextVersion = (parseInt(ver, 10) || 0) + 1;
+    const existingPublished = await versionsRef.doc('published').get();
+    if (existingPublished.exists) {
+      const v = existingPublished.data()?.version;
+      if (typeof v === 'number') nextVersion = v + 1;
+    }
   } catch { /* start at 1 */ }
 
-  // Write published version
-  await firestorePatch(`shops/${shopId}/versions/published`, {
-    config: merged,
-    publishedAt: now,
-    publishedBy: 'ai',
-    version: nextVersion,
-  });
-
-  // Write draft (keep in sync with published)
-  await firestorePatch(`shops/${shopId}/versions/draft`, {
-    config: merged,
-    savedAt: now,
-    savedBy: 'ai',
-    hasPendingDraft: false,
-  });
-
-  // Write legacy shops/{shopId}.website field for backward compat
-  await firestorePatch(`shops/${shopId}`, { website: merged }, ['website']);
+  await Promise.all([
+    versionsRef.doc('published').set({
+      config: merged,
+      publishedAt: now,
+      publishedBy: 'ai',
+      version: nextVersion,
+    }),
+    versionsRef.doc('draft').set(
+      { config: merged, savedAt: now, savedBy: 'ai', hasPendingDraft: false },
+      { merge: true }
+    ),
+    db.collection('shops').doc(shopId).update({ website: merged }),
+  ]);
 }
 
 // ── Local rules fast-path ─────────────────────────────────────────────────────
