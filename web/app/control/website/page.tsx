@@ -242,7 +242,7 @@ function BuilderContent() {
       .catch(() => {});
   }, [shopId, uid]);
 
-  // Auto-save draft every 8 seconds after changes
+  // Auto-save draft 3 seconds after changes, then refresh preview
   useEffect(() => {
     if (!loaded || !shopId || draftSaved) return;
     const t = setTimeout(async () => {
@@ -253,8 +253,9 @@ function BuilderContent() {
           body: JSON.stringify({ shopId, uid, config, draft: true }),
         });
         setDraftSaved(true);
+        setPreviewKey(k => k + 1); // refresh iframe to show new font/colors
       } catch { /* silent */ }
-    }, 8000);
+    }, 3000);
     return () => clearTimeout(t);
   }, [config, shopId, uid, loaded, draftSaved]);
 
@@ -267,7 +268,7 @@ function BuilderContent() {
       formData.append('shopId', shopId);
       const res = await fetch('/api/upload', { method: 'POST', body: formData });
       const data = await res.json();
-      if (data.url) setConfig(prev => ({ ...prev, [field]: data.url }));
+      if (data.url) setC({ [field]: data.url });
     } catch (e) {
       console.error('Upload failed', e);
     } finally {
@@ -351,7 +352,7 @@ function BuilderContent() {
             {[2, 3, 4, 5].map(n => (
               <button
                 key={n}
-                onClick={() => setConfig(prev => ({ ...prev, productColumns: n } as any))}
+                onClick={() => setC({ productColumns: n } as any)}
                 className={`px-3 py-1 text-xs rounded border ${(config as any).productColumns === n ? 'bg-blue-500 text-white border-blue-500' : 'border-gray-300'}`}
               >
                 {n}
@@ -360,11 +361,11 @@ function BuilderContent() {
           </div>
         </div>
         <label className="flex items-center gap-2 text-xs">
-          <input type="checkbox" checked={(config as any).showProductPrice !== false} onChange={e => setConfig(prev => ({ ...prev, showProductPrice: e.target.checked } as any))} />
+          <input type="checkbox" checked={(config as any).showProductPrice !== false} onChange={e => setC({ showProductPrice: e.target.checked } as any)} />
           Show price
         </label>
         <label className="flex items-center gap-2 text-xs">
-          <input type="checkbox" checked={(config as any).showProductRating !== false} onChange={e => setConfig(prev => ({ ...prev, showProductRating: e.target.checked } as any))} />
+          <input type="checkbox" checked={(config as any).showProductRating !== false} onChange={e => setC({ showProductRating: e.target.checked } as any)} />
           Show rating
         </label>
       </div>
@@ -375,7 +376,7 @@ function BuilderContent() {
           <label className="text-xs text-gray-500">Hero Height</label>
           <select
             value={(config as any).heroHeight || 'medium'}
-            onChange={e => setConfig(prev => ({ ...prev, heroHeight: e.target.value } as any))}
+            onChange={e => setC({ heroHeight: e.target.value } as any)}
             className="mt-1 w-full text-xs border border-gray-300 rounded p-1"
           >
             <option value="small">Small (300px)</option>
@@ -392,7 +393,7 @@ function BuilderContent() {
           <label className="text-xs text-gray-500">Layout</label>
           <select
             value={(config as any).aboutLayout || 'text-only'}
-            onChange={e => setConfig(prev => ({ ...prev, aboutLayout: e.target.value } as any))}
+            onChange={e => setC({ aboutLayout: e.target.value } as any)}
             className="mt-1 w-full text-xs border border-gray-300 rounded p-1"
           >
             <option value="text-only">Text only</option>
@@ -597,7 +598,7 @@ function BuilderContent() {
                       {COLOR_SCHEMES.map(scheme => (
                         <button
                           key={scheme.name}
-                          onClick={() => setConfig(prev => ({ ...prev, primaryColor: scheme.primary, secondaryColor: scheme.secondary }))}
+                          onClick={() => setC({ primaryColor: scheme.primary, secondaryColor: scheme.secondary })}
                           className="flex flex-col items-center gap-1 p-2 rounded-lg border border-gray-200 hover:border-blue-400 transition-colors"
                           title={scheme.name}
                         >
@@ -637,7 +638,7 @@ function BuilderContent() {
                       {GOOGLE_FONTS.map(font => (
                         <button
                           key={font}
-                          onClick={() => setConfig(prev => ({ ...prev, fontFamily: font }))}
+                          onClick={() => setC({ fontFamily: font })}
                           className={`p-3 rounded-lg border text-left transition-colors ${
                             config.fontFamily === font
                               ? 'border-blue-500 bg-blue-50'
@@ -748,7 +749,7 @@ function BuilderContent() {
                           const newSections = [...config.sections];
                           const [moved] = newSections.splice(dragIdx, 1);
                           newSections.splice(i, 0, moved);
-                          setConfig(prev => ({ ...prev, sections: newSections }));
+                          setC({ sections: newSections });
                           setDragIdx(null);
                         }}
                         className={`flex items-center gap-2 p-2 rounded-lg border bg-white cursor-grab active:cursor-grabbing transition-opacity ${
@@ -766,7 +767,7 @@ function BuilderContent() {
                           </button>
                         )}
                         <button
-                          onClick={() => setConfig(prev => ({ ...prev, sections: prev.sections.filter(s => s !== sec) }))}
+                          onClick={() => setC({ sections: config.sections.filter(s => s !== sec) })}
                           className="text-gray-400 hover:text-red-500 text-xs px-1"
                         >
                           ✕
@@ -1013,7 +1014,7 @@ function BuilderContent() {
                   </div>
                   <textarea
                     value={(config as any).customHtml || ''}
-                    onChange={e => setConfig(prev => ({ ...prev, customHtml: e.target.value } as any))}
+                    onChange={e => setC({ customHtml: e.target.value } as any)}
                     placeholder="<!-- Add custom HTML, CSS, or tracking scripts here -->"
                     rows={6}
                     className="w-full text-xs font-mono border border-gray-300 rounded-lg p-3 resize-y focus:outline-none focus:ring-2 focus:ring-blue-500"

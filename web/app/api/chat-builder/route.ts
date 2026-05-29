@@ -272,19 +272,26 @@ async function callGemini(
     .replace(/\n?```$/i, '')
     .trim();
 
-  try {
-    const parsed = JSON.parse(cleaned);
-    return validateAIAction(parsed);
-  } catch {
-    console.error('[chat-builder] Failed to parse Gemini response:', cleaned);
-    return {
-      type: 'ERROR',
-      confidence: 0,
-      originalIntent: userMessage,
-      reason: 'ambiguous',
-      userMessage: 'Sorry, I couldn\'t understand that request. Please try rephrasing.',
-    };
-  }
+  const tryParse = (text: string) => {
+    try { return JSON.parse(text); } catch { return null; }
+  };
+
+  // First try as-is, then sanitize control characters that Gemini sometimes embeds in strings
+  const parsed =
+    tryParse(cleaned) ??
+    tryParse(cleaned.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '')) ??
+    tryParse(cleaned.replace(/[\x00-\x1F\x7F]/g, c => c === '\n' || c === '\r' ? ' ' : c === '\t' ? ' ' : ''));
+
+  if (parsed) return validateAIAction(parsed);
+
+  console.error('[chat-builder] Failed to parse Gemini response:', cleaned);
+  return {
+    type: 'ERROR',
+    confidence: 0,
+    originalIntent: userMessage,
+    reason: 'ambiguous',
+    userMessage: 'Sorry, I couldn\'t understand that request. Please try rephrasing.',
+  };
 }
 
 // ── Analytics formatting ──────────────────────────────────────────────────────
