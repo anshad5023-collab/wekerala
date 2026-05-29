@@ -6,6 +6,10 @@ import { SaveShopButton } from '@/components/SaveShopButton';
 import { type WebsiteConfig } from '@/lib/theme-engine';
 import { validatePreviewToken } from '@/lib/preview-token';
 
+// Never cache this page — always serve fresh data from Firestore on every request
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 function parseFirestoreValue(val: unknown): unknown {
   if (!val || typeof val !== 'object') return null;
   const v = val as Record<string, unknown>;
