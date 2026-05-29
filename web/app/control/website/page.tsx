@@ -147,6 +147,7 @@ function BuilderContent() {
   // ── Improvement 7: Viewport & preview key state ───────────────────────────
   const [viewport, setViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [previewKey, setPreviewKey] = useState(0);
+  const [iframePreviewToken, setIframePreviewToken] = useState<string>('');
 
   const setC = (partial: Partial<WebsiteConfig>) => { setConfig(prev => ({ ...prev, ...partial })); setDraftSaved(false); };
 
@@ -227,6 +228,19 @@ function BuilderContent() {
       })
       .catch(() => { setLoaded(true); });
   }, [shopId, uid, setUser]);
+
+  // Fetch preview token for iframe (so draft shows instead of "coming soon")
+  useEffect(() => {
+    if (!shopId || !uid) return;
+    fetch('/api/website/preview-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shopId, uid }),
+    })
+      .then(r => r.json())
+      .then(d => { if (d.previewUrl) { const url = new URL(d.previewUrl); setIframePreviewToken(url.searchParams.get('preview') || ''); } })
+      .catch(() => {});
+  }, [shopId, uid]);
 
   // Auto-save draft every 8 seconds after changes
   useEffect(() => {
@@ -1070,7 +1084,7 @@ function BuilderContent() {
             >
               <iframe
                 key={previewKey}
-                src={shopId ? `/sites/${shopId}?preview=true` : 'about:blank'}
+                src={shopId && iframePreviewToken ? `/sites/${shopId}?preview=${iframePreviewToken}` : shopId ? `/sites/${shopId}` : 'about:blank'}
                 className="w-full h-full border-0"
                 style={{ minHeight: '600px' }}
                 title="Site Preview"
