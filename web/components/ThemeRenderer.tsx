@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { getTheme, type WebsiteConfig } from '@/lib/theme-engine';
 import AmazonLayout from './themes/AmazonLayout';
 import FlipkartLayout from './themes/FlipkartLayout';
@@ -67,7 +67,7 @@ function ProductOrderBtn({ waNum, productName, price, primaryColor, className = 
   );
 }
 
-function BannerCarousel({ banners }: { banners: string[] }) {
+function BannerCarousel({ banners, className = 'h-52 md:h-72' }: { banners: string[]; className?: string }) {
   const [slide, setSlide] = useState(0);
   useEffect(() => {
     if (banners.length < 2) return;
@@ -76,7 +76,7 @@ function BannerCarousel({ banners }: { banners: string[] }) {
   }, [banners.length]);
   if (banners.length === 0) return null;
   return (
-    <div className="relative w-full h-52 overflow-hidden">
+    <div className={`relative w-full overflow-hidden ${className}`}>
       <img src={banners[slide] || ''} alt="banner" className="w-full h-full object-cover" />
       {banners.length > 1 && (
         <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1.5">
@@ -87,6 +87,34 @@ function BannerCarousel({ banners }: { banners: string[] }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// Reusable desktop sidebar + product area layout (Amazon/Flipkart style)
+function SidebarLayout({
+  cats, activeCat, onSelect, primaryColor, children
+}: {
+  cats: string[]; activeCat: string; onSelect: (c: string) => void; primaryColor: string; children: React.ReactNode;
+}) {
+  const hasCats = cats.length > 1;
+  return (
+    <div className="max-w-7xl mx-auto flex gap-0 md:gap-5 px-0 md:px-4 pb-12">
+      {hasCats && (
+        <aside className="hidden md:block w-44 shrink-0">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden sticky top-20">
+            <p className="px-4 py-2.5 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-100">Categories</p>
+            {cats.map(c => (
+              <button key={c} onClick={() => onSelect(c)}
+                className="w-full text-left px-4 py-2.5 text-sm transition-colors hover:bg-gray-50"
+                style={activeCat === c ? { backgroundColor: `${primaryColor}15`, color: primaryColor, fontWeight: 700 } : { color: '#374151' }}>
+                {c === 'All' ? '🏪 All' : c}
+              </button>
+            ))}
+          </div>
+        </aside>
+      )}
+      <main className="flex-1 min-w-0">{children}</main>
     </div>
   );
 }
@@ -352,55 +380,114 @@ function DarkLayout({ config, shop, products, shopId }: Props) {
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
   const has = (s: string) => config.sections.includes(s);
   const [activeCat, setActiveCat] = useState('All');
+  const [search, setSearch] = useState('');
   const cats = ['All', ...Array.from(new Set(products.map(pr => pr.category).filter(Boolean)))];
-  const visible = activeCat === 'All' ? products : products.filter(pr => pr.category === activeCat);
+  const visible = products.filter(pr =>
+    (activeCat === 'All' || pr.category === activeCat) &&
+    (!search || pr.name.toLowerCase().includes(search.toLowerCase()))
+  );
   return (
     <div className="min-h-screen text-white" style={{ backgroundColor: bg }}>
-      {has('hero') && (
-        <section className="relative">
-          {banners.length > 0 && (
-            <div className="relative h-60 overflow-hidden">
-              <BannerCarousel banners={banners} />
-              <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#1a1a2e] pointer-events-none" />
-            </div>
-          )}
-          <div className="px-6 py-6 text-center">
-            {shop.logoUrl && <img src={shop.logoUrl} alt="logo" className="w-14 h-14 rounded-full mx-auto mb-2 object-cover border-2" style={{ borderColor: p }} />}
-            <h1 className="text-3xl font-bold" style={{ color: p }}>{config.siteName || shop.shopName}</h1>
-            {config.tagline && <p className="text-gray-400 mt-1">{config.tagline}</p>}
-            {shopId && <div className="mt-4"><OrderBtn waNum={waNum} primaryColor={p} label={config.primaryButtonText} /></div>}
+      {/* Sticky header */}
+      <header className="sticky top-0 z-40 border-b border-white/10" style={{ backgroundColor: '#0d0d1f' }}>
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
+          {shop.logoUrl
+            ? <img src={shop.logoUrl} alt="logo" className="w-9 h-9 rounded-full object-cover border-2 shrink-0" style={{ borderColor: p }} />
+            : <div className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-base shrink-0" style={{ backgroundColor: p }}>{(config.siteName || shop.shopName).charAt(0)}</div>
+          }
+          <div className="flex-1 min-w-0 hidden sm:block">
+            <p className="font-bold text-sm truncate text-white">{config.siteName || shop.shopName}</p>
+            <p className="text-xs text-gray-400 truncate">{shop.shopType}{shop.district ? ` · ${shop.district}` : ''}</p>
           </div>
-        </section>
+          <div className="hidden md:flex flex-1 max-w-md items-center gap-2 rounded-xl border bg-white/5 px-3 py-2" style={{ borderColor: `${p}40` }}>
+            <span className="text-gray-400 text-sm">🔍</span>
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products…" className="flex-1 text-sm outline-none bg-transparent text-white placeholder-gray-500" />
+            {search && <button onClick={() => setSearch('')} className="text-gray-400 text-xs">✕</button>}
+          </div>
+          {waNum && <a href={`https://wa.me/${waNum}`} target="_blank" rel="noreferrer" className="hidden md:inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-white text-sm font-semibold shrink-0" style={{ backgroundColor: '#25D366' }}>💬 {config.primaryButtonText || 'Order Now'}</a>}
+        </div>
+        {config.announcementBarEnabled && config.announcementBar && (
+          <div className="text-center text-xs py-1.5 text-white font-medium" style={{ backgroundColor: config.announcementBarColor || p }}>🔔 {config.announcementBar}</div>
+        )}
+      </header>
+
+      {has('hero') && banners.length > 0 && (
+        <div className="max-w-7xl mx-auto relative">
+          <BannerCarousel banners={banners} className="h-52 md:h-80" />
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#1a1a2e] pointer-events-none" />
+          <div className="absolute bottom-6 left-6">
+            <h1 className="text-2xl md:text-4xl font-bold" style={{ color: p }}>{config.siteName || shop.shopName}</h1>
+            {config.tagline && <p className="text-gray-300 mt-1 text-sm md:text-base">{config.tagline}</p>}
+          </div>
+        </div>
       )}
+      {has('hero') && banners.length === 0 && (
+        <div className="px-6 py-8 text-center max-w-7xl mx-auto">
+          <h1 className="text-3xl md:text-5xl font-bold" style={{ color: p }}>{config.siteName || shop.shopName}</h1>
+          {config.tagline && <p className="text-gray-400 mt-2">{config.tagline}</p>}
+          {shopId && <div className="mt-4"><OrderBtn waNum={waNum} primaryColor={p} label={config.primaryButtonText} /></div>}
+        </div>
+      )}
+
       <CouponPromo config={config} />
+
       {has('products') && products.length > 0 && (
-        <section className="pb-6 max-w-7xl mx-auto">
-          <CategoryTabs cats={cats} active={activeCat} onSelect={setActiveCat} primaryColor={p} />
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 px-4">
+        <SidebarLayout cats={cats} activeCat={activeCat} onSelect={setActiveCat} primaryColor={p}>
+          {/* Mobile search */}
+          <div className="md:hidden px-4 pt-3 pb-1">
+            <div className="flex items-center gap-2 rounded-xl border bg-white/5 px-3 py-2" style={{ borderColor: `${p}40` }}>
+              <span className="text-gray-400 text-sm">🔍</span>
+              <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products…" className="flex-1 text-sm outline-none bg-transparent text-white placeholder-gray-500" />
+              {search && <button onClick={() => setSearch('')} className="text-gray-400 text-xs">✕</button>}
+            </div>
+          </div>
+          {/* Mobile category tabs */}
+          <div className="md:hidden flex gap-2 px-4 py-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+            {cats.map(c => (
+              <button key={c} onClick={() => setActiveCat(c)} className="shrink-0 px-3 py-1.5 rounded-full text-sm font-medium"
+                style={activeCat === c ? { backgroundColor: p, color: '#fff' } : { backgroundColor: '#ffffff20', color: '#ccc' }}>{c}</button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 px-4 pt-2 pb-6">
             {visible.map(pr => (
-              <div key={pr.productId} className="rounded-xl overflow-hidden border-l-4" style={{ backgroundColor: '#0d0d1f', borderColor: p }}>
-                {pr.imageUrl && <img src={pr.imageUrl} alt={pr.name} className="w-full h-24 object-cover opacity-80" />}
-                <div className="p-2">
+              <div key={pr.productId} className="rounded-xl overflow-hidden border-l-4 hover:shadow-lg transition-shadow" style={{ backgroundColor: '#0d0d1f', borderColor: p }}>
+                {pr.imageUrl
+                  ? <img src={pr.imageUrl} alt={pr.name} className="w-full h-32 md:h-40 object-cover opacity-90" />
+                  : <div className="w-full h-32 md:h-40 bg-black/30 flex items-center justify-center text-3xl">🛍</div>
+                }
+                {pr.isOutOfStock && <div className="bg-red-700 text-white text-center text-xs py-0.5 font-bold">Out of Stock</div>}
+                <div className="p-2.5">
                   <p className="text-sm font-medium text-white line-clamp-2">{pr.name}</p>
+                  {pr.unit && <p className="text-xs text-gray-500 mt-0.5">{pr.unit}</p>}
                   <p className="text-sm font-bold mt-1" style={{ color: p }}>₹{pr.price}</p>
-                  {pr.isOutOfStock && <p className="text-xs text-red-400">Out of stock</p>}
                   {!pr.isOutOfStock && <ProductOrderBtn waNum={waNum} productName={pr.name} price={pr.price} primaryColor={p} className="rounded" />}
                 </div>
               </div>
             ))}
           </div>
-        </section>
+        </SidebarLayout>
       )}
+
       {has('about') && (
-        <section className="px-6 py-8" style={{ backgroundColor: '#0d0d1f' }}>
-          <h2 className="font-bold text-lg mb-2" style={{ color: p }}>About</h2>
-          <p className="text-gray-400">{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
-          {config.storeHoursEnabled && config.storeHoursText && (
-            <p className="text-sm text-gray-500 mt-3">🕐 {config.storeHoursText}</p>
-          )}
+        <section className="max-w-7xl mx-auto px-4 md:px-8 py-8" style={{ backgroundColor: '#0d0d1f' }}>
+          <div className="md:flex md:gap-8">
+            <div className="flex-1">
+              <h2 className="font-bold text-lg mb-2" style={{ color: p }}>About</h2>
+              <p className="text-gray-400">{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
+              {config.storeHoursEnabled && config.storeHoursText && <p className="text-sm text-gray-500 mt-3">🕐 {config.storeHoursText}</p>}
+            </div>
+            {has('contact') && (
+              <div className="mt-6 md:mt-0 md:w-64">
+                <h2 className="font-bold text-lg mb-2" style={{ color: p }}>Contact</h2>
+                <p className="text-gray-400">{shop.district}, Kerala</p>
+                {shop.ownerPhone && <p className="text-gray-400 mt-1">📞 {shop.ownerPhone}</p>}
+                <div className="mt-4"><WABtn config={config} shop={shop} /></div>
+              </div>
+            )}
+          </div>
         </section>
       )}
-      {has('contact') && (
+      {has('contact') && !has('about') && (
         <section className="px-6 py-8 text-center">
           <p className="text-gray-400">{shop.district}, Kerala</p>
           {shop.ownerPhone && <p className="text-gray-400 mt-1">📞 {shop.ownerPhone}</p>}
@@ -419,66 +506,122 @@ function WarmLayout({ config, shop, products, shopId }: Props) {
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
   const has = (s: string) => config.sections.includes(s);
   const [activeCat, setActiveCat] = useState('All');
+  const [search, setSearch] = useState('');
   const cats = ['All', ...Array.from(new Set(products.map(pr => pr.category).filter(Boolean)))];
-  const visible = activeCat === 'All' ? products : products.filter(pr => pr.category === activeCat);
+  const visible = products.filter(pr =>
+    (activeCat === 'All' || pr.category === activeCat) &&
+    (!search || pr.name.toLowerCase().includes(search.toLowerCase()))
+  );
   return (
     <div className="min-h-screen" style={{ backgroundColor: bg, color: p }}>
       <div className="h-1.5 w-full" style={{ backgroundColor: p }} />
-      {has('hero') && (
-        <section>
-          <BannerCarousel banners={banners} />
-          <div className="p-6 text-center border-b-4" style={{ borderColor: config.secondaryColor }}>
-            {shop.logoUrl && <img src={shop.logoUrl} alt="logo" className="w-16 h-16 rounded-full mx-auto mb-3 object-cover border-4" style={{ borderColor: config.secondaryColor }} />}
-            <h1 className="text-2xl font-bold" style={{ color: p }}>{config.siteName || shop.shopName}</h1>
-            {config.tagline && <p className="mt-1" style={{ color: config.secondaryColor }}>{config.tagline}</p>}
-            <p className="text-xs opacity-60 mt-1">{shop.shopType} · {shop.district}</p>
-            {shopId && <div className="mt-4"><OrderBtn waNum={waNum} primaryColor={p} label={config.primaryButtonText} /></div>}
+
+      {/* Sticky header */}
+      <header className="sticky top-0 z-40 bg-white border-b-4 shadow-sm" style={{ borderColor: config.secondaryColor }}>
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
+          {shop.logoUrl
+            ? <img src={shop.logoUrl} alt="logo" className="w-10 h-10 rounded-full object-cover border-4 shrink-0" style={{ borderColor: config.secondaryColor }} />
+            : <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shrink-0" style={{ backgroundColor: p }}>{(config.siteName || shop.shopName).charAt(0)}</div>
+          }
+          <div className="flex-1 min-w-0 hidden sm:block">
+            <p className="font-bold text-base truncate" style={{ color: p }}>{config.siteName || shop.shopName}</p>
+            <p className="text-xs opacity-60 truncate">{shop.shopType}{shop.district ? ` · ${shop.district}` : ''}</p>
           </div>
+          <div className="hidden md:flex flex-1 max-w-md items-center gap-2 rounded-xl border bg-amber-50 px-3 py-2" style={{ borderColor: `${p}40` }}>
+            <span className="text-amber-400 text-sm">🔍</span>
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products…" className="flex-1 text-sm outline-none bg-transparent placeholder-amber-300" style={{ color: p }} />
+            {search && <button onClick={() => setSearch('')} className="text-gray-400 text-xs">✕</button>}
+          </div>
+          {waNum && <a href={`https://wa.me/${waNum}`} target="_blank" rel="noreferrer" className="hidden md:inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-white text-sm font-semibold shrink-0" style={{ backgroundColor: p }}>💬 {config.primaryButtonText || 'Order Now'}</a>}
+        </div>
+        {config.announcementBarEnabled && config.announcementBar && (
+          <div className="text-center text-xs py-1.5 text-white font-medium" style={{ backgroundColor: config.announcementBarColor || p }}>🔔 {config.announcementBar}</div>
+        )}
+      </header>
+
+      {has('hero') && (
+        <section className="max-w-7xl mx-auto">
+          <BannerCarousel banners={banners} className="h-52 md:h-80" />
+          {banners.length === 0 && (
+            <div className="p-6 md:p-10 text-center md:text-left md:flex md:items-center md:gap-8 border-b-4" style={{ borderColor: config.secondaryColor }}>
+              <div className="md:flex-1">
+                <h1 className="text-2xl md:text-4xl font-bold" style={{ color: p }}>{config.siteName || shop.shopName}</h1>
+                {config.tagline && <p className="mt-1 md:text-lg" style={{ color: config.secondaryColor }}>{config.tagline}</p>}
+                <p className="text-xs opacity-60 mt-1">{shop.shopType} · {shop.district}</p>
+                {shopId && <div className="mt-4"><OrderBtn waNum={waNum} primaryColor={p} label={config.primaryButtonText} /></div>}
+              </div>
+              {shop.logoUrl && <img src={shop.logoUrl} alt="logo" className="hidden md:block w-28 h-28 rounded-full object-cover border-4 shrink-0" style={{ borderColor: config.secondaryColor }} />}
+            </div>
+          )}
         </section>
       )}
+
       <CouponPromo config={config} />
+
       {has('products') && products.length > 0 && (
-        <section className="py-4 max-w-7xl mx-auto">
-          <CategoryTabs cats={cats} active={activeCat} onSelect={setActiveCat} primaryColor={p} />
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 px-4">
+        <SidebarLayout cats={cats} activeCat={activeCat} onSelect={setActiveCat} primaryColor={p}>
+          {/* Mobile search */}
+          <div className="md:hidden px-4 pt-3 pb-1">
+            <div className="flex items-center gap-2 rounded-xl border bg-amber-50 px-3 py-2" style={{ borderColor: `${p}40` }}>
+              <span className="text-amber-400 text-sm">🔍</span>
+              <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products…" className="flex-1 text-sm outline-none bg-transparent" style={{ color: p }} />
+              {search && <button onClick={() => setSearch('')} className="text-gray-400 text-xs">✕</button>}
+            </div>
+          </div>
+          {/* Mobile category tabs */}
+          <div className="md:hidden flex gap-2 px-4 py-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+            {cats.map(c => (
+              <button key={c} onClick={() => setActiveCat(c)} className="shrink-0 px-3 py-1.5 rounded-full text-sm font-medium"
+                style={activeCat === c ? { backgroundColor: p, color: '#fff' } : { backgroundColor: '#f3f4f6', color: '#374151' }}>{c}</button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 px-4 pt-2 pb-6">
             {visible.map(pr => {
               const hasOffer = pr.offerPrice > 0 && pr.offerPrice < pr.price;
               const discPct = hasOffer ? Math.round((1 - pr.price / pr.offerPrice) * 100) : 0;
               return (
-                <div key={pr.productId} className="rounded-xl overflow-hidden border-2 relative" style={{ borderColor: config.secondaryColor, backgroundColor: '#fffbf5' }}>
+                <div key={pr.productId} className="rounded-xl overflow-hidden border-2 relative hover:shadow-md transition-shadow" style={{ borderColor: config.secondaryColor, backgroundColor: '#fffbf5' }}>
                   <div className="relative">
-                    {pr.imageUrl && <img src={pr.imageUrl} alt={pr.name} className="w-full h-28 object-cover rounded-t-xl" />}
+                    {pr.imageUrl
+                      ? <img src={pr.imageUrl} alt={pr.name} className="w-full h-32 md:h-40 object-cover rounded-t-xl" />
+                      : <div className="w-full h-32 md:h-40 bg-amber-50 flex items-center justify-center text-3xl">🛍</div>
+                    }
                     {hasOffer && <span className="absolute top-1 left-1 text-xs font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">{discPct}% OFF</span>}
+                    {pr.isOutOfStock && <div className="absolute inset-0 bg-white/60 flex items-center justify-center"><span className="text-xs font-bold bg-gray-400 text-white px-2 py-1 rounded">Out of Stock</span></div>}
                   </div>
-                  <div className="p-2">
+                  <div className="p-2.5">
                     <p className="text-sm font-medium line-clamp-2" style={{ color: p }}>{pr.name}</p>
-                    <div className="flex items-center gap-1 mt-0.5">
+                    {pr.unit && <p className="text-xs opacity-50 mt-0.5">{pr.unit}</p>}
+                    <div className="flex items-center gap-1 mt-1">
                       <p className="text-sm font-bold" style={{ color: config.secondaryColor }}>₹{pr.price}</p>
                       {hasOffer && <p className="text-xs text-gray-400 line-through">₹{pr.offerPrice}</p>}
                     </div>
-                    {pr.isOutOfStock && <p className="text-xs text-red-500">Out of stock</p>}
                     {!pr.isOutOfStock && <ProductOrderBtn waNum={waNum} productName={pr.name} price={pr.price} primaryColor={p} />}
                   </div>
                 </div>
               );
             })}
           </div>
-        </section>
+        </SidebarLayout>
       )}
-      {has('about') && (
-        <section className="px-6 py-8 text-center" style={{ backgroundColor: '#fdf5e6' }}>
-          <h2 className="font-bold text-lg mb-2" style={{ color: p }}>About Us</h2>
-          <p style={{ color: '#5a4a3a' }}>{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
-          {config.storeHoursEnabled && config.storeHoursText && (
-            <p className="text-sm mt-3 opacity-70">🕐 {config.storeHoursText}</p>
+
+      {(has('about') || has('contact')) && (
+        <section className="max-w-7xl mx-auto px-4 md:px-8 py-8 md:flex md:gap-8" style={{ backgroundColor: '#fdf5e6' }}>
+          {has('about') && (
+            <div className="flex-1">
+              <h2 className="font-bold text-lg mb-2" style={{ color: p }}>About Us</h2>
+              <p style={{ color: '#5a4a3a' }}>{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
+              {config.storeHoursEnabled && config.storeHoursText && <p className="text-sm mt-3 opacity-70">🕐 {config.storeHoursText}</p>}
+            </div>
           )}
-        </section>
-      )}
-      {has('contact') && (
-        <section className="px-6 py-8 text-center">
-          <p style={{ color: '#5a4a3a' }}>{shop.district}, Kerala</p>
-          {shop.ownerPhone && <p className="mt-1" style={{ color: '#5a4a3a' }}>📞 {shop.ownerPhone}</p>}
-          <div className="mt-4"><WABtn config={config} shop={shop} style={{ backgroundColor: p }} /></div>
+          {has('contact') && (
+            <div className={`${has('about') ? 'mt-6 md:mt-0 md:w-56' : 'w-full text-center'}`}>
+              <h2 className="font-bold text-lg mb-2" style={{ color: p }}>Contact</h2>
+              <p style={{ color: '#5a4a3a' }}>{shop.district}, Kerala</p>
+              {shop.ownerPhone && <p className="mt-1" style={{ color: '#5a4a3a' }}>📞 {shop.ownerPhone}</p>}
+              <div className="mt-4"><WABtn config={config} shop={shop} style={{ backgroundColor: p }} /></div>
+            </div>
+          )}
         </section>
       )}
       <WAFloat config={config} shop={shop} />
@@ -493,57 +636,105 @@ function NeopopLayout({ config, shop, products, shopId }: Props) {
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
   const has = (sec: string) => config.sections.includes(sec);
   const [activeCat, setActiveCat] = useState('All');
+  const [search, setSearch] = useState('');
   const cats = ['All', ...Array.from(new Set(products.map(pr => pr.category).filter(Boolean)))];
-  const visible = activeCat === 'All' ? products : products.filter(pr => pr.category === activeCat);
+  const visible = products.filter(pr =>
+    (activeCat === 'All' || pr.category === activeCat) &&
+    (!search || pr.name.toLowerCase().includes(search.toLowerCase()))
+  );
   return (
     <div className="min-h-screen text-white" style={{ backgroundColor: '#0a0a0a' }}>
+      {/* Sticky header */}
+      <header className="sticky top-0 z-40 border-b border-white/10" style={{ background: `linear-gradient(90deg, #0a0a0a, #151515)` }}>
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
+          {shop.logoUrl
+            ? <img src={shop.logoUrl} alt="logo" className="w-9 h-9 rounded-full object-cover border-2 shrink-0 border-white" />
+            : <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-base shrink-0 text-white" style={{ background: `linear-gradient(135deg, ${p}, ${s})` }}>{(config.siteName || shop.shopName).charAt(0)}</div>
+          }
+          <div className="flex-1 min-w-0 hidden sm:block">
+            <p className="font-black text-sm truncate" style={{ color: p }}>{config.siteName || shop.shopName}</p>
+            <p className="text-xs text-gray-500 truncate">{shop.shopType}</p>
+          </div>
+          <div className="hidden md:flex flex-1 max-w-md items-center gap-2 rounded-xl border bg-white/5 px-3 py-2" style={{ borderColor: `${p}50` }}>
+            <span className="text-sm" style={{ color: p }}>🔍</span>
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products…" className="flex-1 text-sm outline-none bg-transparent text-white placeholder-gray-600" />
+            {search && <button onClick={() => setSearch('')} className="text-gray-500 text-xs">✕</button>}
+          </div>
+          {waNum && <a href={`https://wa.me/${waNum}`} target="_blank" rel="noreferrer" className="hidden md:inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-white text-sm font-black shrink-0" style={{ background: `linear-gradient(135deg, ${p}, ${s})` }}>💬 {config.primaryButtonText || 'Order Now'}</a>}
+        </div>
+      </header>
+
       {has('hero') && (
         <section className="relative overflow-hidden">
-          <div className="h-64 flex items-end pb-6 px-6 relative" style={{ background: `linear-gradient(135deg, ${p}, ${s})` }}>
+          <div className="h-56 md:h-80 flex items-end pb-6 px-6 relative" style={{ background: `linear-gradient(135deg, ${p}, ${s})` }}>
             {banners[0] && <img src={banners[0]} alt="banner" className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-30" />}
-            <div className="relative z-10">
+            <div className="relative z-10 md:max-w-2xl">
               {shop.logoUrl && <img src={shop.logoUrl} alt="logo" className="w-12 h-12 rounded-full mb-2 object-cover border-2 border-white" />}
-              <h1 className="text-3xl font-black text-white leading-tight">{config.siteName || shop.shopName}</h1>
-              {config.tagline && <p className="text-white/80 mt-1 text-sm">{config.tagline}</p>}
+              <h1 className="text-3xl md:text-5xl font-black text-white leading-tight">{config.siteName || shop.shopName}</h1>
+              {config.tagline && <p className="text-white/80 mt-1 text-sm md:text-base">{config.tagline}</p>}
               {shopId && <div className="mt-3"><OrderBtn waNum={waNum} primaryColor={p} label={config.primaryButtonText} /></div>}
             </div>
           </div>
         </section>
       )}
+
       <CouponPromo config={config} />
+
       {has('products') && products.length > 0 && (
-        <section className="py-6 max-w-7xl mx-auto">
-          <CategoryTabs cats={cats} active={activeCat} onSelect={setActiveCat} primaryColor={p} />
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 px-4">
+        <SidebarLayout cats={cats} activeCat={activeCat} onSelect={setActiveCat} primaryColor={p}>
+          {/* Mobile search */}
+          <div className="md:hidden px-4 pt-3 pb-1">
+            <div className="flex items-center gap-2 rounded-xl border bg-white/5 px-3 py-2" style={{ borderColor: `${p}50` }}>
+              <span className="text-sm" style={{ color: p }}>🔍</span>
+              <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products…" className="flex-1 text-sm outline-none bg-transparent text-white placeholder-gray-600" />
+              {search && <button onClick={() => setSearch('')} className="text-gray-500 text-xs">✕</button>}
+            </div>
+          </div>
+          {/* Mobile category tabs */}
+          <div className="md:hidden flex gap-2 px-4 py-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+            {cats.map(c => (
+              <button key={c} onClick={() => setActiveCat(c)} className="shrink-0 px-3 py-1.5 rounded-full text-sm font-medium"
+                style={activeCat === c ? { background: `linear-gradient(135deg, ${p}, ${s})`, color: '#fff' } : { backgroundColor: '#ffffff15', color: '#ccc' }}>{c}</button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 px-4 pt-2 pb-6">
             {visible.map(pr => (
-              <div key={pr.productId} className="rounded-xl overflow-hidden border-2" style={{ backgroundColor: '#151515', borderColor: p, boxShadow: `0 0 16px ${p}30` }}>
-                {pr.imageUrl && <img src={pr.imageUrl} alt={pr.name} className="w-full h-28 object-cover" />}
-                <div className="p-2">
+              <div key={pr.productId} className="rounded-xl overflow-hidden border-2 hover:shadow-xl transition-shadow" style={{ backgroundColor: '#151515', borderColor: p, boxShadow: `0 0 16px ${p}20` }}>
+                {pr.imageUrl
+                  ? <img src={pr.imageUrl} alt={pr.name} className="w-full h-32 md:h-40 object-cover" />
+                  : <div className="w-full h-32 md:h-40 flex items-center justify-center text-3xl" style={{ background: `${p}20` }}>🛍</div>
+                }
+                {pr.isOutOfStock && <div className="bg-red-600 text-white text-center text-xs py-0.5 font-bold">Out of Stock</div>}
+                <div className="p-2.5">
                   <p className="text-sm font-semibold text-white line-clamp-2">{pr.name}</p>
-                  <p className="font-black mt-1" style={{ color: p }}>₹{pr.price}</p>
-                  {pr.isOutOfStock && <p className="text-xs text-red-400">Out of stock</p>}
+                  {pr.unit && <p className="text-xs text-gray-600 mt-0.5">{pr.unit}</p>}
+                  <p className="font-black mt-1 text-sm" style={{ color: p }}>₹{pr.price}</p>
                   {!pr.isOutOfStock && <ProductOrderBtn waNum={waNum} productName={pr.name} price={pr.price} primaryColor={p} className="rounded font-black" />}
                 </div>
               </div>
             ))}
           </div>
-        </section>
+        </SidebarLayout>
       )}
-      {has('about') && (
-        <section className="px-6 py-8 border-t border-white/10">
-          <h2 className="font-black text-xl mb-2" style={{ color: p }}>About</h2>
-          <p className="text-gray-400">{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
-          {config.storeHoursEnabled && config.storeHoursText && (
-            <p className="text-sm text-gray-500 mt-3">🕐 {config.storeHoursText}</p>
+
+      {(has('about') || has('contact')) && (
+        <section className="max-w-7xl mx-auto px-4 md:px-8 py-8 border-t border-white/10 md:flex md:gap-8">
+          {has('about') && (
+            <div className="flex-1">
+              <h2 className="font-black text-xl mb-2" style={{ color: p }}>About</h2>
+              <p className="text-gray-400">{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
+              {config.storeHoursEnabled && config.storeHoursText && <p className="text-sm text-gray-500 mt-3">🕐 {config.storeHoursText}</p>}
+            </div>
           )}
-        </section>
-      )}
-      {has('contact') && (
-        <section className="px-6 py-8 text-center">
-          <p className="text-gray-500">{shop.district}, Kerala · {shop.ownerPhone}</p>
-          <div className="mt-4">
-            <WABtn config={config} shop={shop} className="font-black" style={{ background: `linear-gradient(135deg, ${p}, ${s})`, boxShadow: `0 0 20px ${p}50` }} />
-          </div>
+          {has('contact') && (
+            <div className={`${has('about') ? 'mt-6 md:mt-0 md:w-56' : 'w-full text-center'}`}>
+              <h2 className="font-black text-xl mb-2" style={{ color: p }}>Contact</h2>
+              <p className="text-gray-500">{shop.district}, Kerala · {shop.ownerPhone}</p>
+              <div className="mt-4">
+                <WABtn config={config} shop={shop} className="font-black" style={{ background: `linear-gradient(135deg, ${p}, ${s})`, boxShadow: `0 0 20px ${p}50` }} />
+              </div>
+            </div>
+          )}
         </section>
       )}
       <WAFloat config={config} shop={shop} />
@@ -558,23 +749,54 @@ function EditorialLayout({ config, shop, products, shopId }: Props) {
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
   const has = (s: string) => config.sections.includes(s);
   const isLight = config.secondaryColor.startsWith('#8') || config.secondaryColor.startsWith('#9');
+  const [activeCat, setActiveCat] = useState('All');
+  const [search, setSearch] = useState('');
+  const cats = ['All', ...Array.from(new Set(products.map(pr => pr.category).filter(Boolean)))];
+  const visible = products.filter(pr =>
+    (activeCat === 'All' || pr.category === activeCat) &&
+    (!search || pr.name.toLowerCase().includes(search.toLowerCase()))
+  );
+  const bgColor = config.themeId === 'mana' ? '#ffffff' : '#f5f5f5';
   return (
-    <div className="min-h-screen" style={{ backgroundColor: config.themeId === 'mana' ? '#ffffff' : '#f5f5f5', color: '#1a1a1a' }}>
+    <div className="min-h-screen" style={{ backgroundColor: bgColor, color: '#1a1a1a' }}>
+      {/* Sticky header */}
+      <header className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
+          {shop.logoUrl
+            ? <img src={shop.logoUrl} alt="logo" className="w-10 h-10 rounded-full object-cover shrink-0" />
+            : <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shrink-0" style={{ backgroundColor: p }}>{(config.siteName || shop.shopName).charAt(0)}</div>
+          }
+          <div className="flex-1 min-w-0 hidden sm:block">
+            <p className="font-bold text-base truncate">{config.siteName || shop.shopName}</p>
+            <p className="text-xs text-gray-400 truncate">{shop.shopType}{shop.district ? ` · ${shop.district}` : ''}</p>
+          </div>
+          <div className="hidden md:flex flex-1 max-w-md items-center gap-2 rounded-xl border bg-gray-50 px-3 py-2" style={{ borderColor: `${p}30` }}>
+            <span className="text-gray-400 text-sm">🔍</span>
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products…" className="flex-1 text-sm outline-none bg-transparent text-gray-700 placeholder-gray-400" />
+            {search && <button onClick={() => setSearch('')} className="text-gray-400 text-xs">✕</button>}
+          </div>
+          {waNum && <a href={`https://wa.me/${waNum}`} target="_blank" rel="noreferrer" className="hidden md:inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-white text-sm font-semibold shrink-0" style={{ backgroundColor: p }}>💬 {config.primaryButtonText || 'Order'}</a>}
+        </div>
+        {config.announcementBarEnabled && config.announcementBar && (
+          <div className="text-center text-xs py-1.5 text-white font-medium" style={{ backgroundColor: config.announcementBarColor || p }}>🔔 {config.announcementBar}</div>
+        )}
+      </header>
+
       {has('hero') && (
-        <section>
+        <section className="max-w-7xl mx-auto">
           {banners[0] ? (
-            <div className="relative h-72">
+            <div className="relative h-56 md:h-80">
               <img src={banners[0]} alt="banner" className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-black/20 flex flex-col items-center justify-center px-6 text-center">
-                <h1 className="text-4xl font-bold text-white leading-tight">{config.siteName || shop.shopName}</h1>
-                {config.tagline && <p className="text-white/80 mt-2">{config.tagline}</p>}
+                <h1 className="text-3xl md:text-5xl font-bold text-white leading-tight">{config.siteName || shop.shopName}</h1>
+                {config.tagline && <p className="text-white/80 mt-2 md:text-lg">{config.tagline}</p>}
               </div>
             </div>
           ) : (
-            <div className="px-6 py-12 text-center border-b">
+            <div className="px-6 py-10 md:py-16 text-center border-b">
               {shop.logoUrl && <img src={shop.logoUrl} alt="logo" className="w-16 h-16 rounded-full mx-auto mb-4 object-cover" />}
-              <h1 className="text-3xl font-bold">{config.siteName || shop.shopName}</h1>
-              {config.tagline && <p className="mt-2" style={{ color: isLight ? config.secondaryColor : '#888' }}>{config.tagline}</p>}
+              <h1 className="text-3xl md:text-5xl font-bold">{config.siteName || shop.shopName}</h1>
+              {config.tagline && <p className="mt-2 md:text-lg" style={{ color: isLight ? config.secondaryColor : '#888' }}>{config.tagline}</p>}
             </div>
           )}
           <div className="px-6 py-2 flex items-center gap-4 text-sm border-b">
@@ -584,41 +806,64 @@ function EditorialLayout({ config, shop, products, shopId }: Props) {
           </div>
         </section>
       )}
+
       <CouponPromo config={config} />
+
       {has('products') && products.length > 0 && (
-        <section className="px-4 py-6 max-w-7xl mx-auto">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {products.map(pr => (
-              <div key={pr.productId} className="bg-white rounded-lg overflow-hidden">
-                {pr.imageUrl && <img src={pr.imageUrl} alt={pr.name} className="w-full h-36 object-cover" />}
+        <SidebarLayout cats={cats} activeCat={activeCat} onSelect={setActiveCat} primaryColor={p}>
+          {/* Mobile search + tabs */}
+          <div className="md:hidden px-4 pt-3 pb-1">
+            <div className="flex items-center gap-2 rounded-xl border bg-white px-3 py-2" style={{ borderColor: `${p}30` }}>
+              <span className="text-gray-400 text-sm">🔍</span>
+              <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products…" className="flex-1 text-sm outline-none bg-transparent text-gray-700 placeholder-gray-400" />
+              {search && <button onClick={() => setSearch('')} className="text-gray-400 text-xs">✕</button>}
+            </div>
+          </div>
+          <div className="md:hidden flex gap-2 px-4 py-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+            {cats.map(c => (
+              <button key={c} onClick={() => setActiveCat(c)} className="shrink-0 px-3 py-1.5 rounded-full text-sm font-medium"
+                style={activeCat === c ? { backgroundColor: p, color: '#fff' } : { backgroundColor: '#f3f4f6', color: '#374151' }}>{c}</button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 px-4 pt-2 pb-6">
+            {visible.map(pr => (
+              <div key={pr.productId} className="bg-white rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+                {pr.imageUrl
+                  ? <img src={pr.imageUrl} alt={pr.name} className="w-full h-36 md:h-44 object-cover" />
+                  : <div className="w-full h-36 md:h-44 bg-gray-100 flex items-center justify-center text-3xl">🛍</div>
+                }
+                {pr.isOutOfStock && <div className="bg-gray-400 text-white text-center text-xs py-0.5 font-bold">Out of Stock</div>}
                 <div className="p-3">
                   <p className="text-sm font-semibold line-clamp-2">{pr.name}</p>
                   <div className="flex items-baseline gap-2 mt-1">
                     <p className="font-bold" style={{ color: p }}>₹{pr.price}</p>
                     {pr.unit && <p className="text-xs text-gray-400">{pr.unit}</p>}
                   </div>
-                  {pr.isOutOfStock && <p className="text-xs text-red-500 mt-1">Out of stock</p>}
                   {!pr.isOutOfStock && <ProductOrderBtn waNum={waNum} productName={pr.name} price={pr.price} primaryColor={p} className="rounded" />}
                 </div>
               </div>
             ))}
           </div>
-        </section>
+        </SidebarLayout>
       )}
-      {has('about') && (
-        <section className="px-8 py-10 text-center max-w-lg mx-auto">
-          <h2 className="text-2xl font-bold mb-3" style={{ color: p }}>About Us</h2>
-          <p className="text-gray-600 leading-relaxed">{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
-          {config.storeHoursEnabled && config.storeHoursText && (
-            <p className="text-sm text-gray-400 mt-4">🕐 {config.storeHoursText}</p>
+
+      {(has('about') || has('contact')) && (
+        <section className="max-w-7xl mx-auto px-8 py-10 md:flex md:gap-8 border-t border-gray-200">
+          {has('about') && (
+            <div className="flex-1">
+              <h2 className="text-2xl font-bold mb-3" style={{ color: p }}>About Us</h2>
+              <p className="text-gray-600 leading-relaxed">{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
+              {config.storeHoursEnabled && config.storeHoursText && <p className="text-sm text-gray-400 mt-4">🕐 {config.storeHoursText}</p>}
+            </div>
           )}
-        </section>
-      )}
-      {has('contact') && (
-        <section className="px-6 py-8 text-center border-t">
-          <p className="text-gray-500">{shop.district}, Kerala</p>
-          {shop.ownerPhone && <p className="text-gray-600 mt-1">📞 {shop.ownerPhone}</p>}
-          <div className="mt-4"><WABtn config={config} shop={shop} style={{ backgroundColor: p }} /></div>
+          {has('contact') && (
+            <div className={`${has('about') ? 'mt-6 md:mt-0 md:w-56' : 'w-full text-center'}`}>
+              <h2 className="text-2xl font-bold mb-3" style={{ color: p }}>Contact</h2>
+              <p className="text-gray-500">{shop.district}, Kerala</p>
+              {shop.ownerPhone && <p className="text-gray-600 mt-1">📞 {shop.ownerPhone}</p>}
+              <div className="mt-4"><WABtn config={config} shop={shop} style={{ backgroundColor: p }} /></div>
+            </div>
+          )}
         </section>
       )}
       <WAFloat config={config} shop={shop} />
@@ -643,63 +888,119 @@ function CarouselLayout({ config, shop, products, shopId }: Props) {
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
+      {/* Sticky header */}
+      <header className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
+          {shop.logoUrl
+            ? <img src={shop.logoUrl} alt="logo" className="w-10 h-10 rounded-full object-cover border-2 shrink-0" style={{ borderColor: p }} />
+            : <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0" style={{ backgroundColor: p }}>{(config.siteName || shop.shopName).charAt(0)}</div>
+          }
+          <div className="flex-1 min-w-0 hidden sm:block">
+            <p className="font-bold text-base leading-tight truncate">{config.siteName || shop.shopName}</p>
+            <p className="text-xs text-gray-400 truncate">{shop.shopType}{shop.district ? ` · ${shop.district}` : ''}</p>
+          </div>
+          <div className="hidden md:flex flex-1 max-w-md items-center gap-2 rounded-xl border bg-gray-50 px-3 py-2" style={{ borderColor: `${p}30` }}>
+            <span className="text-gray-400 text-sm">🔍</span>
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products…" className="flex-1 text-sm outline-none bg-transparent text-gray-700 placeholder-gray-400" />
+            {search && <button onClick={() => setSearch('')} className="text-gray-400 text-xs">✕</button>}
+          </div>
+          {waNum && <a href={`https://wa.me/${waNum}`} target="_blank" rel="noreferrer" className="hidden md:inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-white text-sm font-semibold shrink-0" style={{ backgroundColor: p }}>💬 {config.primaryButtonText || 'Order Now'}</a>}
+        </div>
+        {config.announcementBarEnabled && config.announcementBar && (
+          <div className="text-center text-xs py-1.5 text-white font-medium" style={{ backgroundColor: config.announcementBarColor || p }}>🔔 {config.announcementBar}</div>
+        )}
+      </header>
+
       {has('hero') && (
-        <section>
+        <section className="max-w-7xl mx-auto">
           {banners.length > 0 && (
             <div className="relative">
-              <BannerCarousel banners={banners} />
+              <BannerCarousel banners={banners} className="h-52 md:h-80" />
               <div className="absolute inset-0 flex flex-col justify-end p-6 bg-gradient-to-t from-black/50 pointer-events-none">
-                <h1 className="text-2xl font-bold text-white">{config.siteName || shop.shopName}</h1>
-                {config.tagline && <p className="text-white/80 text-sm">{config.tagline}</p>}
+                <h1 className="text-2xl md:text-4xl font-bold text-white">{config.siteName || shop.shopName}</h1>
+                {config.tagline && <p className="text-white/80 text-sm md:text-base">{config.tagline}</p>}
               </div>
             </div>
           )}
           {!banners.length && (
-            <div className="px-6 py-8 text-center">
-              <h1 className="text-2xl font-bold" style={{ color: p }}>{config.siteName || shop.shopName}</h1>
-              {config.tagline && <p className="text-gray-500 mt-1">{config.tagline}</p>}
+            <div className="px-6 py-10 md:py-16 text-center">
+              <h1 className="text-2xl md:text-4xl font-bold" style={{ color: p }}>{config.siteName || shop.shopName}</h1>
+              {config.tagline && <p className="text-gray-500 mt-2">{config.tagline}</p>}
+              {shopId && <div className="mt-4"><OrderBtn waNum={waNum} primaryColor={p} label={config.primaryButtonText} /></div>}
             </div>
           )}
-          {shopId && <div className="px-4 py-3 text-center"><OrderBtn waNum={waNum} primaryColor={p} label={config.primaryButtonText} /></div>}
         </section>
       )}
+
       <CouponPromo config={config} />
+
       {has('products') && products.length > 0 && (
-        <section className="pb-6">
-          <ProductSearch value={search} onChange={setSearch} primaryColor={p} />
-          <CategoryTabs cats={cats} active={activeCat} onSelect={setActiveCat} primaryColor={p} />
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 px-4">
-            {visible.length === 0 && (
-              <p className="col-span-2 text-center text-sm text-gray-400 py-8">No products found</p>
-            )}
-            {visible.map(pr => (
-              <div key={pr.productId} className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
-                {pr.imageUrl && <img src={pr.imageUrl} alt={pr.name} className="w-full h-28 object-cover" />}
-                <div className="p-2">
-                  <p className="text-sm font-medium line-clamp-2">{pr.name}</p>
-                  <p className="text-sm font-bold mt-1" style={{ color: p }}>₹{pr.price}</p>
-                  {pr.isOutOfStock && <p className="text-xs text-red-500">Out of stock</p>}
-                  {!pr.isOutOfStock && <ProductOrderBtn waNum={waNum} productName={pr.name} price={pr.price} primaryColor={p} />}
-                </div>
-              </div>
+        <SidebarLayout cats={cats} activeCat={activeCat} onSelect={setActiveCat} primaryColor={p}>
+          {/* Mobile search + category tabs */}
+          <div className="md:hidden px-4 pt-3 pb-1">
+            <div className="flex items-center gap-2 rounded-xl border bg-white px-3 py-2" style={{ borderColor: `${p}30` }}>
+              <span className="text-gray-400 text-sm">🔍</span>
+              <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products…" className="flex-1 text-sm outline-none bg-transparent text-gray-700 placeholder-gray-400" />
+              {search && <button onClick={() => setSearch('')} className="text-gray-400 text-xs">✕</button>}
+            </div>
+          </div>
+          <div className="md:hidden flex gap-2 px-4 py-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+            {cats.map(c => (
+              <button key={c} onClick={() => setActiveCat(c)} className="shrink-0 px-3 py-1.5 rounded-full text-sm font-medium"
+                style={activeCat === c ? { backgroundColor: p, color: '#fff' } : { backgroundColor: '#f3f4f6', color: '#374151' }}>{c}</button>
             ))}
           </div>
-        </section>
-      )}
-      {has('about') && (
-        <section className="px-6 py-8 bg-gray-50 text-center">
-          <h2 className="font-bold text-lg mb-2" style={{ color: p }}>About</h2>
-          <p className="text-gray-600">{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
-          {config.storeHoursEnabled && config.storeHoursText && (
-            <p className="text-sm text-gray-400 mt-3">🕐 {config.storeHoursText}</p>
+          {visible.length === 0 ? (
+            <p className="text-center text-sm text-gray-400 py-12 px-4">No products found{search ? ' — ' : ''}{search && <button onClick={() => setSearch('')} className="underline" style={{ color: p }}>clear search</button>}</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 px-4 pt-2 pb-6">
+              {visible.map(pr => {
+                const hasOffer = pr.offerPrice > 0 && pr.offerPrice < pr.price;
+                const discPct = hasOffer ? Math.round((1 - pr.price / pr.offerPrice) * 100) : 0;
+                return (
+                  <div key={pr.productId} className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                    <div className="relative">
+                      {pr.imageUrl
+                        ? <img src={pr.imageUrl} alt={pr.name} className="w-full h-32 md:h-40 object-cover" />
+                        : <div className="w-full h-32 md:h-40 bg-gray-100 flex items-center justify-center text-3xl">🛍</div>
+                      }
+                      {hasOffer && <span className="absolute top-1 left-1 text-xs font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">{discPct}% OFF</span>}
+                      {pr.isOutOfStock && <div className="absolute inset-0 bg-white/60 flex items-center justify-center"><span className="text-xs font-bold bg-gray-400 text-white px-2 py-1 rounded">Out of Stock</span></div>}
+                    </div>
+                    <div className="p-2.5">
+                      <p className="text-sm font-medium line-clamp-2">{pr.name}</p>
+                      {pr.unit && <p className="text-xs text-gray-400 mt-0.5">{pr.unit}</p>}
+                      <div className="flex items-center gap-1 mt-1">
+                        <p className="text-sm font-bold" style={{ color: p }}>₹{pr.price}</p>
+                        {hasOffer && <p className="text-xs text-gray-400 line-through">₹{pr.offerPrice}</p>}
+                      </div>
+                      {!pr.isOutOfStock && <ProductOrderBtn waNum={waNum} productName={pr.name} price={pr.price} primaryColor={p} />}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
-        </section>
+        </SidebarLayout>
       )}
-      {has('contact') && (
-        <section className="px-6 py-8 text-center">
-          <p className="text-gray-500">{shop.district} · {shop.ownerPhone}</p>
-          <div className="mt-4"><WABtn config={config} shop={shop} style={{ backgroundColor: p }} /></div>
-        </section>
+
+      {(has('about') || has('contact')) && (
+        <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 md:flex md:gap-8 bg-gray-50">
+          {has('about') && (
+            <section className="flex-1">
+              <h2 className="font-bold text-lg mb-2" style={{ color: p }}>About</h2>
+              <p className="text-gray-600">{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
+              {config.storeHoursEnabled && config.storeHoursText && <p className="text-sm text-gray-400 mt-3">🕐 {config.storeHoursText}</p>}
+            </section>
+          )}
+          {has('contact') && (
+            <section className={`${has('about') ? 'mt-6 md:mt-0 md:w-56' : 'w-full text-center'}`}>
+              <h2 className="font-bold text-lg mb-2" style={{ color: p }}>Contact</h2>
+              <p className="text-gray-500">{shop.district} · {shop.ownerPhone}</p>
+              <div className="mt-4"><WABtn config={config} shop={shop} style={{ backgroundColor: p }} /></div>
+            </section>
+          )}
+        </div>
       )}
       <WAFloat config={config} shop={shop} />
     </div>
@@ -712,58 +1013,106 @@ function LuxuryLayout({ config, shop, products, shopId }: Props) {
   const waNum = config.whatsappEnabled !== false ? (config.whatsappNumber || shop.ownerPhone) : '';
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
   const has = (s: string) => config.sections.includes(s);
+  const [activeCat, setActiveCat] = useState('All');
+  const cats = ['All', ...Array.from(new Set(products.map(pr => pr.category).filter(Boolean)))];
+  const visible = activeCat === 'All' ? products : products.filter(pr => pr.category === activeCat);
   return (
     <div className="min-h-screen text-white" style={{ backgroundColor: '#0d0d0d' }}>
       <div className="h-0.5 w-full" style={{ backgroundColor: p }} />
+      {/* Header */}
+      <header className="sticky top-0 z-40 border-b border-white/5" style={{ backgroundColor: '#0d0d0d' }}>
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-6">
+          {shop.logoUrl && <img src={shop.logoUrl} alt="logo" className="w-8 h-8 rounded-full object-cover border shrink-0" style={{ borderColor: p }} />}
+          <p className="font-bold tracking-widest uppercase text-sm shrink-0" style={{ color: p }}>{config.siteName || shop.shopName}</p>
+          <div className="flex-1" />
+          {cats.length > 1 && (
+            <div className="hidden md:flex gap-4">
+              {cats.slice(0, 6).map(c => (
+                <button key={c} onClick={() => setActiveCat(c)} className="text-xs tracking-widest uppercase transition-colors"
+                  style={activeCat === c ? { color: p } : { color: 'rgba(255,255,255,0.4)' }}>{c}</button>
+              ))}
+            </div>
+          )}
+          {waNum && <a href={`https://wa.me/${waNum}`} target="_blank" rel="noreferrer" className="text-xs tracking-widest uppercase border px-4 py-1.5 transition-colors hover:bg-white/5" style={{ borderColor: p, color: p }}>{config.primaryButtonText || 'Order'}</a>}
+        </div>
+      </header>
+
       {has('hero') && (
-        <section className="relative">
-          {banners[0] && <img src={banners[0]} alt="banner" className="w-full h-56 object-cover opacity-20" />}
-          <div className="px-6 py-8 text-center" style={{ marginTop: banners[0] ? '-56px' : '0' }}>
-            {shop.logoUrl && <img src={shop.logoUrl} alt="logo" className="w-16 h-16 rounded-full mx-auto mb-4 object-cover border-2" style={{ borderColor: p }} />}
-            <h1 className="text-3xl font-bold tracking-widest uppercase" style={{ color: p }}>{config.siteName || shop.shopName}</h1>
-            {config.tagline && <p className="mt-2 tracking-wider text-sm opacity-60">{config.tagline}</p>}
+        <section className="relative max-w-7xl mx-auto">
+          {banners[0] && <img src={banners[0]} alt="banner" className="w-full h-56 md:h-80 object-cover opacity-20" />}
+          <div className="px-6 py-8 md:py-12 text-center" style={{ marginTop: banners[0] ? '-56px' : '0' }}>
+            <h1 className="text-3xl md:text-5xl font-bold tracking-widest uppercase" style={{ color: p }}>{config.siteName || shop.shopName}</h1>
+            {config.tagline && <p className="mt-2 tracking-wider text-sm opacity-60 md:text-base">{config.tagline}</p>}
           </div>
           <div className="h-px mx-6" style={{ backgroundColor: p }} />
         </section>
       )}
+
       <CouponPromo config={config} />
+
       {has('products') && products.length > 0 && (
-        <section className="px-4 py-6 space-y-3">
-          <h2 className="font-bold tracking-widest text-sm uppercase mb-4" style={{ color: p }}>Collection</h2>
-          {products.map(pr => (
-            <div key={pr.productId} className="flex gap-3 border rounded-xl overflow-hidden" style={{ borderColor: `${p}30`, backgroundColor: '#111' }}>
-              {pr.imageUrl ? (
-                <img src={pr.imageUrl} alt={pr.name} className="w-24 h-24 object-cover shrink-0" />
-              ) : (
-                <div className="w-24 h-24 shrink-0" style={{ backgroundColor: `${p}20` }} />
-              )}
-              <div className="flex-1 p-3">
-                <p className="font-semibold text-sm line-clamp-2 text-white">{pr.name}</p>
-                {pr.unit && <p className="text-xs opacity-40 mt-0.5">{pr.unit}</p>}
-                <p className="font-bold mt-1" style={{ color: p }}>₹{pr.price}</p>
-                {pr.isOutOfStock && <p className="text-xs text-red-400 mt-1">Out of stock</p>}
-                {!pr.isOutOfStock && <ProductOrderBtn waNum={waNum} productName={pr.name} price={pr.price} primaryColor={p} className="inline-block rounded px-3 py-1 text-black" />}
+        <section className="max-w-7xl mx-auto px-4 py-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-bold tracking-widest text-sm uppercase" style={{ color: p }}>Collection</h2>
+            {cats.length > 1 && (
+              <div className="md:hidden flex gap-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+                {cats.slice(0, 5).map(c => (
+                  <button key={c} onClick={() => setActiveCat(c)} className="shrink-0 text-xs tracking-widest uppercase border px-3 py-1"
+                    style={activeCat === c ? { borderColor: p, color: p } : { borderColor: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.4)' }}>{c}</button>
+                ))}
+              </div>
+            )}
+          </div>
+          {/* Mobile: elegant list | Desktop: grid */}
+          <div className="md:hidden space-y-3">
+            {visible.map(pr => (
+              <div key={pr.productId} className="flex gap-3 border overflow-hidden" style={{ borderColor: `${p}30`, backgroundColor: '#111' }}>
+                {pr.imageUrl ? <img src={pr.imageUrl} alt={pr.name} className="w-24 h-24 object-cover shrink-0" /> : <div className="w-24 h-24 shrink-0" style={{ backgroundColor: `${p}20` }} />}
+                <div className="flex-1 p-3">
+                  <p className="font-semibold text-sm line-clamp-2 text-white">{pr.name}</p>
+                  {pr.unit && <p className="text-xs opacity-40 mt-0.5">{pr.unit}</p>}
+                  <p className="font-bold mt-1" style={{ color: p }}>₹{pr.price}</p>
+                  {pr.isOutOfStock && <p className="text-xs text-red-400 mt-1">Out of stock</p>}
+                  {!pr.isOutOfStock && <ProductOrderBtn waNum={waNum} productName={pr.name} price={pr.price} primaryColor={p} className="inline-block rounded px-3 py-1 text-black" />}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="hidden md:grid md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {visible.map(pr => (
+              <div key={pr.productId} className="border overflow-hidden hover:shadow-xl transition-shadow" style={{ borderColor: `${p}25`, backgroundColor: '#111' }}>
+                {pr.imageUrl ? <img src={pr.imageUrl} alt={pr.name} className="w-full h-48 object-cover opacity-80" /> : <div className="w-full h-48" style={{ backgroundColor: `${p}15` }} />}
+                {pr.isOutOfStock && <div className="bg-red-900/50 text-red-400 text-center text-xs py-0.5 font-bold tracking-wider">Out of Stock</div>}
+                <div className="p-3">
+                  <p className="font-semibold text-sm line-clamp-2 text-white tracking-wide">{pr.name}</p>
+                  {pr.unit && <p className="text-xs opacity-40 mt-0.5">{pr.unit}</p>}
+                  <p className="font-bold mt-2" style={{ color: p }}>₹{pr.price}</p>
+                  {!pr.isOutOfStock && <ProductOrderBtn waNum={waNum} productName={pr.name} price={pr.price} primaryColor={p} className="inline-block px-3 py-1 text-black font-bold" />}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {(has('about') || has('contact')) && (
+        <section className="max-w-7xl mx-auto px-6 py-8 border-t md:flex md:gap-8" style={{ borderColor: `${p}20` }}>
+          {has('about') && (
+            <div className="flex-1">
+              <h2 className="font-bold tracking-widest text-sm uppercase mb-3" style={{ color: p }}>Our Story</h2>
+              <p className="text-gray-400 leading-relaxed">{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
+              {config.storeHoursEnabled && config.storeHoursText && <p className="text-sm opacity-50 mt-3">🕐 {config.storeHoursText}</p>}
+            </div>
+          )}
+          {has('contact') && (
+            <div className={`${has('about') ? 'mt-6 md:mt-0 md:w-56 md:text-right' : 'w-full text-center'}`}>
+              <p className="opacity-50 text-sm tracking-wider">{shop.district}, Kerala</p>
+              {shop.ownerPhone && <p className="opacity-50 text-sm mt-1">{shop.ownerPhone}</p>}
+              <div className="mt-4">
+                <WABtn config={config} shop={shop} className="tracking-wider text-sm" style={{ backgroundColor: p, color: '#0d0d0d' }} />
               </div>
             </div>
-          ))}
-        </section>
-      )}
-      {has('about') && (
-        <section className="px-6 py-8 border-t" style={{ borderColor: `${p}20` }}>
-          <h2 className="font-bold tracking-widest text-sm uppercase mb-3" style={{ color: p }}>Our Story</h2>
-          <p className="text-gray-400 leading-relaxed">{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
-          {config.storeHoursEnabled && config.storeHoursText && (
-            <p className="text-sm opacity-50 mt-3">🕐 {config.storeHoursText}</p>
           )}
-        </section>
-      )}
-      {has('contact') && (
-        <section className="px-6 py-8 text-center border-t" style={{ borderColor: `${p}20` }}>
-          <p className="opacity-50 text-sm tracking-wider">{shop.district}, Kerala</p>
-          {shop.ownerPhone && <p className="opacity-50 text-sm mt-1">{shop.ownerPhone}</p>}
-          <div className="mt-4">
-            <WABtn config={config} shop={shop} className="tracking-wider text-sm" style={{ backgroundColor: p, color: '#0d0d0d' }} />
-          </div>
         </section>
       )}
       <WAFloat config={config} shop={shop} />
@@ -777,57 +1126,119 @@ function FestivalLayout({ config, shop, products, shopId }: Props) {
   const waNum = config.whatsappEnabled !== false ? (config.whatsappNumber || shop.ownerPhone) : '';
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
   const has = (sec: string) => config.sections.includes(sec);
+  const bg = config.themeId === 'zenith' ? '#f0fdf4' : '#fff8e7';
   const [activeCat, setActiveCat] = useState('All');
+  const [search, setSearch] = useState('');
   const cats = ['All', ...Array.from(new Set(products.map(pr => pr.category).filter(Boolean)))];
-  const visible = activeCat === 'All' ? products : products.filter(pr => pr.category === activeCat);
+  const visible = products.filter(pr =>
+    (activeCat === 'All' || pr.category === activeCat) &&
+    (!search || pr.name.toLowerCase().includes(search.toLowerCase()))
+  );
   return (
-    <div className="min-h-screen" style={{ backgroundColor: config.themeId === 'zenith' ? '#f0fdf4' : '#fff8e7', color: '#1a1a1a' }}>
+    <div className="min-h-screen" style={{ backgroundColor: bg, color: '#1a1a1a' }}>
       <div className="h-2 w-full" style={{ background: `linear-gradient(to right, ${p}, ${s}, ${p})` }} />
+
+      {/* Sticky header */}
+      <header className="sticky top-0 z-40 bg-white border-b-2 shadow-sm" style={{ borderColor: s }}>
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-4">
+          {shop.logoUrl
+            ? <img src={shop.logoUrl} alt="logo" className="w-10 h-10 rounded-full object-cover border-4 shrink-0" style={{ borderColor: p }} />
+            : <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold shrink-0" style={{ backgroundColor: p }}>{(config.siteName || shop.shopName).charAt(0)}</div>
+          }
+          <div className="flex-1 min-w-0 hidden sm:block">
+            <p className="font-bold text-base truncate" style={{ color: p }}>{config.siteName || shop.shopName}</p>
+            <p className="text-xs opacity-50 truncate">{shop.shopType}{shop.district ? ` · ${shop.district}` : ''}</p>
+          </div>
+          <div className="hidden md:flex flex-1 max-w-md items-center gap-2 rounded-xl border px-3 py-2" style={{ borderColor: `${p}30`, backgroundColor: `${p}08` }}>
+            <span className="text-sm" style={{ color: p }}>🔍</span>
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products…" className="flex-1 text-sm outline-none bg-transparent text-gray-700 placeholder-gray-400" />
+            {search && <button onClick={() => setSearch('')} className="text-gray-400 text-xs">✕</button>}
+          </div>
+          {waNum && <a href={`https://wa.me/${waNum}`} target="_blank" rel="noreferrer" className="hidden md:inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-white text-sm font-semibold shrink-0" style={{ backgroundColor: p }}>💬 {config.primaryButtonText || 'Order Now'}</a>}
+        </div>
+        {config.announcementBarEnabled && config.announcementBar && (
+          <div className="text-center text-xs py-1.5 text-white font-medium" style={{ backgroundColor: config.announcementBarColor || p }}>🔔 {config.announcementBar}</div>
+        )}
+      </header>
+
       {has('hero') && (
-        <section>
-          <BannerCarousel banners={banners} />
-          <div className="px-6 py-5 text-center" style={{ borderBottom: `3px solid ${s}` }}>
-            {shop.logoUrl && <img src={shop.logoUrl} alt="logo" className="w-16 h-16 rounded-full mx-auto mb-3 object-cover border-4" style={{ borderColor: p }} />}
-            <h1 className="text-2xl font-bold" style={{ color: p }}>{config.siteName || shop.shopName}</h1>
-            {config.tagline && <p className="mt-1 text-sm" style={{ color: s }}>{config.tagline}</p>}
-            <p className="text-xs opacity-50 mt-1">{shop.shopType} · {shop.district}</p>
-            {shopId && <div className="mt-4"><OrderBtn waNum={waNum} primaryColor={p} label={config.primaryButtonText} /></div>}
-          </div>
-        </section>
-      )}
-      <CouponPromo config={config} />
-      {has('products') && products.length > 0 && (
-        <section className="py-4">
-          <CategoryTabs cats={cats} active={activeCat} onSelect={setActiveCat} primaryColor={p} />
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 px-4">
-            {visible.map(pr => (
-              <div key={pr.productId} className="bg-white rounded-xl overflow-hidden border-2" style={{ borderColor: `${s}60` }}>
-                {pr.imageUrl && <img src={pr.imageUrl} alt={pr.name} className="w-full h-28 object-cover" />}
-                <div className="p-2">
-                  <p className="text-sm font-semibold line-clamp-2">{pr.name}</p>
-                  <p className="font-bold mt-1" style={{ color: p }}>₹{pr.price}</p>
-                  {pr.unit && <p className="text-xs opacity-50">{pr.unit}</p>}
-                  {pr.isOutOfStock && <p className="text-xs text-red-500">Out of stock</p>}
-                  {!pr.isOutOfStock && <ProductOrderBtn waNum={waNum} productName={pr.name} price={pr.price} primaryColor={p} />}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-      {has('about') && (
-        <section className="px-6 py-8 text-center" style={{ backgroundColor: `${s}15` }}>
-          <h2 className="font-bold text-lg mb-2" style={{ color: p }}>About Us</h2>
-          <p className="text-gray-700">{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
-          {config.storeHoursEnabled && config.storeHoursText && (
-            <p className="text-sm text-gray-500 mt-3">🕐 {config.storeHoursText}</p>
+        <section className="max-w-7xl mx-auto">
+          <BannerCarousel banners={banners} className="h-52 md:h-80" />
+          {banners.length === 0 && (
+            <div className="px-6 py-8 text-center border-b-4" style={{ borderColor: s }}>
+              {shop.logoUrl && <img src={shop.logoUrl} alt="logo" className="w-16 h-16 rounded-full mx-auto mb-3 object-cover border-4" style={{ borderColor: p }} />}
+              <h1 className="text-2xl md:text-4xl font-bold" style={{ color: p }}>{config.siteName || shop.shopName}</h1>
+              {config.tagline && <p className="mt-1 text-sm md:text-base" style={{ color: s }}>{config.tagline}</p>}
+              <p className="text-xs opacity-50 mt-1">{shop.shopType} · {shop.district}</p>
+              {shopId && <div className="mt-4"><OrderBtn waNum={waNum} primaryColor={p} label={config.primaryButtonText} /></div>}
+            </div>
           )}
         </section>
       )}
-      {has('contact') && (
-        <section className="px-6 py-8 text-center">
-          <p className="text-gray-600">{shop.district}, Kerala · {shop.ownerPhone}</p>
-          <div className="mt-4"><WABtn config={config} shop={shop} style={{ backgroundColor: p }} /></div>
+
+      <CouponPromo config={config} />
+
+      {has('products') && products.length > 0 && (
+        <SidebarLayout cats={cats} activeCat={activeCat} onSelect={setActiveCat} primaryColor={p}>
+          {/* Mobile search */}
+          <div className="md:hidden px-4 pt-3 pb-1">
+            <div className="flex items-center gap-2 rounded-xl border px-3 py-2" style={{ borderColor: `${p}30`, backgroundColor: `${p}08` }}>
+              <span className="text-sm" style={{ color: p }}>🔍</span>
+              <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products…" className="flex-1 text-sm outline-none bg-transparent text-gray-700 placeholder-gray-400" />
+              {search && <button onClick={() => setSearch('')} className="text-gray-400 text-xs">✕</button>}
+            </div>
+          </div>
+          {/* Mobile category tabs */}
+          <div className="md:hidden flex gap-2 px-4 py-2 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+            {cats.map(c => (
+              <button key={c} onClick={() => setActiveCat(c)} className="shrink-0 px-3 py-1.5 rounded-full text-sm font-medium"
+                style={activeCat === c ? { backgroundColor: p, color: '#fff' } : { backgroundColor: '#f3f4f6', color: '#374151' }}>{c}</button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 px-4 pt-2 pb-6">
+            {visible.map(pr => {
+              const hasOffer = pr.offerPrice > 0 && pr.offerPrice < pr.price;
+              const discPct = hasOffer ? Math.round((1 - pr.price / pr.offerPrice) * 100) : 0;
+              return (
+                <div key={pr.productId} className="bg-white rounded-xl overflow-hidden border-2 hover:shadow-md transition-shadow" style={{ borderColor: `${s}60` }}>
+                  <div className="relative">
+                    {pr.imageUrl
+                      ? <img src={pr.imageUrl} alt={pr.name} className="w-full h-32 md:h-40 object-cover" />
+                      : <div className="w-full h-32 md:h-40 flex items-center justify-center text-3xl" style={{ backgroundColor: `${p}10` }}>🛍</div>
+                    }
+                    {hasOffer && <span className="absolute top-1 left-1 text-xs font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">{discPct}% OFF</span>}
+                    {pr.isOutOfStock && <div className="absolute inset-0 bg-white/60 flex items-center justify-center"><span className="text-xs font-bold bg-gray-400 text-white px-2 py-1 rounded">Out of Stock</span></div>}
+                  </div>
+                  <div className="p-2.5">
+                    <p className="text-sm font-semibold line-clamp-2">{pr.name}</p>
+                    {pr.unit && <p className="text-xs opacity-50 mt-0.5">{pr.unit}</p>}
+                    <p className="font-bold mt-1" style={{ color: p }}>₹{pr.price}</p>
+                    {hasOffer && <p className="text-xs text-gray-400 line-through">₹{pr.offerPrice}</p>}
+                    {!pr.isOutOfStock && <ProductOrderBtn waNum={waNum} productName={pr.name} price={pr.price} primaryColor={p} />}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </SidebarLayout>
+      )}
+
+      {(has('about') || has('contact')) && (
+        <section className="max-w-7xl mx-auto px-4 md:px-8 py-8 md:flex md:gap-8" style={{ backgroundColor: `${s}15` }}>
+          {has('about') && (
+            <div className="flex-1">
+              <h2 className="font-bold text-lg mb-2" style={{ color: p }}>About Us</h2>
+              <p className="text-gray-700">{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
+              {config.storeHoursEnabled && config.storeHoursText && <p className="text-sm text-gray-500 mt-3">🕐 {config.storeHoursText}</p>}
+            </div>
+          )}
+          {has('contact') && (
+            <div className={`${has('about') ? 'mt-6 md:mt-0 md:w-56' : 'w-full text-center'}`}>
+              <h2 className="font-bold text-lg mb-2" style={{ color: p }}>Contact</h2>
+              <p className="text-gray-600">{shop.district}, Kerala · {shop.ownerPhone}</p>
+              <div className="mt-4"><WABtn config={config} shop={shop} style={{ backgroundColor: p }} /></div>
+            </div>
+          )}
         </section>
       )}
       <WAFloat config={config} shop={shop} />
