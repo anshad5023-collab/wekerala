@@ -7,7 +7,7 @@ function ensureInit() {
     const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
     if (!serviceAccountJson) throw new Error('FIREBASE_SERVICE_ACCOUNT not configured');
     initializeApp({
-      credential: cert(JSON.parse(serviceAccountJson.replace(/\\n/g, '\n'))),
+      credential: cert(JSON.parse(serviceAccountJson)),
     });
   }
 }
