@@ -20,6 +20,7 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
   bool _answerHours = true;
   String _replyLanguage = 'auto';
   final _noteCtrl = TextEditingController();
+  final _handoffCtrl = TextEditingController();
   final _phoneNumberIdCtrl = TextEditingController();
   bool _saving = false;
   bool _loaded = false;
@@ -31,6 +32,7 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
   @override
   void dispose() {
     _noteCtrl.dispose();
+    _handoffCtrl.dispose();
     _phoneNumberIdCtrl.dispose();
     super.dispose();
   }
@@ -45,7 +47,9 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
       _answerDelivery = s['answerDeliveryQuestions'] as bool? ?? true;
       _answerHours = s['answerHoursQuestions'] as bool? ?? true;
       _replyLanguage = s['replyLanguage'] as String? ?? 'auto';
-      _noteCtrl.text = s['customNote'] as String? ?? '';
+      // Read customInstructions (new name); fall back to customNote for old data
+      _noteCtrl.text = (s['customInstructions'] ?? s['customNote']) as String? ?? '';
+      _handoffCtrl.text = s['humanHandoffKeyword'] as String? ?? '';
       _phoneNumberIdCtrl.text = phoneNumberId;
     });
   }
@@ -61,7 +65,8 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
           'answerDeliveryQuestions': _answerDelivery,
           'answerHoursQuestions': _answerHours,
           'replyLanguage': _replyLanguage,
-          'customNote': _noteCtrl.text.trim(),
+          'customInstructions': _noteCtrl.text.trim(),
+          'humanHandoffKeyword': _handoffCtrl.text.trim().toLowerCase(),
           'neverShareOwnerPhone': true,
           'neverShareOwnerAddress': true,
           'neverDiscussCompetitors': true,
@@ -291,6 +296,40 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
                       ),
                       contentPadding: const EdgeInsets.all(12),
                     ),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 16),
+
+              // Human handoff keyword
+              _SectionLabel('Human Handoff Keyword (optional)'),
+              _Card(children: [
+                Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      TextField(
+                        controller: _handoffCtrl,
+                        maxLines: 1,
+                        decoration: InputDecoration(
+                          hintText: 'e.g. speak to owner',
+                          hintStyle: TextStyle(fontSize: 13, color: Colors.grey[400]),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: AppColors.primary),
+                          ),
+                          contentPadding: const EdgeInsets.all(12),
+                          prefixIcon: const Icon(Icons.handshake_outlined, size: 18),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'When a customer types this phrase, the AI stops replying and you get a WhatsApp alert to take over the conversation.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                    ],
                   ),
                 ),
               ]),

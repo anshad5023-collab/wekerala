@@ -82,6 +82,39 @@ class CustomerModel {
 
   // ── Upsert ────────────────────────────────────────────────────────────────
 
+  /// Ensures a customer record exists when a credit (Udhar) is recorded for them.
+  /// Does NOT increment totalOrders or totalSpent — only guarantees the customer
+  /// appears in the customer list so they can be messaged and tracked.
+  static Future<void> upsertFromCredit({
+    required String shopId,
+    required String customerPhone,
+    required String customerName,
+  }) async {
+    if (customerPhone.isEmpty) return;
+    final ref = FirebaseFirestore.instance
+        .collection('shops')
+        .doc(shopId)
+        .collection('customers')
+        .doc(customerPhone);
+
+    final doc = await ref.get();
+    final now = Timestamp.now();
+
+    if (!doc.exists) {
+      await ref.set({
+        'customerId': customerPhone,
+        'name': customerName,
+        'phone': customerPhone,
+        'totalOrders': 0,
+        'totalSpent': 0.0,
+        'lastOrderDate': now,
+        'firstOrderDate': now,
+      });
+    } else if (customerName.isNotEmpty) {
+      await ref.update({'name': customerName});
+    }
+  }
+
   /// Creates or updates the customer record whenever an order is placed.
   /// Called from the order placement flow.
   static Future<void> upsertFromOrder({

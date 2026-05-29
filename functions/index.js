@@ -5,6 +5,7 @@ const { defineString } = require('firebase-functions/params');
 const axios = require('axios');
 const { initializeApp, getApps } = require('firebase-admin/app');
 const { getFirestore, FieldValue, Timestamp } = require('firebase-admin/firestore');
+const { getMessaging } = require('firebase-admin/messaging');
 
 // Initialize Firebase Admin only once
 if (getApps().length === 0) {
@@ -63,6 +64,34 @@ async function sendWhatsApp(toPhone, message, shopData = null, retries = 2) {
     }
   }
   return false;
+}
+
+/**
+ * Sends a Firebase Cloud Messaging push to a web browser token.
+ * Used for customer order status updates when they've opted in via the storefront.
+ */
+async function sendWebPush(token, title, body, data = {}) {
+  if (!token) return false;
+  try {
+    await getMessaging().send({
+      token,
+      notification: { title, body },
+      data: Object.fromEntries(Object.entries(data).map(([k, v]) => [k, String(v)])),
+      webpush: {
+        notification: {
+          icon: '/icons/icon-192x192.png',
+          badge: '/icons/icon-192x192.png',
+          vibrate: [200, 100, 200],
+        },
+        fcmOptions: { link: data.orderId && data.shopId ? `/shop?shopId=${data.shopId}&view=tracking&orderId=${data.orderId}` : '/' },
+      },
+    });
+    return true;
+  } catch (err) {
+    // Token may be expired/revoked — log but don't crash
+    console.error('[WebPush] Failed:', err.message);
+    return false;
+  }
 }
 
 /**
@@ -312,17 +341,20 @@ exports.onOrderCreated = onDocumentCreated(
       return;
     }
 
-    const itemNames = (order.items || []).map((i) => i.productName);
+    const itemNames = (order.items || []).map((i) => i.productName || i.name);
     const topItems = itemNames.slice(0, 3).join(', ');
     const moreItems = itemNames.length > 3 ? ` +${itemNames.length - 3} more` : '';
+    const deliveryEmoji = order.deliveryType === 'pickup' ? '🏪 Pickup' : '🚚 Delivery';
+    const paymentLabel = { cash: '💵 Cash', upi: '📱 UPI', online: '🌐 Online', udhar: '📒 Udhar' }[order.paymentMethod] || order.paymentMethod || 'Unknown';
 
     const msg =
       `🛍 *New Order #${order.orderNumber}*\n` +
       `Customer: ${order.customerName}\n` +
       `Phone: ${order.customerPhone}\n` +
       `Items: ${topItems}${moreItems}\n` +
-      `Total: ₹${Math.round(order.totalAmount)}\n\n` +
-      `Open weKerala app to confirm.`;
+      `Total: ₹${Math.round(order.totalAmount || order.total || 0)}\n` +
+      `Type: ${deliveryEmoji} | Payment: ${paymentLabel}\n\n` +
+      `Open weKerala app to confirm. ✅`;
 
     await sendWhatsApp(ownerPhone, msg);
   }
@@ -615,26 +647,67 @@ exports.onOrderStatusChange = onDocumentUpdated(
       const newStatus = after.status;
       const orderTotal = after.total || after.totalAmount || 0;
 
+      // Rate-limit: skip if this exact status was already sent within the last 2 minutes
+      if (after.lastNotifiedStatus === newStatus && after.lastNotifiedAt) {
+        const lastNotifiedAt = typeof after.lastNotifiedAt.toDate === 'function'
+          ? after.lastNotifiedAt.toDate()
+          : new Date(after.lastNotifiedAt);
+        if (Date.now() - lastNotifiedAt.getTime() < 2 * 60 * 1000) {
+          console.log(`[onOrderStatusChange] Skipping duplicate notification for status "${newStatus}" (sent <2 min ago)`);
+          return null;
+        }
+      }
+
       if (!customerPhone || customerPhone.length < 10) return null;
 
       const db = getFirestore();
       const shopDoc = await db.collection('shops').doc(shopId).get();
       const shopName = (shopDoc.data() && (shopDoc.data().shopName || shopDoc.data().name)) || 'Your Shop';
 
+      const shopId2 = shopId; // alias for clarity inside template literal
       const statusMessages = {
-        confirmed: `✅ Order Confirmed!\n\nHi ${customerName}, your order at *${shopName}* has been confirmed!\n\nOrder Total: ₹${orderTotal}\n\nWe'll update you when it's ready. Thank you! 🙏`,
-        preparing: `👨‍🍳 Order Being Prepared!\n\nHi ${customerName}, your order at *${shopName}* is now being prepared. Almost ready! ⏱️`,
-        ready: `🎉 Order Ready!\n\nHi ${customerName}, your order at *${shopName}* is READY for pickup/delivery!\n\nOrder Total: ₹${orderTotal}\n\nThank you for your order! 🙏`,
-        delivered: `✅ Order Delivered!\n\nHi ${customerName}, your order from *${shopName}* has been delivered!\n\nThank you for shopping with us. We hope to see you again! 🛍️`,
-        cancelled: `❌ Order Cancelled\n\nHi ${customerName}, unfortunately your order at *${shopName}* has been cancelled.\n\nPlease contact us for more details or to reorder.`,
-        out_for_delivery: `🚗 Out for Delivery!\n\nHi ${customerName}, your order from *${shopName}* is on its way! Expect delivery soon. 🎁`,
+        confirmed: `✅ *Order Confirmed!*\n\nHi ${customerName}, your order at *${shopName}* has been confirmed! 🎉\n\nOrder Total: ₹${orderTotal}\n\nWe'll update you once it's ready. Thank you! 🙏`,
+        preparing: `👨‍🍳 *Order Being Prepared!*\n\nHi ${customerName}, your order at *${shopName}* is now being prepared.\n\nAlmost ready — hang tight! ⏱️`,
+        ready: `🎉 *Order Ready!*\n\nHi ${customerName}, your order at *${shopName}* is READY for pickup/delivery!\n\nOrder Total: ₹${orderTotal}\n\nThank you for your patience! 🙏`,
+        delivered: `✅ *Order Delivered!*\n\nHi ${customerName}, your order from *${shopName}* has been delivered!\n\nThank you for shopping with us. We'd love to see you again! 🛍️\n\nOrder online anytime: https://wekerala.app/shop/${shopId2}`,
+        cancelled: `❌ *Order Cancelled*\n\nHi ${customerName}, your order at *${shopName}* has been cancelled.\n\nWe're sorry for the inconvenience. Please contact us to reorder.\n\nShop again: https://wekerala.app/shop/${shopId2}`,
+        out_for_delivery: `🚗 *Out for Delivery!*\n\nHi ${customerName}, your order from *${shopName}* is on its way! 🚀\n\nExpect delivery very soon. Get ready! 🎁`,
       };
 
       const message = statusMessages[newStatus];
       if (!message) return null;
 
       try {
+        // Send WhatsApp to customer
         await sendWhatsApp(customerPhone, message);
+
+        // Also send browser push notification if customer opted in
+        const webPushToken = after.webPushToken || '';
+        if (webPushToken) {
+          const pushTitles = {
+            confirmed: '✅ Order Confirmed!',
+            preparing: '👨‍🍳 Being Prepared!',
+            ready: '🎉 Order Ready!',
+            out_for_delivery: '🚗 On the Way!',
+            delivered: '✅ Delivered!',
+            cancelled: '❌ Order Cancelled',
+          };
+          const pushBodies = {
+            confirmed: `Your order at ${shopName} is confirmed.`,
+            preparing: `Your order at ${shopName} is being prepared.`,
+            ready: `Your order at ${shopName} is ready!`,
+            out_for_delivery: `Your order from ${shopName} is out for delivery!`,
+            delivered: `Your order from ${shopName} has been delivered. Thank you!`,
+            cancelled: `Your order at ${shopName} has been cancelled.`,
+          };
+          await sendWebPush(
+            webPushToken,
+            pushTitles[newStatus] ?? 'Order Update',
+            pushBodies[newStatus] ?? `Order status: ${newStatus}`,
+            { shopId, orderId }
+          );
+        }
+
         // Log the notification on the order document
         await db
           .collection('shops').doc(shopId)
@@ -645,7 +718,7 @@ exports.onOrderStatusChange = onDocumentUpdated(
           });
         console.log(`[onOrderStatusChange] Notified ${customerPhone} — status: ${newStatus}, order: ${orderId}`);
       } catch (err) {
-        console.error('[onOrderStatusChange] Failed to send WhatsApp:', err.message);
+        console.error('[onOrderStatusChange] Failed to send notification:', err.message);
       }
 
       return null;
@@ -990,50 +1063,8 @@ Keep replies short (under 100 words). Detect language and reply in the same lang
   }
 });
 
-// ─── Function 10: Daily Sales Summary (8 PM IST = 14:30 UTC) ─────────────────
-
-exports.dailySalesSummary = onSchedule(
-  { schedule: '30 14 * * *', timeZone: 'UTC' },
-  async () => {
-    const db = getFirestore();
-    const shops = await db.collection('shops').get();
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-
-    for (const shopDoc of shops.docs) {
-      try {
-        const shop = shopDoc.data();
-        if (!shop.ownerPhone) continue;
-
-        const ordersSnap = await db.collection('shops').doc(shopDoc.id)
-          .collection('orders')
-          .where('createdAt', '>=', Timestamp.fromDate(todayStart))
-          .get();
-
-        if (ordersSnap.empty) continue;
-
-        let totalRevenue = 0;
-        const productCount = {};
-        ordersSnap.forEach(o => {
-          const d = o.data();
-          totalRevenue += d.total || d.totalAmount || 0;
-          (d.items || []).forEach(item => {
-            productCount[item.name] = (productCount[item.name] || 0) + (item.quantity || 1);
-          });
-        });
-
-        const top3 = Object.entries(productCount).sort((a, b) => b[1] - a[1]).slice(0, 3);
-        const topStr = top3.map(([name, qty]) => `• ${name} × ${qty}`).join('\n');
-
-        const message = `📊 *Today's Sales — ${shop.shopName || 'Your Shop'}*\n\nOrders: ${ordersSnap.size}\nRevenue: ₹${Math.round(totalRevenue)}\n\n🏆 Top Products:\n${topStr || 'N/A'}\n\nDashboard: https://wekerala.vercel.app/shop?shopId=${shopDoc.id}`;
-        await sendWhatsApp(shop.ownerPhone, message);
-        await new Promise(r => setTimeout(r, 500));
-      } catch (err) {
-        console.error('Daily summary error for shop', shopDoc.id, err.message);
-      }
-    }
-  }
-);
+// Function 10 (dailySalesSummary) was removed — duplicate of sendDailySalesSummary (Function 2).
+// sendDailySalesSummary at 9:30 PM IST is the canonical daily summary.
 
 // ─── Function 11: Check Reorder Alerts (every 6 hours) ───────────────────────
 
@@ -1051,7 +1082,7 @@ exports.checkReorderAlerts = onSchedule(
 
         const productsSnap = await db.collection('shops').doc(shopDoc.id)
           .collection('products')
-          .where('stock', '<=', 0)
+          .where('stockQty', '<=', 0)
           .get();
 
         if (productsSnap.empty) continue;
@@ -1062,14 +1093,14 @@ exports.checkReorderAlerts = onSchedule(
         for (const pDoc of productsSnap.docs) {
           const alertDoc = await alertsRef.doc(pDoc.id).get();
           if (alertDoc.exists && alertDoc.data().sentAt.toDate() > sixHoursAgo) continue;
-          toAlert.push(pDoc.data().name || pDoc.id);
+          toAlert.push(pDoc.data().productName || pDoc.data().name || pDoc.id);
           await alertsRef.doc(pDoc.id).set({ sentAt: FieldValue.serverTimestamp() });
         }
 
         if (toAlert.length === 0) continue;
 
         const itemList = toAlert.map(n => `• ${n} — OUT OF STOCK`).join('\n');
-        const message = `⚠️ *Low Stock Alert — ${shop.shopName}*\n\nThese items need restocking:\n${itemList}\n\nUpdate: https://wekerala.vercel.app/control/website?shopId=${shopDoc.id}`;
+        const message = `⚠️ *Out of Stock Alert — ${shop.shopName || 'Your Shop'}*\n\nThese items need restocking:\n${itemList}\n\nOpen weKerala app to update stock.`;
         await sendWhatsApp(shop.ownerPhone, message);
         await new Promise(r => setTimeout(r, 300));
       } catch (err) {
@@ -1095,18 +1126,37 @@ exports.addLoyaltyPoints = onDocumentCreated(
 
     const orderTotal = order.total || order.totalAmount || 0;
     const pointsEarned = Math.floor((orderTotal / 100) * (loyaltySettings.pointsPerHundred || 10));
-    if (pointsEarned <= 0 || !order.customerPhone) return null;
+    if (!order.customerPhone) return null;
 
-    await db
+    const customerRef = db
       .collection('shops').doc(shopId)
-      .collection('customers').doc(order.customerPhone)
-      .set({
+      .collection('customers').doc(order.customerPhone);
+
+    const customerSnap = await customerRef.get();
+
+    if (!customerSnap.exists) {
+      // First order — create full record
+      await customerRef.set({
+        customerId: order.customerPhone,
         name: order.customerName || 'Customer',
         phone: order.customerPhone,
-        loyaltyPoints: FieldValue.increment(pointsEarned),
+        totalOrders: 1,
+        totalSpent: orderTotal,
+        loyaltyPoints: pointsEarned > 0 ? pointsEarned : 0,
+        lastOrderDate: FieldValue.serverTimestamp(),
+        firstOrderDate: FieldValue.serverTimestamp(),
+      });
+    } else {
+      // Existing customer — increment
+      const updates = {
+        totalOrders: FieldValue.increment(1),
         totalSpent: FieldValue.increment(orderTotal),
-        lastOrderAt: FieldValue.serverTimestamp(),
-      }, { merge: true });
+        lastOrderDate: FieldValue.serverTimestamp(),
+      };
+      if (order.customerName) updates.name = order.customerName;
+      if (pointsEarned > 0) updates.loyaltyPoints = FieldValue.increment(pointsEarned);
+      await customerRef.update(updates);
+    }
 
     return null;
   }
@@ -1168,6 +1218,74 @@ exports.processFlashSales = onSchedule(
         }
       } catch (err) {
         console.error('Flash sale error for shop', shopDoc.id, err.message);
+      }
+    }
+  }
+);
+
+// ─── Function 15: Auto-Cancel Stale Orders (every 30 minutes) ────────────────
+// Orders stuck in 'new' status for >45 minutes with no owner action are
+// auto-cancelled and both the customer and owner receive a WhatsApp notification.
+
+exports.autoCancelStaleOrders = onSchedule(
+  { schedule: '*/30 * * * *', timeZone: 'Asia/Kolkata' },
+  async () => {
+    const db = getFirestore();
+    const cutoff = new Date(Date.now() - 45 * 60 * 1000); // 45 minutes ago
+
+    const shopsSnap = await db.collection('shops').get();
+
+    for (const shopDoc of shopsSnap.docs) {
+      try {
+        const shop = shopDoc.data();
+        const shopId = shopDoc.id;
+        const shopName = shop.shopName || shop.name || 'Your Shop';
+        const ownerPhone = shop.ownerPhone || shop.phoneNumber || shop.phone || shop.ownerWhatsApp || '';
+
+        // Find orders that are still 'new' and older than 45 minutes
+        const staleSnap = await db
+          .collection('shops').doc(shopId)
+          .collection('orders')
+          .where('status', '==', 'new')
+          .where('createdAt', '<=', Timestamp.fromDate(cutoff))
+          .get();
+
+        if (staleSnap.empty) continue;
+
+        for (const orderDoc of staleSnap.docs) {
+          try {
+            const order = orderDoc.data();
+
+            await orderDoc.ref.update({
+              status: 'cancelled',
+              cancelReason: 'Auto-cancelled: no response from shop within 45 minutes',
+              updatedAt: FieldValue.serverTimestamp(),
+            });
+
+            // Notify customer
+            const customerPhone = order.customerPhone || '';
+            if (customerPhone.length >= 10) {
+              await sendWhatsApp(
+                customerPhone,
+                `❌ *Order Cancelled*\n\nHi ${order.customerName || 'there'}, your order #${order.orderNumber} at *${shopName}* was auto-cancelled because the shop did not respond within 45 minutes.\n\nWe apologise for the inconvenience. Please try ordering again.`
+              );
+            }
+
+            // Notify owner
+            if (ownerPhone.length >= 10) {
+              await sendWhatsApp(
+                ownerPhone,
+                `⚠️ *Order Auto-Cancelled*\n\nOrder #${order.orderNumber} from ${order.customerName || 'a customer'} was auto-cancelled after 45 minutes with no action.\n\nPlease respond to new orders promptly in weKerala. 🙏`
+              );
+            }
+
+            console.log(`[autoCancelStaleOrders] Cancelled order ${orderDoc.id} in shop ${shopId}`);
+          } catch (err) {
+            console.error(`[autoCancelStaleOrders] Error cancelling order ${orderDoc.id}:`, err.message);
+          }
+        }
+      } catch (err) {
+        console.error(`[autoCancelStaleOrders] Error processing shop ${shopDoc.id}:`, err.message);
       }
     }
   }

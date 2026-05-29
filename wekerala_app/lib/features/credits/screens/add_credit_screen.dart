@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../models/credit_model.dart';
+import '../../../models/customer_model.dart';
 import '../../../providers/credits_provider.dart';
 import '../../../providers/shop_provider.dart';
 
@@ -88,6 +89,15 @@ class _AddCreditScreenState extends ConsumerState<AddCreditScreen> {
       );
 
       await CreditsRepository.add(shopId, credit);
+
+      // Ensure the customer appears in the customer list even if they've never placed an order
+      if (credit.customerPhone.isNotEmpty) {
+        await CustomerModel.upsertFromCredit(
+          shopId: shopId,
+          customerPhone: credit.customerPhone,
+          customerName: credit.customerName,
+        );
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

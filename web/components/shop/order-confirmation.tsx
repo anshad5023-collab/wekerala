@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Check, MessageCircle, Store } from 'lucide-react';
+import { Bell, BellOff, Check, MessageCircle, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCartStore } from '@/lib/cart-store';
 import { useAuthStore } from '@/lib/auth-store';
 import { translations, type Language } from '@/lib/translations';
+import { subscribeOrderToPush } from '@/lib/push-notifications';
 import type { CustomerDetails } from './checkout-page';
 
 interface OrderConfirmationProps {
@@ -23,6 +24,7 @@ export function OrderConfirmation({ language, customerDetails, onBackToShop, wha
   const total = getTotal();
   const shopId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('shopId') : '';
   const [addressSaved, setAddressSaved] = useState(false);
+  const [pushState, setPushState] = useState<'idle' | 'loading' | 'subscribed' | 'denied'>('idle');
 
   const saveAddress = async () => {
     if (!uid || !customerDetails.address) return;
@@ -49,6 +51,13 @@ export function OrderConfirmation({ language, customerDetails, onBackToShop, wha
   const handleWhatsApp = () => {
     const phoneNumber = whatsappNumber.replace(/\D/g, '');
     window.open(`https://wa.me/${phoneNumber}?text=${generateWhatsAppMessage()}`, '_blank');
+  };
+
+  const handleEnableNotifications = async () => {
+    if (!orderId || !shopId) return;
+    setPushState('loading');
+    const success = await subscribeOrderToPush(shopId, orderId);
+    setPushState(success ? 'subscribed' : 'denied');
   };
 
   // Clear cart after order
@@ -95,6 +104,32 @@ export function OrderConfirmation({ language, customerDetails, onBackToShop, wha
         </div>
 
         <div className="w-full space-y-3">
+          {/* Push notification opt-in — only show if browser supports it and not yet subscribed */}
+          {typeof window !== 'undefined' && 'Notification' in window && pushState !== 'subscribed' && (
+            <Button
+              onClick={handleEnableNotifications}
+              disabled={pushState === 'loading' || pushState === 'denied'}
+              variant="outline"
+              className="w-full gap-2 border-primary py-5 text-primary"
+              size="lg"
+            >
+              {pushState === 'subscribed' ? (
+                <><Check className="h-4 w-4" /> Notifications enabled!</>
+              ) : pushState === 'denied' ? (
+                <><BellOff className="h-4 w-4" /> Notifications blocked</>
+              ) : pushState === 'loading' ? (
+                <><Bell className="h-4 w-4 animate-pulse" /> Enabling…</>
+              ) : (
+                <><Bell className="h-4 w-4" /> Get order status updates</>
+              )}
+            </Button>
+          )}
+          {pushState === 'subscribed' && (
+            <p className="text-center text-xs text-green-600">
+              You&apos;ll get browser notifications when your order status changes.
+            </p>
+          )}
+
           <Button
             onClick={handleWhatsApp}
             className="w-full gap-2 bg-[#25D366] py-6 text-lg font-semibold italic text-white hover:bg-[#20BD5A]"

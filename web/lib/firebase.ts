@@ -2,6 +2,7 @@ import { initializeApp, getApps } from 'firebase/app';
 import { initializeFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getStorage } from 'firebase/storage';
+import { getMessaging, type Messaging } from 'firebase/messaging';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? 'AIzaSyCFB9YZL3_bXjvRMoWaYFv8nTs_ote52GQ',
@@ -18,3 +19,11 @@ export const db = initializeFirestore(app, {
 });
 export const auth = getAuth(app);
 export const storage = getStorage(app);
+
+// Messaging is only available in the browser (not during SSR)
+let _messaging: Messaging | null = null;
+export function getFirebaseMessaging(): Messaging | null {
+  if (typeof window === 'undefined') return null;
+  if (!_messaging) _messaging = getMessaging(app);
+  return _messaging;
+}
