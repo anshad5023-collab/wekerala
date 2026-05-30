@@ -63,14 +63,20 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
-          node -e "
-          const https = require('https');
+          npm install --prefix /tmp/gcs @google-cloud/storage 2>/dev/null
+          node << 'SCRIPT'
+          const { Storage } = require('/tmp/gcs/node_modules/@google-cloud/storage');
           const fs = require('fs');
           const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
-          const apk = fs.readFileSync('build/app/outputs/flutter-apk/app-release.apk');
-          const bucket = 'shoplink-prod.firebasestorage.app';
-          const path = 'apk/wekerala-latest.apk';
-          // Simple upload using service account key for auth
-          console.log('APK size:', apk.length, 'bytes');
-          console.log('Upload path:', path);
-          "
+          const storage = new Storage({ credentials: sa });
+          const bucket = storage.bucket('shoplink-prod.firebasestorage.app');
+          const apkPath = 'build/app/outputs/flutter-apk/app-release.apk';
+          const mb = (fs.statSync(apkPath).size / 1024 / 1024).toFixed(1);
+          console.log(`APK size: ${mb} MB`);
+          bucket.upload(apkPath, {
+            destination: 'apk/wekerala-latest.apk',
+            metadata: { contentType: 'application/vnd.android.package-archive' }
+          }).then(() => {
+            console.log('✅ Uploaded → gs://shoplink-prod.firebasestorage.app/apk/wekerala-latest.apk');
+          }).catch(e => { console.error('Upload failed:', e.message); process.exit(1); });
+          SCRIPT
