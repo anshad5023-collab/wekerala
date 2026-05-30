@@ -1,6 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+// Top-level helper — accepts both num and string-encoded numbers from Firestore
+num? _toNum(dynamic v) {
+  if (v is num) return v;
+  if (v is String) return num.tryParse(v);
+  return null;
+}
+
 class OrderItemModel {
   final String productId;
   final String productName;
@@ -21,13 +28,6 @@ class OrderItemModel {
     this.itemNote = '',
     required this.subtotal,
   });
-
-  // Safely parses a value that may be num or a string-encoded number
-  static num? _toNum(dynamic v) {
-    if (v is num) return v;
-    if (v is String) return num.tryParse(v);
-    return null;
-  }
 
   factory OrderItemModel.fromMap(Map<String, dynamic> m) => OrderItemModel(
         productId: m['productId'] as String? ?? '',
