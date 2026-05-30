@@ -16,10 +16,11 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
-// Fix: older Flutter plugins (e.g. bluetooth_print) don't declare namespace — required by AGP 8.x
+// Fix: older Flutter plugins don't declare namespace — required by AGP 8.x
+// Uses plugins.withId (lazy) instead of afterEvaluate to avoid evaluation-order crash on Flutter 3.32+
 subprojects {
-    afterEvaluate {
-        extensions.findByType<com.android.build.gradle.LibraryExtension>()?.apply {
+    plugins.withId("com.android.library") {
+        extensions.configure<com.android.build.gradle.LibraryExtension> {
             if (namespace == null) {
                 namespace = group.toString().ifBlank { "com.example.${project.name.replace('-', '_')}" }
             }
