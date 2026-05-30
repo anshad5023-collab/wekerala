@@ -62,7 +62,8 @@ Future<void> updateOrderStatus(
   final data = orderDoc.data()!;
   final customerPhone = data['customerPhone'] as String? ?? '';
   final customerName = data['customerName'] as String? ?? '';
-  final totalAmount = (data['totalAmount'] as num?)?.toDouble() ?? 0;
+  final rawAmount = data['totalAmount'];
+  final totalAmount = (rawAmount is num ? rawAmount : num.tryParse(rawAmount?.toString() ?? ''))?.toDouble() ?? 0;
   final shopName = shopDoc.data()?['shopName'] as String? ?? 'the shop';
 
   // Send WhatsApp status update to customer (no-op if Gupshup not configured)

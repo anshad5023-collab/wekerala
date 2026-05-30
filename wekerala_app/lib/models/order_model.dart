@@ -22,15 +22,22 @@ class OrderItemModel {
     required this.subtotal,
   });
 
+  // Safely parses a value that may be num or a string-encoded number
+  static num? _toNum(dynamic v) {
+    if (v is num) return v;
+    if (v is String) return num.tryParse(v);
+    return null;
+  }
+
   factory OrderItemModel.fromMap(Map<String, dynamic> m) => OrderItemModel(
         productId: m['productId'] as String? ?? '',
         productName: m['productName'] as String? ?? '',
         variantName: m['variantName'] as String? ?? '',
-        qty: (m['qty'] as num?)?.toDouble() ?? 1,
+        qty: _toNum(m['qty'])?.toDouble() ?? 1,
         unit: m['unit'] as String? ?? 'piece',
-        price: (m['price'] as num?)?.toDouble() ?? 0,
+        price: _toNum(m['price'])?.toDouble() ?? 0,
         itemNote: m['itemNote'] as String? ?? '',
-        subtotal: (m['subtotal'] as num?)?.toDouble() ?? 0,
+        subtotal: _toNum(m['subtotal'])?.toDouble() ?? 0,
       );
 
   Map<String, dynamic> toMap() => {
@@ -105,7 +112,7 @@ class OrderModel {
     return OrderModel(
       orderId: doc.id,
       shopId: m['shopId'] as String? ?? '',
-      orderNumber: (m['orderNumber'] as num?)?.toInt() ?? 0,
+      orderNumber: _toNum(m['orderNumber'])?.toInt() ?? 0,
       status: m['status'] as String? ?? 'new',
       customerName: m['customerName'] as String? ?? '',
       customerPhone: m['customerPhone'] as String? ?? '',
@@ -115,7 +122,7 @@ class OrderModel {
       items: (m['items'] as List<dynamic>? ?? [])
           .map((e) => OrderItemModel.fromMap(e as Map<String, dynamic>))
           .toList(),
-      totalAmount: (m['totalAmount'] as num?)?.toDouble() ?? 0,
+      totalAmount: _toNum(m['totalAmount'])?.toDouble() ?? 0,
       paymentMethod: m['paymentMethod'] as String? ?? 'cash',
       paymentStatus: m['paymentStatus'] as String? ?? 'pending',
       cancelReason: m['cancelReason'] as String? ?? '',
