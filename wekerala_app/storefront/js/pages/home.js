@@ -3,38 +3,71 @@ import {
   collection, query, where, orderBy, limit, startAfter, getDocs,
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
 import { t, getLang } from '../translations.js';
-import { addItem, getItemCount } from '../cart.js';
+import { addItem, getCart, updateQty, getTotal, getItemCount } from '../cart.js';
 import { renderHeader } from '../app.js';
 
 const PAGE_SIZE = 20;
 
-function productCardHtml(p, slug, lang) {
+const BAG_ICON = `<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>`;
+
+function getCartQty(cart, productId) {
+  const item = cart.find((i) => i.productId === productId && !i.variantId);
+  return item ? item.qty : 0;
+}
+
+function cardActionHtml(p, qty) {
+  if (p.isOutOfStock) {
+    return `<div class="card-oos">${t('out_of_stock')}</div>`;
+  }
+  if (p.hasVariants) {
+    return `<button class="card-add-btn card-add-btn--label" data-id="${p.productId}" data-action="select">Select</button>`;
+  }
+  if (qty > 0) {
+    return `<div class="card-qty-ctrl">
+      <button class="card-qty-btn" data-id="${p.productId}" data-action="minus">−</button>
+      <span class="card-qty-num">${qty}</span>
+      <button class="card-qty-btn" data-id="${p.productId}" data-action="plus">+</button>
+    </div>`;
+  }
+  return `<button class="card-add-btn" data-id="${p.productId}" data-action="add">+</button>`;
+}
+
+function productCardHtml(p, slug, lang, cart) {
   const name = lang === 'ml' && p.nameMl ? p.nameMl : p.nameEn;
   const imgHtml = p.imageUrl
     ? `<img class="product-card-img" src="${p.imageUrl}" alt="${name}" loading="lazy">`
-    : `<div class="product-card-img-placeholder">🛒</div>`;
-  const priceHtml = p.offerPrice && p.offerPrice < p.price
+    : `<div class="product-card-img-placeholder">${BAG_ICON}</div>`;
+
+  const hasOffer = p.offerPrice && p.offerPrice < p.price;
+  const offerPct = hasOffer ? Math.round((1 - p.offerPrice / p.price) * 100) : 0;
+  const offerBadge = hasOffer ? `<div class="offer-badge">${offerPct}% OFF</div>` : '';
+
+  const priceHtml = hasOffer
     ? `<span class="price-main">₹${p.offerPrice}</span><span class="price-original">₹${p.price}</span>`
     : `<span class="price-main">₹${p.price}</span>`;
-  const addBtn = p.isOutOfStock
-    ? `<div class="product-card-oos">${t('out_of_stock')}</div>`
-    : p.hasVariants
-      ? `<button class="product-card-add" data-id="${p.productId}">${t('add_to_cart')}</button>`
-      : `<button class="product-card-add" data-id="${p.productId}" data-price="${p.offerPrice || p.price}" data-name="${name}" data-unit="${p.unit || ''}">${t('add_to_cart')}</button>`;
+
+  const qty = getCartQty(cart, p.productId);
 
   return `
     <div class="product-card" data-id="${p.productId}">
-      <div class="product-card-img-wrap">${imgHtml}</div>
+      <div class="product-card-img-wrap">
+        ${imgHtml}
+        ${offerBadge}
+      </div>
       <div class="product-card-body">
         <div class="product-card-name">${name}</div>
-        <div class="product-card-unit">${p.unit || ''}</div>
-        <div class="product-card-price">${priceHtml}</div>
-        ${addBtn}
+        ${p.unit ? `<div class="product-card-unit">${p.unit}</div>` : ''}
+        <div class="product-card-footer">
+          <div class="product-card-price">${priceHtml}</div>
+          <div class="product-card-action" data-id="${p.productId}">
+            ${cardActionHtml(p, qty)}
+          </div>
+        </div>
       </div>
     </div>`;
 }
 
-function closedPageHtml(shop, slug) {
+function closedPageHtml(shop) {
   const phone = shop.ownerWhatsApp || shop.ownerPhone || '';
   const waLink = phone ? `https://wa.me/91${phone.replace(/\D/g, '').slice(-10)}` : '#';
   return `
@@ -66,36 +99,84 @@ export async function renderHome(appEl, state, attachHeader) {
     return tabs.map((c) => `<button class="cat-tab${c.id === activeCategory ? ' active' : ''}" data-cat="${c.id}">${c.label}</button>`).join('');
   }
 
-  function gridHtml() {
+  function gridHtml(cart) {
     if (allProducts.length === 0 && !loading) {
       return `<div class="empty-state" style="grid-column:1/-1">
         <div class="empty-state-icon">📦</div>
         <div class="empty-state-title">${t('no_products')}</div>
       </div>`;
     }
-    return allProducts.map((p) => productCardHtml(p, slug, lang)).join('');
+    return allProducts.map((p) => productCardHtml(p, slug, lang, cart)).join('');
+  }
+
+  function floatingCartHtml() {
+    const count = getItemCount(slug);
+    const total = getTotal(slug);
+    return `<div class="floating-cart${count === 0 ? ' hidden' : ''}" id="floating-cart">
+      <div class="floating-cart-left">
+        <div class="floating-cart-count">${count}</div>
+        <span class="floating-cart-text">${count} item${count !== 1 ? 's' : ''} · ₹${total.toFixed(0)}</span>
+      </div>
+      <span class="floating-cart-cta">View Cart →</span>
+    </div>`;
   }
 
   function render() {
-    const isOpen = shop.isOpen;
+    const cart = getCart(slug);
     appEl.innerHTML = `
       ${renderHeader(slug, shop)}
-      ${!isOpen ? closedPageHtml(shop, slug) : `
+      ${!shop.isOpen ? closedPageHtml(shop) : `
         <div class="search-bar">
-          <input class="search-input" type="search" placeholder="${t('search_placeholder')}" value="${searchQuery}" id="search-input">
+          <div class="search-wrap">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            </svg>
+            <input class="search-input" type="search" placeholder="${t('search_placeholder')}" value="${searchQuery}" id="search-input">
+          </div>
         </div>
         <div class="category-tabs" id="cat-tabs">${categoryTabsHtml()}</div>
         <div class="section-header">
           <span class="section-title">${activeCategory === 'all' ? t('all_categories') : activeCategory}</span>
-          <span class="section-count">${allProducts.length} items</span>
+          <span class="section-count">${allProducts.length} item${allProducts.length !== 1 ? 's' : ''}</span>
         </div>
-        <div class="product-grid" id="product-grid">${gridHtml()}</div>
+        <div class="product-grid" id="product-grid">${gridHtml(cart)}</div>
         ${loading ? `<div class="page-loading"><div class="spinner"></div></div>` : ''}
         ${hasMore && !loading && allProducts.length > 0 ? `<button class="load-more" id="load-more">${t('load_more')}</button>` : ''}
+        ${floatingCartHtml()}
       `}`;
 
     attachHeader(slug);
     bindEvents();
+  }
+
+  function refreshCardAction(p) {
+    const cart = getCart(slug);
+    const qty = getCartQty(cart, p.productId);
+    const el = document.querySelector(`.product-card-action[data-id="${p.productId}"]`);
+    if (el) el.innerHTML = cardActionHtml(p, qty);
+  }
+
+  function updateFloatingCart() {
+    const el = document.getElementById('floating-cart');
+    if (!el) return;
+    const count = getItemCount(slug);
+    const total = getTotal(slug);
+    el.querySelector('.floating-cart-count').textContent = count;
+    el.querySelector('.floating-cart-text').textContent = `${count} item${count !== 1 ? 's' : ''} · ₹${total.toFixed(0)}`;
+    el.classList.toggle('hidden', count === 0);
+  }
+
+  function updateCartBadge() {
+    const count = getItemCount(slug);
+    const btn = document.getElementById('cart-btn');
+    if (!btn) return;
+    const existing = btn.querySelector('.cart-badge');
+    if (count > 0) {
+      if (existing) { existing.textContent = count; }
+      else { btn.insertAdjacentHTML('beforeend', `<span class="cart-badge">${count}</span>`); }
+    } else {
+      existing?.remove();
+    }
   }
 
   function bindEvents() {
@@ -114,51 +195,64 @@ export async function renderHome(appEl, state, attachHeader) {
     document.getElementById('product-grid')?.addEventListener('click', (e) => {
       const card = e.target.closest('.product-card');
       if (!card) return;
-      const addBtn = e.target.closest('.product-card-add');
-      if (addBtn && !addBtn.disabled) {
-        const p = allProducts.find((x) => x.productId === card.dataset.id);
-        if (!p) return;
-        if (p.hasVariants) {
-          // Navigate to detail page for variant selection
-          window.location.hash = `#/${slug}/p/${p.productId}`;
-          return;
+      const productId = card.dataset.id;
+      const p = allProducts.find((x) => x.productId === productId);
+      if (!p) return;
+
+      const actionBtn = e.target.closest('[data-action]');
+      if (actionBtn) {
+        const action = actionBtn.dataset.action;
+
+        if (action === 'add') {
+          const pName = getLang() === 'ml' && p.nameMl ? p.nameMl : p.nameEn;
+          addItem(slug, {
+            productId: p.productId,
+            productName: pName,
+            variantId: '',
+            variantName: '',
+            price: p.offerPrice || p.price,
+            qty: p.minQty || 1,
+            unit: p.unit || '',
+            itemNote: '',
+          });
+          refreshCardAction(p);
+          updateCartBadge();
+          updateFloatingCart();
+        } else if (action === 'plus') {
+          const cart = getCart(slug);
+          const item = cart.find((i) => i.productId === productId && !i.variantId);
+          if (item) {
+            updateQty(slug, productId, '', item.qty + 1);
+            refreshCardAction(p);
+            updateCartBadge();
+            updateFloatingCart();
+          }
+        } else if (action === 'minus') {
+          const cart = getCart(slug);
+          const item = cart.find((i) => i.productId === productId && !i.variantId);
+          if (item) {
+            updateQty(slug, productId, '', item.qty - 1);
+            refreshCardAction(p);
+            updateCartBadge();
+            updateFloatingCart();
+          }
+        } else if (action === 'select') {
+          window.location.hash = `#/${slug}/p/${productId}`;
         }
-        addItem(slug, {
-          productId: p.productId,
-          productName: getLang() === 'ml' && p.nameMl ? p.nameMl : p.nameEn,
-          variantId: '',
-          variantName: '',
-          price: p.offerPrice || p.price,
-          qty: p.minQty || 1,
-          unit: p.unit || '',
-          itemNote: '',
-        });
-        updateCartBadge();
-        addBtn.textContent = '✓ Added';
-        setTimeout(() => { addBtn.textContent = t('add_to_cart'); }, 1200);
-      } else {
-        window.location.hash = `#/${slug}/p/${card.dataset.id}`;
+        return;
       }
+
+      // Click on card body → product detail
+      window.location.hash = `#/${slug}/p/${productId}`;
     });
 
     document.getElementById('load-more')?.addEventListener('click', () => {
       loadProducts(false);
     });
-  }
 
-  function updateCartBadge() {
-    const count = getItemCount(slug);
-    const badge = document.querySelector('.cart-badge');
-    const btn = document.getElementById('cart-btn');
-    if (btn) {
-      const existing = btn.querySelector('.cart-badge');
-      if (count > 0) {
-        if (existing) { existing.textContent = count; }
-        else { btn.insertAdjacentHTML('beforeend', `<span class="cart-badge">${count}</span>`); }
-      } else {
-        existing?.remove();
-      }
-    }
+    document.getElementById('floating-cart')?.addEventListener('click', () => {
+      window.location.hash = `#/${slug}/cart`;
+    });
   }
 
   function reset() {
@@ -174,7 +268,6 @@ export async function renderHome(appEl, state, attachHeader) {
     if (initial) render();
 
     try {
-      let q;
       const col = collection(db, 'shops', shopId, 'products');
       const constraints = [where('isHidden', '==', false)];
       if (activeCategory !== 'all') constraints.push(where('category', '==', activeCategory));
@@ -182,9 +275,7 @@ export async function renderHome(appEl, state, attachHeader) {
       constraints.push(limit(PAGE_SIZE));
       if (lastDoc) constraints.push(startAfter(lastDoc));
 
-      q = query(col, ...constraints);
-      const snap = await getDocs(q);
-
+      const snap = await getDocs(query(col, ...constraints));
       let newProducts = snap.docs.map((d) => ({ productId: d.id, ...d.data() }));
 
       if (searchQuery) {

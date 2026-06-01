@@ -42,6 +42,7 @@ import '../../features/billing/screens/bill_history_screen.dart';
 import '../../features/billing/screens/gstr1_screen.dart';
 import '../../features/kot/screens/kot_screen.dart';
 import '../../features/billing/screens/bill_detail_screen.dart';
+import '../../features/billing/screens/cash_counter_screen.dart';
 import '../../features/customers/screens/customers_screen.dart';
 import '../../features/suppliers/screens/suppliers_list_screen.dart';
 import '../../features/suppliers/screens/add_supplier_screen.dart';
@@ -163,6 +164,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/billing', builder: (_, __) => const BillingScreen()),
       GoRoute(path: '/bill-history', builder: (_, __) => const BillHistoryScreen()),
       GoRoute(path: '/gstr1', builder: (_, __) => const Gstr1Screen()),
+      GoRoute(path: '/cash-counter', builder: (_, __) => const CashCounterScreen()),
       GoRoute(path: '/kot', builder: (_, __) => const KotScreen()),
       GoRoute(
         path: '/bills/:billId',

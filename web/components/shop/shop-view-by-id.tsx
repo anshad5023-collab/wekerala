@@ -24,7 +24,7 @@ import { ChatWidget } from '@/components/shop/chat-widget';
 export function ShopSkeleton() {
   return (
     <div className="animate-pulse">
-      <div className="h-16 bg-green-400" />
+      <div className="h-16 bg-primary/80" />
       <div className="h-40 bg-gray-200" />
       <div className="flex gap-2 p-4">
         {[1, 2, 3, 4].map((i) => (
@@ -66,7 +66,7 @@ export function ShopViewById({ shopId }: { shopId: string }) {
     fetchShopData(shopId).then(({ shop, products }) => {
       setShopData(shop);
       setProducts(products);
-      if (shop.themeColor) document.documentElement.style.setProperty('--primary', shop.themeColor);
+      document.documentElement.style.setProperty('--primary', shop.themeColor || '#1B2838');
       if (shop.announcementText) setAnnouncementText(shop.announcementText);
     });
   }, [shopId]);

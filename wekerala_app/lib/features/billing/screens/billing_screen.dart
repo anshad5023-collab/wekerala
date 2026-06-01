@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/print_service.dart';
@@ -188,6 +189,20 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
       if (!mounted) return;
       ref.read(billingProvider.notifier).clearCart();
       _discountCtrl.clear();
+
+      // WhatsApp upsell: show once after 3rd bill if shop is on trial
+      if (mounted && (shop?.subscriptionStatus == 'trial')) {
+        final prefs = await SharedPreferences.getInstance();
+        final count = (prefs.getInt('bill_count_$shopId') ?? 0) + 1;
+        await prefs.setInt('bill_count_$shopId', count);
+        final shown = prefs.getBool('upsell_shown_$shopId') ?? false;
+        if (count == 3 && !shown && mounted) {
+          await prefs.setBool('upsell_shown_$shopId', true);
+          if (mounted) await _showWhatsAppUpsell(context);
+        }
+      }
+
+      if (!mounted) return;
       context.pop();
     } catch (e) {
       if (mounted) {
@@ -199,6 +214,77 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
   }
 
   // ── dialogs / sheets ──────────────────────────────────────────────────────
+
+  Future<void> _showWhatsAppUpsell(BuildContext ctx) async {
+    await showDialog<void>(
+      context: ctx,
+      builder: (dctx) => AlertDialog(
+        backgroundColor: AppColors.background,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF25D366).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.chat_outlined, color: Color(0xFF25D366), size: 22),
+            ),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'Send Receipts on WhatsApp!',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'You\'ve made 3 bills! 🎉\n\nUpgrade to send automatic WhatsApp receipts to every customer after every sale.',
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            SizedBox(height: 12),
+            _UpsellItem(text: 'Auto WhatsApp receipt after every bill'),
+            _UpsellItem(text: 'Win-back messages for inactive customers'),
+            _UpsellItem(text: 'Online store for your shop'),
+            SizedBox(height: 8),
+            Text(
+              'Only ₹999/month — billing is always FREE.',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                  color: AppColors.primary),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dctx),
+            child: const Text('Later',
+                style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () {
+              Navigator.pop(dctx);
+              context.push('/subscription');
+            },
+            child: const Text('Upgrade Now'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<bool> _showCustomerDialog(
     BuildContext context, {
@@ -2082,6 +2168,34 @@ class _BillingBarcodeScanner extends StatelessWidget {
           final barcode = capture.barcodes.firstOrNull?.rawValue;
           if (barcode != null) Navigator.pop(context, barcode);
         },
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Upsell feature list item
+// ---------------------------------------------------------------------------
+
+class _UpsellItem extends StatelessWidget {
+  final String text;
+  const _UpsellItem({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          const Icon(Icons.check_circle_outline,
+              size: 15, color: AppColors.success),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(text,
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textPrimary)),
+          ),
+        ],
       ),
     );
   }

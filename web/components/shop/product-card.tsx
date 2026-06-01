@@ -42,7 +42,7 @@ export function ProductCard({ product, language, onProductClick }: ProductCardPr
     >
       {/* Discount badge */}
       {discountPct > 0 && (
-        <span className="absolute left-2 top-2 z-10 rounded-md bg-green-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+        <span className="absolute left-2 top-2 z-10 rounded-md bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
           {discountPct}% OFF
         </span>
       )}

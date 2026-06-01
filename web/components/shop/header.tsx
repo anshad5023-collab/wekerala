@@ -26,17 +26,17 @@ export function Header({ language, onLanguageToggle, onCartClick, shopName, shop
 
   return (
     <>
-      <header className="sticky top-0 z-50 bg-[#22c55e] text-white shadow-md">
+      <header className="sticky top-0 z-50 bg-primary text-primary-foreground shadow-md">
         <div className="max-w-screen-xl mx-auto flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/20 overflow-hidden">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 overflow-hidden">
               {logoUrl ? (
                 <Image src={logoUrl} alt={shopName} width={40} height={40} className="rounded-full object-cover" />
               ) : (
                 <Store className="h-5 w-5" />
               )}
             </div>
-            <h1 className="text-lg font-bold italic tracking-tight">{displayName || 'wekerala'}</h1>
+            <h1 className="text-lg font-bold tracking-tight">{displayName || 'wekerala'}</h1>
           </div>
 
           <div className="flex items-center gap-2">
@@ -44,7 +44,7 @@ export function Header({ language, onLanguageToggle, onCartClick, shopName, shop
               variant="ghost"
               size="sm"
               onClick={onLanguageToggle}
-              className="rounded-full bg-white/10 px-3 text-xs font-medium text-white hover:bg-white/20 hover:text-white"
+              className="rounded-full bg-white/10 px-3 text-xs font-medium text-primary-foreground hover:bg-white/20 hover:text-primary-foreground"
             >
               {language === 'en' ? 'മല' : 'EN'}
             </Button>
@@ -54,7 +54,7 @@ export function Header({ language, onLanguageToggle, onCartClick, shopName, shop
                 variant="ghost"
                 size="sm"
                 onClick={logout}
-                className="rounded-full bg-white/10 px-3 text-xs font-medium text-white hover:bg-white/20 hover:text-white"
+                className="rounded-full bg-white/10 px-3 text-xs font-medium text-primary-foreground hover:bg-white/20 hover:text-primary-foreground"
               >
                 {phone?.replace('+91', '') ?? 'me'}
               </Button>
@@ -62,7 +62,7 @@ export function Header({ language, onLanguageToggle, onCartClick, shopName, shop
               <Button
                 size="sm"
                 onClick={() => setShowLogin(true)}
-                className="rounded-full bg-white text-green-700 px-4 text-xs font-bold hover:bg-white/90"
+                className="rounded-full bg-white/15 px-4 text-xs font-bold text-primary-foreground hover:bg-white/25"
               >
                 Login
               </Button>

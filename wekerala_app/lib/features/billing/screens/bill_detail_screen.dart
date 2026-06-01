@@ -5,47 +5,108 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/print_service.dart';
 import '../../../models/bill_model.dart';
+import '../../../providers/billing_provider.dart';
+import '../../../providers/shop_provider.dart';
 
-class BillDetailScreen extends ConsumerWidget {
+class BillDetailScreen extends ConsumerStatefulWidget {
   final BillModel bill;
   const BillDetailScreen({super.key, required this.bill});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final shortId = bill.billId.length > 8
-        ? bill.billId.substring(0, 8).toUpperCase()
-        : bill.billId.toUpperCase();
+  ConsumerState<BillDetailScreen> createState() => _BillDetailScreenState();
+}
+
+class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
+  bool _printing = false;
+  late BillModel _bill;
+
+  @override
+  void initState() {
+    super.initState();
+    _bill = widget.bill;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final shopAsync = ref.watch(shopStreamProvider(_bill.shopId));
+    final shortId = _bill.invoiceNumber != null
+        ? '#${_bill.invoiceNumber}'
+        : '#${_bill.billId.substring(0, 8).toUpperCase()}';
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('Bill #$shortId'),
-        backgroundColor: AppColors.primary,
+        title: Text('Bill $shortId'),
+        backgroundColor: _bill.isVoided ? Colors.red.shade700 : AppColors.primary,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: const Icon(Icons.share),
             tooltip: 'Share bill',
-            onPressed: () => _shareOnWhatsApp(bill),
+            onPressed: _bill.isVoided ? null : () => _shareOnWhatsApp(_bill),
           ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Shop info
-          _SectionCard(
-            title: 'Shop',
-            child: const Row(
-              children: [
-                Icon(Icons.store, color: AppColors.primary, size: 18),
-                SizedBox(width: 8),
-                Text('Oratas',
+          // Voided banner
+          if (_bill.isVoided) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.cancel_outlined, color: Colors.red.shade700, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    'VOIDED${_bill.voidedAt != null ? ' on ${DateFormat('d MMM yyyy').format(_bill.voidedAt!)}' : ''}',
                     style: TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 15)),
-              ],
+                      color: Colors.red.shade700,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
             ),
+            const SizedBox(height: 12),
+          ],
+
+          // Shop info
+          shopAsync.when(
+            data: (shop) => _SectionCard(
+              title: 'Shop',
+              child: Row(
+                children: [
+                  const Icon(Icons.store, color: AppColors.primary, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(shop.shopName,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600, fontSize: 15)),
+                        if (shop.address.isNotEmpty)
+                          Text(shop.address,
+                              style: const TextStyle(
+                                  color: AppColors.textSecondary, fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
           ),
           const SizedBox(height: 12),
 
@@ -56,20 +117,19 @@ class BillDetailScreen extends ConsumerWidget {
               children: [
                 _InfoRow(
                   label: 'Name',
-                  value: bill.customerName.isNotEmpty
-                      ? bill.customerName
+                  value: _bill.customerName.isNotEmpty
+                      ? _bill.customerName
                       : 'Walk-in Customer',
                 ),
-                if (bill.customerPhone.isNotEmpty)
+                if (_bill.customerPhone.isNotEmpty)
                   _InfoRow(
                     label: 'Phone',
-                    value: bill.customerPhone,
+                    value: _bill.customerPhone,
                     trailing: IconButton(
                       icon: const Icon(Icons.call,
                           color: AppColors.primary, size: 20),
                       tooltip: 'Call customer',
-                      onPressed: () =>
-                          _callPhone(context, bill.customerPhone),
+                      onPressed: () => _callPhone(context, _bill.customerPhone),
                     ),
                   ),
               ],
@@ -82,34 +142,38 @@ class BillDetailScreen extends ConsumerWidget {
             title: 'Items',
             child: Column(
               children: [
-                ...bill.items.map((item) => _BillItemRow(item: item)),
+                ..._bill.items.map((item) => _BillItemRow(item: item)),
                 const Divider(height: 20),
-                // Totals
                 _InfoRow(
                     label: 'Subtotal',
-                    value: '₹${bill.totalAmount.toStringAsFixed(2)}'),
-                if (bill.discountAmount > 0)
+                    value: '₹${_bill.totalAmount.toStringAsFixed(2)}'),
+                if (_bill.discountAmount > 0)
                   _InfoRow(
                     label: 'Discount',
-                    value: '- ₹${bill.discountAmount.toStringAsFixed(2)}',
+                    value: '- ₹${_bill.discountAmount.toStringAsFixed(2)}',
                     valueColor: AppColors.error,
                   ),
-                if (bill.totalTax > 0) ...[
+                if (_bill.totalTax > 0) ...[
                   const SizedBox(height: 4),
-                  // GST breakdown entries
-                  ...bill.gstBreakdown.entries.map((entry) {
-                    final rate = entry.key;
-                    final breakdown = entry.value;
-                    final tax = breakdown['tax'] ?? 0;
-                    return _InfoRow(
-                      label: 'GST $rate%',
-                      value: '₹${tax.toStringAsFixed(2)}',
-                      valueColor: AppColors.textSecondary,
-                    );
+                  ..._bill.gstBreakdown.entries.expand((entry) {
+                    final rate = int.tryParse(entry.key) ?? 0;
+                    final data = entry.value;
+                    return [
+                      _InfoRow(
+                        label: 'CGST ${rate / 2}%',
+                        value: '₹${(data['cgst'] ?? 0).toStringAsFixed(2)}',
+                        valueColor: AppColors.textSecondary,
+                      ),
+                      _InfoRow(
+                        label: 'SGST ${rate / 2}%',
+                        value: '₹${(data['sgst'] ?? 0).toStringAsFixed(2)}',
+                        valueColor: AppColors.textSecondary,
+                      ),
+                    ];
                   }),
                   _InfoRow(
                     label: 'Total Tax',
-                    value: '₹${bill.totalTax.toStringAsFixed(2)}',
+                    value: '₹${_bill.totalTax.toStringAsFixed(2)}',
                     valueColor: AppColors.textSecondary,
                   ),
                 ],
@@ -121,7 +185,7 @@ class BillDetailScreen extends ConsumerWidget {
                         style: TextStyle(
                             fontWeight: FontWeight.bold, fontSize: 15)),
                     Text(
-                      '₹${bill.finalAmount.toStringAsFixed(2)}',
+                      '₹${_bill.finalAmount.toStringAsFixed(2)}',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         color: AppColors.primary,
@@ -142,58 +206,186 @@ class BillDetailScreen extends ConsumerWidget {
               children: [
                 _InfoRow(
                   label: 'Method',
-                  value: _paymentLabel(bill.paymentMethod, bill.isUdhar),
-                  valueColor: _paymentColor(bill.paymentMethod, bill.isUdhar),
+                  value: _paymentLabel(_bill.paymentMethod, _bill.isUdhar),
+                  valueColor: _paymentColor(_bill.paymentMethod, _bill.isUdhar),
                 ),
                 _InfoRow(
                   label: 'Date & Time',
-                  value: DateFormat('d MMM yyyy, hh:mm a')
-                      .format(bill.createdAt),
+                  value: DateFormat('d MMM yyyy, hh:mm a').format(_bill.createdAt),
                 ),
-                if (bill.gstinSnapshot != null &&
-                    bill.gstinSnapshot!.isNotEmpty)
-                  _InfoRow(label: 'GSTIN', value: bill.gstinSnapshot!),
+                if (_bill.gstinSnapshot != null && _bill.gstinSnapshot!.isNotEmpty)
+                  _InfoRow(label: 'GSTIN', value: _bill.gstinSnapshot!),
               ],
             ),
           ),
           const SizedBox(height: 24),
 
-          // Bottom action buttons
-          ElevatedButton.icon(
-            onPressed: () => _shareOnWhatsApp(bill),
-            icon: const Icon(Icons.send),
-            label: const Text('Share on WhatsApp'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF25D366),
-              foregroundColor: Colors.white,
-              minimumSize: const Size.fromHeight(48),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-            ),
-          ),
-          const SizedBox(height: 10),
-          Tooltip(
-            message: 'Coming soon',
-            child: OutlinedButton.icon(
-              onPressed: null, // disabled — Wave 3
-              icon: const Icon(Icons.print_outlined),
-              label: const Text('Print'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.grey,
-                side: const BorderSide(color: Colors.grey),
+          // Action buttons (hidden if voided)
+          if (!_bill.isVoided) ...[
+            ElevatedButton.icon(
+              onPressed: () => _shareOnWhatsApp(_bill),
+              icon: const Icon(Icons.send),
+              label: const Text('Share on WhatsApp'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF25D366),
+                foregroundColor: Colors.white,
                 minimumSize: const Size.fromHeight(48),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10)),
               ),
             ),
-          ),
+            const SizedBox(height: 10),
+            // Print button — wired to PrintService
+            shopAsync.when(
+              data: (shop) => OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  side: const BorderSide(color: AppColors.primary),
+                  minimumSize: const Size.fromHeight(48),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: _printing
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: AppColors.primary),
+                      )
+                    : const Icon(Icons.print_outlined, color: AppColors.primary),
+                label: Text(
+                  _printing ? 'Printing...' : 'Print Receipt',
+                  style: const TextStyle(
+                      color: AppColors.primary, fontWeight: FontWeight.bold),
+                ),
+                onPressed: _printing
+                    ? null
+                    : () async {
+                        setState(() => _printing = true);
+                        final messenger = ScaffoldMessenger.of(context);
+                        try {
+                          await PrintService.printBill(_bill, shop);
+                          if (mounted) {
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Printed successfully'),
+                                backgroundColor: AppColors.success,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text('Print failed: $e'),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                          }
+                        } finally {
+                          if (mounted) setState(() => _printing = false);
+                        }
+                      },
+              ),
+              loading: () => OutlinedButton.icon(
+                onPressed: null,
+                icon: const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2)),
+                label: const Text('Loading...'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size.fromHeight(48),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+              error: (_, __) => const SizedBox.shrink(),
+            ),
+            const SizedBox(height: 10),
+            // Void bill button
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.error,
+                side: BorderSide(color: AppColors.error.withValues(alpha: 0.6)),
+                minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              icon: const Icon(Icons.cancel_outlined),
+              label: const Text('Void Bill',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Void This Bill?'),
+                    content: const Text(
+                      'This will mark the bill as voided and restore stock. This cannot be undone.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancel'),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.error,
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('Void'),
+                      ),
+                    ],
+                  ),
+                );
+                if (confirm == true && mounted) {
+                  try {
+                    await ref.read(billingProvider.notifier).voidBill(_bill);
+                    if (mounted) {
+                      setState(() {
+                        _bill = BillModel(
+                          billId: _bill.billId,
+                          shopId: _bill.shopId,
+                          items: _bill.items,
+                          totalAmount: _bill.totalAmount,
+                          discountAmount: _bill.discountAmount,
+                          finalAmount: _bill.finalAmount,
+                          paymentMethod: _bill.paymentMethod,
+                          customerName: _bill.customerName,
+                          customerPhone: _bill.customerPhone,
+                          isUdhar: _bill.isUdhar,
+                          createdAt: _bill.createdAt,
+                          gstBreakdown: _bill.gstBreakdown,
+                          totalTax: _bill.totalTax,
+                          gstinSnapshot: _bill.gstinSnapshot,
+                          invoiceNumber: _bill.invoiceNumber,
+                          isVoided: true,
+                          voidedAt: DateTime.now(),
+                        );
+                      });
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          content: Text('Bill voided. Stock restored.'),
+                          backgroundColor: AppColors.success,
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    messenger.showSnackBar(
+                      SnackBar(content: Text('Failed to void: $e')),
+                    );
+                  }
+                }
+              },
+            ),
+          ],
           const SizedBox(height: 20),
         ],
       ),
     );
   }
-
-  // ---------------------------------------------------------------------------
 
   void _callPhone(BuildContext context, String phone) {
     if (!kIsWeb && Platform.isAndroid) {
@@ -243,14 +435,13 @@ class BillDetailScreen extends ConsumerWidget {
   }
 
   String _formatBillText(BillModel bill) {
-    final shortId = bill.billId.length > 8
-        ? bill.billId.substring(0, 8).toUpperCase()
-        : bill.billId.toUpperCase();
-    final dateStr =
-        DateFormat('d MMM yyyy, hh:mm a').format(bill.createdAt);
+    final invoiceId = bill.invoiceNumber != null
+        ? '#${bill.invoiceNumber}'
+        : '#${bill.billId.substring(0, 8).toUpperCase()}';
+    final dateStr = DateFormat('d MMM yyyy, hh:mm a').format(bill.createdAt);
 
     final buffer = StringBuffer();
-    buffer.writeln('🧾 *Bill #$shortId*');
+    buffer.writeln('🧾 *Bill $invoiceId*');
     buffer.writeln('📅 $dateStr');
     buffer.writeln();
 
@@ -273,19 +464,15 @@ class BillDetailScreen extends ConsumerWidget {
     buffer.writeln();
 
     if (bill.discountAmount > 0) {
-      buffer.writeln(
-          'Subtotal: ₹${bill.totalAmount.toStringAsFixed(2)}');
-      buffer.writeln(
-          'Discount: -₹${bill.discountAmount.toStringAsFixed(2)}');
+      buffer.writeln('Subtotal: ₹${bill.totalAmount.toStringAsFixed(2)}');
+      buffer.writeln('Discount: -₹${bill.discountAmount.toStringAsFixed(2)}');
     }
     if (bill.totalTax > 0) {
       buffer.writeln('Tax: ₹${bill.totalTax.toStringAsFixed(2)}');
     }
     buffer.writeln('*Total: ₹${bill.finalAmount.toStringAsFixed(2)}*');
     buffer.writeln();
-
-    buffer.writeln(
-        'Payment: ${_paymentLabel(bill.paymentMethod, bill.isUdhar)}');
+    buffer.writeln('Payment: ${_paymentLabel(bill.paymentMethod, bill.isUdhar)}');
     buffer.writeln();
     buffer.writeln('Thank you for shopping with us! 🙏');
 
@@ -317,16 +504,13 @@ class _BillItemRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(item.productName,
-                    style:
-                        const TextStyle(fontWeight: FontWeight.w500)),
+                    style: const TextStyle(fontWeight: FontWeight.w500)),
                 Row(
                   children: [
-                    if (item.hsnCode != null &&
-                        item.hsnCode!.isNotEmpty) ...[
+                    if (item.hsnCode != null && item.hsnCode!.isNotEmpty) ...[
                       Text('HSN: ${item.hsnCode}',
                           style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 11)),
+                              color: AppColors.textSecondary, fontSize: 11)),
                       const SizedBox(width: 6),
                     ],
                     if (item.gstRate > 0)
@@ -356,8 +540,7 @@ class _BillItemRow extends StatelessWidget {
                   color: AppColors.textSecondary, fontSize: 13)),
           const SizedBox(width: 12),
           Text('₹${item.subtotal.toStringAsFixed(2)}',
-              style:
-                  const TextStyle(fontWeight: FontWeight.w600)),
+              style: const TextStyle(fontWeight: FontWeight.w600)),
         ],
       ),
     );

@@ -200,7 +200,35 @@ class BillingNotifier extends Notifier<BillingState> {
             : null,
       );
 
-      await ref.set(bill.toFirestore());
+      // Generate sequential invoice number using a Firestore transaction counter
+      String? invoiceNum;
+      final counterRef = db.collection('shops').doc(shopId).collection('meta').doc('invoiceCounter');
+      invoiceNum = await FirebaseFirestore.instance.runTransaction((tx) async {
+        final snap = await tx.get(counterRef);
+        final current = (snap.data()?['count'] as int?) ?? 0;
+        final next = current + 1;
+        tx.set(counterRef, {'count': next}, SetOptions(merge: true));
+        return next.toString().padLeft(4, '0');
+      });
+
+      final billWithInvoice = BillModel(
+        billId: bill.billId,
+        shopId: bill.shopId,
+        items: bill.items,
+        totalAmount: bill.totalAmount,
+        discountAmount: bill.discountAmount,
+        finalAmount: bill.finalAmount,
+        paymentMethod: bill.paymentMethod,
+        customerName: bill.customerName,
+        customerPhone: bill.customerPhone,
+        isUdhar: bill.isUdhar,
+        createdAt: bill.createdAt,
+        gstBreakdown: bill.gstBreakdown,
+        totalTax: bill.totalTax,
+        gstinSnapshot: bill.gstinSnapshot,
+        invoiceNumber: invoiceNum,
+      );
+      await ref.set(billWithInvoice.toFirestore());
 
       // Decrement stock for each item
       final batch = FirebaseFirestore.instance.batch();
@@ -242,11 +270,42 @@ class BillingNotifier extends Notifier<BillingState> {
       }
 
       state = state.copyWith(isLoading: false);
-      return bill;
+      return billWithInvoice;
     } catch (e) {
       state = state.copyWith(isLoading: false);
       rethrow;
     }
+  }
+
+  /// Void a bill: mark as voided in Firestore and reverse stock decrements.
+  Future<void> voidBill(BillModel bill) async {
+    final db = FirebaseFirestore.instance;
+    final billRef = db
+        .collection('shops')
+        .doc(bill.shopId)
+        .collection('bills')
+        .doc(bill.billId);
+
+    final batch = db.batch();
+    batch.update(billRef, {
+      'isVoided': true,
+      'voidedAt': Timestamp.fromDate(DateTime.now()),
+    });
+
+    // Reverse stock decrements
+    for (final item in bill.items) {
+      if (item.productId.isNotEmpty) {
+        final productRef = db
+            .collection('shops')
+            .doc(bill.shopId)
+            .collection('products')
+            .doc(item.productId);
+        batch.update(productRef, {
+          'stockQty': FieldValue.increment(item.qty),
+        });
+      }
+    }
+    await batch.commit();
   }
 }
 

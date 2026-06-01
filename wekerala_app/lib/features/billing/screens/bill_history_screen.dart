@@ -153,6 +153,18 @@ class _BillHistoryBody extends ConsumerWidget {
         title: const Text('Bill History'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.point_of_sale_outlined),
+            tooltip: 'Cash Counter',
+            onPressed: () => context.push('/cash-counter'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.receipt_long_outlined),
+            tooltip: 'GSTR-1 Export',
+            onPressed: () => context.push('/gstr1'),
+          ),
+        ],
       ),
       body: Column(
         children: [

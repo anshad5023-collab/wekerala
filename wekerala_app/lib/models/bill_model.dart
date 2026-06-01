@@ -92,6 +92,9 @@ class BillModel {
   final Map<String, Map<String, double>> gstBreakdown;
   final double totalTax;
   final String? gstinSnapshot;
+  final bool isVoided;
+  final DateTime? voidedAt;
+  final String? invoiceNumber;
 
   const BillModel({
     required this.billId,
@@ -108,6 +111,9 @@ class BillModel {
     this.gstBreakdown = const {},
     this.totalTax = 0.0,
     this.gstinSnapshot,
+    this.isVoided = false,
+    this.voidedAt,
+    this.invoiceNumber,
   });
 
   factory BillModel.fromFirestore(DocumentSnapshot doc) {
@@ -134,6 +140,11 @@ class BillModel {
       ),
       totalTax: (d['totalTax'] as num?)?.toDouble() ?? 0.0,
       gstinSnapshot: d['gstinSnapshot'] as String?,
+      isVoided: d['isVoided'] as bool? ?? false,
+      voidedAt: d['voidedAt'] != null
+          ? (d['voidedAt'] as Timestamp).toDate()
+          : null,
+      invoiceNumber: d['invoiceNumber'] as String?,
     );
   }
 
@@ -152,8 +163,11 @@ class BillModel {
       'createdAt': Timestamp.fromDate(createdAt),
       'gstBreakdown': gstBreakdown,
       'totalTax': totalTax,
+      'isVoided': isVoided,
     };
     if (gstinSnapshot != null) m['gstinSnapshot'] = gstinSnapshot;
+    if (voidedAt != null) m['voidedAt'] = Timestamp.fromDate(voidedAt!);
+    if (invoiceNumber != null) m['invoiceNumber'] = invoiceNumber;
     return m;
   }
 }
