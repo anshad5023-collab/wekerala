@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/order_model.dart';
 import '../models/customer_model.dart';
-import '../core/services/whatsapp_service.dart';
 
 final ordersStreamProvider =
     StreamProvider.family<List<OrderModel>, String>((ref, shopId) {
@@ -45,17 +44,11 @@ Future<void> updateOrderStatus(
       .doc(orderId)
       .update(fields);
 
-  // Read order + shop for post-update actions
-  final results = await Future.wait([
-    FirebaseFirestore.instance
-        .collection('shops').doc(shopId)
-        .collection('orders').doc(orderId)
-        .get(),
-    FirebaseFirestore.instance.collection('shops').doc(shopId).get(),
-  ]);
-
-  final orderDoc = results[0];
-  final shopDoc = results[1];
+  // Read order + shop for post-update side effects
+  final orderDoc = await FirebaseFirestore.instance
+      .collection('shops').doc(shopId)
+      .collection('orders').doc(orderId)
+      .get();
 
   if (!orderDoc.exists) return;
 
@@ -64,20 +57,28 @@ Future<void> updateOrderStatus(
   final customerName = data['customerName'] as String? ?? '';
   final rawAmount = data['totalAmount'];
   final totalAmount = (rawAmount is num ? rawAmount : num.tryParse(rawAmount?.toString() ?? ''))?.toDouble() ?? 0;
-  final shopName = shopDoc.data()?['shopName'] as String? ?? 'the shop';
 
-  // Send WhatsApp status update to customer (no-op if Gupshup not configured)
-  if (customerPhone.isNotEmpty) {
-    WhatsAppService.sendOrderStatusToCustomer(
-      customerPhone: customerPhone,
-      orderNumber: data['orderNumber']?.toString() ?? orderId,
-      status: newStatus,
-      shopName: shopName,
-    );
+  // Restore stock when order is cancelled
+  if (newStatus == 'cancelled') {
+    final items = data['items'] as List<dynamic>? ?? [];
+    if (items.isNotEmpty) {
+      final db = FirebaseFirestore.instance;
+      final batch = db.batch();
+      for (final item in items) {
+        final itemMap = item as Map<String, dynamic>?;
+        final productId = itemMap?['productId'] as String? ?? '';
+        final qty = (itemMap?['qty'] as num?)?.toInt() ?? 0;
+        if (productId.isNotEmpty && qty > 0) {
+          final productRef = db.collection('shops').doc(shopId).collection('products').doc(productId);
+          batch.update(productRef, {'stockQty': FieldValue.increment(qty)});
+        }
+      }
+      await batch.commit();
+    }
   }
 
-  // Upsert customer record on delivery
-  if (newStatus == 'delivered' && customerPhone.isNotEmpty) {
+  // Upsert customer on first meaningful status (confirmed = shop owner accepted the order)
+  if ((newStatus == 'confirmed' || newStatus == 'delivered') && customerPhone.isNotEmpty) {
     await CustomerModel.upsertFromOrder(
       shopId: shopId,
       customerPhone: customerPhone,

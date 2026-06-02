@@ -289,6 +289,20 @@ async function handleOndcOrder(body) {
     totalOrders: FieldValue.increment(1),
   });
 
+  // Notify shop owner via WhatsApp
+  const ownerPhone = shopData.ownerPhone || shopData.ownerWhatsApp || '';
+  if (ownerPhone && ownerPhone.length >= 10) {
+    const itemSummary = items.slice(0, 3).map(i => i.productName).join(', ');
+    const more = items.length > 3 ? ` +${items.length - 3} more` : '';
+    const msg =
+      `🌐 *ONDC Order #${orderNumber}*\n` +
+      `Customer: ${customerName}\n` +
+      `Items: ${itemSummary}${more}\n` +
+      `Total: ₹${Math.round(totalAmount)}\n\n` +
+      `Open weKerala app to confirm. ✅`;
+    await sendWhatsApp(ownerPhone, msg, shopData);
+  }
+
   console.log(`ONDC order ${ondcOrderId} created for shop ${shopId}`);
 }
 
@@ -357,6 +371,48 @@ exports.onOrderCreated = onDocumentCreated(
       `Open weKerala app to confirm. ✅`;
 
     await sendWhatsApp(ownerPhone, msg);
+  }
+);
+
+// ─── Function 1b: Order Status Updated → Customer WhatsApp ──────────────────
+// Fires whenever a shop owner updates an order's status in the Flutter app or web.
+// Sends a WhatsApp message to the customer (if they provided a phone number).
+
+exports.onOrderUpdated = onDocumentUpdated(
+  'shops/{shopId}/orders/{orderId}',
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!before || !after) return;
+
+    // Only act when status actually changed
+    if (before.status === after.status) return;
+
+    const newStatus = after.status;
+    const customerPhone = after.customerPhone || '';
+    if (!customerPhone || customerPhone.length < 10) return;
+
+    const shopId = event.params.shopId;
+    const db = getFirestore();
+    const shopSnap = await db.collection('shops').doc(shopId).get();
+    const shop = shopSnap.data();
+    const shopName = shop?.shopName || 'Your Shop';
+    const orderNum = after.orderNumber || after.orderId || '';
+
+    const statusMessages = {
+      confirmed:        `✅ Order #${orderNum} confirmed!\nYour order from *${shopName}* is being prepared. We'll notify you when it's ready.`,
+      preparing:        `👨‍🍳 Order #${orderNum} is being prepared!\n*${shopName}* is packing your items. Almost ready!`,
+      ready:            `🎁 Order #${orderNum} is ready!\nYour order from *${shopName}* is packed and ready for pickup/delivery.`,
+      out_for_delivery: `🚚 Order #${orderNum} is on the way!\nYour delivery from *${shopName}* has left. Expect it shortly.`,
+      delivered:        `✅ Order #${orderNum} delivered!\nThank you for shopping at *${shopName}*. Enjoy your items! 🙏`,
+      cancelled:        `❌ Order #${orderNum} has been cancelled.\nContact *${shopName}* if you have questions.`,
+    };
+
+    const msg = statusMessages[newStatus];
+    if (!msg) return; // Don't send for intermediate/internal statuses
+
+    await sendWhatsApp(customerPhone, msg, shop);
+    console.log(`[OrderUpdated] Status ${before.status}→${newStatus} for order ${orderNum}, notified customer ${customerPhone}`);
   }
 );
 

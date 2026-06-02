@@ -112,6 +112,52 @@ export async function PATCH(req: NextRequest) {
   return NextResponse.json({ ok: true });
 }
 
+async function decrementStock(shopId: string, items: Array<{ productId?: string; qty?: number }>) {
+  try {
+    const { getAdminDb } = await import('@/lib/firebase-admin');
+    const db = getAdminDb();
+    const batch = db.batch();
+    for (const item of items) {
+      if (!item.productId || !item.qty) continue;
+      const ref = db.collection('shops').doc(shopId).collection('products').doc(item.productId);
+      batch.update(ref, { stockQty: require('firebase-admin/firestore').FieldValue.increment(-item.qty) });
+    }
+    await batch.commit();
+  } catch (e) {
+    console.error('[Stock] Decrement failed:', e);
+  }
+}
+
+async function upsertCustomer(shopId: string, order: Record<string, unknown>) {
+  const phone = (order.customerPhone as string) || '';
+  const name = (order.customerName as string) || '';
+  if (!phone || phone.length < 10) return;
+  try {
+    const { getAdminDb } = await import('@/lib/firebase-admin');
+    const db = getAdminDb();
+    const docId = phone.replace(/\D/g, '').slice(-10);
+    const ref = db.collection('shops').doc(shopId).collection('customers').doc(docId);
+    const snap = await ref.get();
+    const now = new Date().toISOString();
+    if (!snap.exists) {
+      await ref.set({
+        customerId: docId, name, phone: docId, shopId,
+        totalOrders: 1, totalSpent: (order.totalAmount as number) || 0,
+        lastOrderDate: now, firstOrderDate: now, createdAt: now,
+      });
+    } else {
+      await ref.update({
+        totalOrders: require('firebase-admin/firestore').FieldValue.increment(1),
+        totalSpent: require('firebase-admin/firestore').FieldValue.increment((order.totalAmount as number) || 0),
+        lastOrderDate: now,
+        name,
+      });
+    }
+  } catch (e) {
+    console.error('[Customer] Upsert failed:', e);
+  }
+}
+
 export async function POST(req: NextRequest) {
   const shopId = req.nextUrl.searchParams.get('shopId');
   if (!shopId) return NextResponse.json({ error: 'Missing shopId' }, { status: 400 });
@@ -134,7 +180,10 @@ export async function POST(req: NextRequest) {
     const json = await res.json();
     const id = (json.name as string).split('/').pop();
 
+    // Fire-and-forget side effects
     sendOrderNotification(shopId, id ?? '', data);
+    decrementStock(shopId, (data.items as Array<{ productId?: string; qty?: number }>) || []);
+    upsertCustomer(shopId, data);
 
     return NextResponse.json({ orderId: id });
   } catch (e) {
