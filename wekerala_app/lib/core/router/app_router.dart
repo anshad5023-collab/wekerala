@@ -47,6 +47,7 @@ import '../../features/customers/screens/customers_screen.dart';
 import '../../features/suppliers/screens/suppliers_list_screen.dart';
 import '../../features/suppliers/screens/add_supplier_screen.dart';
 import '../../features/suppliers/screens/supplier_detail_screen.dart';
+import '../../features/suppliers/screens/stock_receive_screen.dart';
 import '../../features/orders/screens/voice_order_screen.dart';
 import '../../features/reorder/screens/reorder_screen.dart';
 import '../../features/festival/screens/festival_screen.dart';
@@ -172,6 +173,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/customers', builder: (_, __) => const CustomersScreen()),
       GoRoute(path: '/suppliers', builder: (_, __) => const SuppliersListScreen()),
+      GoRoute(path: '/stock-receive', builder: (_, __) => const StockReceiveScreen()),
       GoRoute(
         path: '/suppliers/add',
         builder: (_, state) => AddSupplierScreen(supplier: state.extra as SupplierModel?),

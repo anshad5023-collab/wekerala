@@ -577,6 +577,22 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     final shopIdAsync = ref.watch(activeShopIdProvider);
     final isDesktop = MediaQuery.of(context).size.width >= 700;
 
+    // Auto-apply active flash sale discount
+    final shopId = shopIdAsync.valueOrNull;
+    if (shopId != null) {
+      ref.listen(activeFlashSaleProvider(shopId), (prev, next) {
+        final sale = next.valueOrNull;
+        final notifier = ref.read(billingProvider.notifier);
+        if (sale != null) {
+          final pct = (sale['discountPercent'] as num?)?.toDouble() ?? 0;
+          final name = (sale['name'] as String?) ?? 'Flash Sale';
+          notifier.setFlashSale(pct, name);
+        } else {
+          notifier.clearFlashSale();
+        }
+      });
+    }
+
     final cartPanel = _CartPanel(
       discountCtrl: _discountCtrl,
       onDiscountChanged: _onDiscountChanged,
@@ -599,6 +615,30 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     );
 
     final paymentBar = _PaymentBar(onTap: _onPaymentTap);
+
+    // Flash sale banner (shown when a sale is active)
+    final flashBanner = billingState.flashSalePercent > 0
+        ? Container(
+            width: double.infinity,
+            color: const Color(0xFFFC8019),
+            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.local_fire_department,
+                    color: Colors.white, size: 16),
+                const SizedBox(width: 6),
+                Text(
+                  '🔥 ${billingState.flashSaleName}: ${billingState.flashSalePercent.toInt()}% OFF applied!',
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13),
+                ),
+              ],
+            ),
+          )
+        : const SizedBox.shrink();
 
     final Widget body;
     if (isDesktop) {
@@ -623,6 +663,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
       // Mobile: cart on top, products below, payment bar at bottom
       body = Column(
         children: [
+          flashBanner,
           Flexible(flex: 40, child: cartPanel),
           const Divider(height: 1, thickness: 1, color: AppColors.surface),
           Flexible(flex: 60, child: productPanel),

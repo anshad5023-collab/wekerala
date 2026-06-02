@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -41,6 +42,7 @@ class _SubscriptionBodyState extends ConsumerState<_SubscriptionBody> {
 
   String get _upiId => dotenv.get('SHOPLINK_UPI_ID', fallback: '');
   String get _supportWhatsApp => dotenv.get('SUPPORT_WHATSAPP', fallback: '');
+  String get _razorpayKeyId => dotenv.get('RAZORPAY_KEY_ID', fallback: '');
 
   // Opens the UPI payment intent
   Future<void> _payViaUpi() async {
@@ -61,6 +63,48 @@ class _SubscriptionBodyState extends ConsumerState<_SubscriptionBody> {
           SnackBar(content: Text('UPI ID copied: $_upiId — open any UPI app to pay ₹99')),
         );
       }
+    }
+  }
+
+  // Pay via Razorpay (automated — webhook auto-activates subscription)
+  Future<void> _payViaRazorpay() async {
+    setState(() => _submitting = true);
+    try {
+      final callable = FirebaseFunctions.instance.httpsCallable('createRazorpayOrder');
+      final result = await callable.call<Map<Object?, Object?>>({'shopId': widget.shopId});
+      final data = Map<String, dynamic>.from(result.data);
+      final orderId = data['orderId'] as String? ?? '';
+      final keyId = data['keyId'] as String? ?? _razorpayKeyId;
+      if (orderId.isEmpty || keyId.isEmpty) {
+        throw Exception('Could not create payment order');
+      }
+      // Open Razorpay checkout URL in browser
+      final url = Uri.parse(
+        'https://api.razorpay.com/v1/checkout/embedded?key_id=$keyId&order_id=$orderId',
+      );
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Complete payment in browser. Your subscription activates automatically!'),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    } on FirebaseFunctionsException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message ?? 'Payment setup failed')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
     }
   }
 
@@ -132,10 +176,38 @@ class _SubscriptionBodyState extends ConsumerState<_SubscriptionBody> {
                 const SizedBox(height: 16),
                 _HowToPayCard(),
                 const SizedBox(height: 20),
-                // Pay button
+                // Razorpay (auto-activate) — shown when key is configured
+                if (_razorpayKeyId.isNotEmpty) ...[
+                  ElevatedButton.icon(
+                    icon: const Icon(Icons.credit_card_outlined, size: 20),
+                    label: Text(
+                      _submitting ? 'Loading...' : 'Pay ₹999/month (Card / UPI / NetBanking)',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                    ),
+                    onPressed: _submitting ? null : _payViaRazorpay,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2D6A4F),
+                      foregroundColor: Colors.white,
+                      minimumSize: const Size.fromHeight(54),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      elevation: 0,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Row(children: [
+                    Expanded(child: Divider()),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 10),
+                      child: Text('or pay manually', style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                    ),
+                    Expanded(child: Divider()),
+                  ]),
+                  const SizedBox(height: 10),
+                ],
+                // Manual UPI button
                 ElevatedButton.icon(
                   icon: const Icon(Icons.currency_rupee, size: 20),
-                  label: const Text('Pay ₹99 via UPI',
+                  label: const Text('Pay ₹999 via UPI (Manual)',
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                   onPressed: _payViaUpi,
                   style: ElevatedButton.styleFrom(

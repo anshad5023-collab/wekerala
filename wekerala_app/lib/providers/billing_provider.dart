@@ -14,18 +14,26 @@ import '../models/product_model.dart';
 class BillingState {
   final List<BillItemModel> cartItems;
   final double discountAmount;
+  final double flashSalePercent; // 0 = no flash sale
+  final String flashSaleName;
   final bool isLoading;
 
   const BillingState({
     this.cartItems = const [],
     this.discountAmount = 0,
+    this.flashSalePercent = 0,
+    this.flashSaleName = '',
     this.isLoading = false,
   });
 
   double get subtotal =>
       cartItems.fold(0.0, (acc, item) => acc + item.subtotal);
 
-  double get total => subtotal - discountAmount;
+  double get flashSaleDiscount => subtotal * (flashSalePercent / 100);
+
+  double get total => subtotal - flashSaleDiscount - discountAmount;
+
+  double get totalDiscountAmount => flashSaleDiscount + discountAmount;
 
   /// GST breakdown grouped by rate.
   /// Each key is the GST rate (e.g. 5, 12, 18) and the value contains
@@ -70,11 +78,15 @@ class BillingState {
   BillingState copyWith({
     List<BillItemModel>? cartItems,
     double? discountAmount,
+    double? flashSalePercent,
+    String? flashSaleName,
     bool? isLoading,
   }) {
     return BillingState(
       cartItems: cartItems ?? this.cartItems,
       discountAmount: discountAmount ?? this.discountAmount,
+      flashSalePercent: flashSalePercent ?? this.flashSalePercent,
+      flashSaleName: flashSaleName ?? this.flashSaleName,
       isLoading: isLoading ?? this.isLoading,
     );
   }
@@ -154,6 +166,16 @@ class BillingNotifier extends Notifier<BillingState> {
     state = state.copyWith(discountAmount: amount < 0 ? 0 : amount);
   }
 
+  /// Apply an active flash sale percentage discount.
+  void setFlashSale(double percent, String name) {
+    state = state.copyWith(flashSalePercent: percent, flashSaleName: name);
+  }
+
+  /// Remove any active flash sale discount.
+  void clearFlashSale() {
+    state = state.copyWith(flashSalePercent: 0, flashSaleName: '');
+  }
+
   /// Reset the cart to empty.
   void clearCart() {
     state = const BillingState();
@@ -186,7 +208,7 @@ class BillingNotifier extends Notifier<BillingState> {
         shopId: shopId,
         items: List.unmodifiable(state.cartItems),
         totalAmount: state.subtotal,
-        discountAmount: state.discountAmount,
+        discountAmount: state.totalDiscountAmount,
         finalAmount: state.total,
         paymentMethod: paymentMethod,
         customerName: customerName,
@@ -267,6 +289,9 @@ class BillingNotifier extends Notifier<BillingState> {
             'lastUdharDate': Timestamp.fromDate(bill.createdAt),
           }, SetOptions(merge: true)));
         }
+
+        // Award loyalty points (fire-and-forget, non-fatal)
+        unawaited(_awardLoyaltyPoints(shopId: shopId, bill: billWithInvoice));
       }
 
       state = state.copyWith(isLoading: false);
@@ -274,6 +299,31 @@ class BillingNotifier extends Notifier<BillingState> {
     } catch (e) {
       state = state.copyWith(isLoading: false);
       rethrow;
+    }
+  }
+
+  /// Award loyalty points after a bill is saved (non-fatal).
+  static Future<void> _awardLoyaltyPoints({
+    required String shopId,
+    required BillModel bill,
+  }) async {
+    try {
+      final shopDoc = await FirebaseFirestore.instance
+          .collection('shops').doc(shopId).get();
+      final settings =
+          (shopDoc.data()?['loyaltySettings'] as Map<String, dynamic>?) ?? {};
+      if (settings['enabled'] != true) return;
+      final pointsPer100 =
+          (settings['pointsPerHundred'] as num?)?.toInt() ?? 10;
+      final points = ((bill.finalAmount / 100) * pointsPer100).floor();
+      if (points <= 0) return;
+      await FirebaseFirestore.instance
+          .collection('shops').doc(shopId)
+          .collection('customers').doc(bill.customerPhone)
+          .set({'loyaltyPoints': FieldValue.increment(points)},
+              SetOptions(merge: true));
+    } catch (_) {
+      // Non-fatal — loyalty failure must not block billing
     }
   }
 
@@ -413,6 +463,48 @@ final billHistoryProvider = StreamProvider.family<List<BillModel>,
           isGreaterThanOrEqualTo: Timestamp.fromDate(args.range.start))
       .where('createdAt',
           isLessThanOrEqualTo: Timestamp.fromDate(args.range.end))
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map(BillModel.fromFirestore).toList());
+});
+
+// ---------------------------------------------------------------------------
+// Flash Sale Provider — active flash sale for a shop
+// ---------------------------------------------------------------------------
+
+/// Streams the first active (non-expired, not past endTime) flash sale
+/// for [shopId]. Returns null when no flash sale is live.
+final activeFlashSaleProvider =
+    StreamProvider.family<Map<String, dynamic>?, String>((ref, shopId) {
+  return FirebaseFirestore.instance
+      .collection('shops')
+      .doc(shopId)
+      .collection('flashSales')
+      .where('expired', isEqualTo: false)
+      .snapshots()
+      .map((snap) {
+    final now = DateTime.now();
+    for (final doc in snap.docs) {
+      final d = doc.data();
+      final end = (d['endTime'] as Timestamp?)?.toDate();
+      if (end != null && end.isAfter(now)) return d;
+    }
+    return null;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Weekly POS Bills Provider — for analytics (last 7 days)
+// ---------------------------------------------------------------------------
+
+final weeklyBillsProvider =
+    StreamProvider.family<List<BillModel>, String>((ref, shopId) {
+  final start = DateTime.now().subtract(const Duration(days: 7));
+  return FirebaseFirestore.instance
+      .collection('shops')
+      .doc(shopId)
+      .collection('bills')
+      .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
       .orderBy('createdAt', descending: true)
       .snapshots()
       .map((s) => s.docs.map(BillModel.fromFirestore).toList());

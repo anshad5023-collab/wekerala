@@ -18,6 +18,9 @@ const META_VERIFY_TOKEN = defineString('META_VERIFY_TOKEN', { default: 'wekerala
 const META_PHONE_NUMBER_ID = defineString('META_PHONE_NUMBER_ID', { default: '' });
 const META_ACCESS_TOKEN = defineString('META_ACCESS_TOKEN', { default: '' });
 const GEMINI_API_KEY = defineString('GEMINI_API_KEY', { default: '' });
+const RAZORPAY_KEY_ID = defineString('RAZORPAY_KEY_ID', { default: '' });
+const RAZORPAY_KEY_SECRET = defineString('RAZORPAY_KEY_SECRET', { default: '' });
+const RAZORPAY_WEBHOOK_SECRET = defineString('RAZORPAY_WEBHOOK_SECRET', { default: '' });
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -1422,6 +1425,102 @@ exports.sendBroadcast = onCall({ maxInstances: 1 }, async (request) => {
 });
 
 // ─── Function 15: Stock Depleted Alert ───────────────────────────────────────
+// (defined below)
+
+// ─── Function 16: Create Razorpay Subscription Order ─────────────────────────
+// Called from Flutter subscription screen to get a Razorpay order_id.
+// Once the user pays in the Razorpay checkout, the webhook (Function 17)
+// auto-activates the subscription.
+
+exports.createRazorpayOrder = onCall({ maxInstances: 5 }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Login required');
+
+  const keyId = RAZORPAY_KEY_ID.value();
+  const keySecret = RAZORPAY_KEY_SECRET.value();
+  if (!keyId || !keySecret) {
+    throw new HttpsError('failed-precondition',
+      'Razorpay not configured. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to functions/.env');
+  }
+
+  const { shopId, planMonths = 1 } = request.data;
+  if (!shopId) throw new HttpsError('invalid-argument', 'Missing shopId');
+
+  const amountPaise = 99900 * planMonths; // ₹999 per month in paise
+
+  const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+  const resp = await axios.post(
+    'https://api.razorpay.com/v1/orders',
+    {
+      amount: amountPaise,
+      currency: 'INR',
+      receipt: `sub_${shopId}_${Date.now()}`,
+      notes: { shopId, planMonths: String(planMonths) },
+    },
+    { headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/json' } }
+  );
+
+  console.log(`[Razorpay] Order created: ${resp.data.id} for shop ${shopId}`);
+  return { orderId: resp.data.id, amount: amountPaise, keyId };
+});
+
+// ─── Function 17: Razorpay Payment Webhook ───────────────────────────────────
+// Razorpay calls this URL after a successful payment.
+// Configure in Razorpay Dashboard → Webhooks → Add Webhook
+// URL: https://us-central1-<project-id>.cloudfunctions.net/razorpayWebhook
+// Events to subscribe: payment.captured
+
+exports.razorpayWebhook = onRequest({ cors: true }, async (req, res) => {
+  if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
+
+  const secret = RAZORPAY_WEBHOOK_SECRET.value();
+  if (secret) {
+    const crypto = require('crypto');
+    const signature = req.headers['x-razorpay-signature'] || '';
+    const body = JSON.stringify(req.body);
+    const expected = crypto.createHmac('sha256', secret).update(body).digest('hex');
+    if (signature !== expected) {
+      console.error('[Razorpay Webhook] Invalid signature');
+      res.status(400).send('Invalid signature');
+      return;
+    }
+  }
+
+  const event = req.body.event;
+  const payment = req.body.payload?.payment?.entity;
+
+  if (event === 'payment.captured' && payment) {
+    const shopId = payment.notes?.shopId;
+    const planMonths = parseInt(payment.notes?.planMonths || '1', 10);
+    if (!shopId) { res.status(200).send('ok'); return; }
+
+    const db = getFirestore();
+    const now = new Date();
+    const expiresAt = new Date(now);
+    expiresAt.setMonth(expiresAt.getMonth() + planMonths);
+
+    await db.collection('shops').doc(shopId).update({
+      subscriptionStatus: 'active',
+      subscriptionStartDate: Timestamp.fromDate(now),
+      subscriptionExpiresAt: Timestamp.fromDate(expiresAt),
+      lastPaymentId: payment.id,
+      lastPaymentAmount: payment.amount / 100,
+    });
+
+    // Notify shop owner
+    const shopSnap = await db.collection('shops').doc(shopId).get();
+    const shop = shopSnap.data();
+    const ownerPhone = shop?.ownerPhone || shop?.ownerWhatsApp || '';
+    if (ownerPhone && ownerPhone.length >= 10) {
+      await sendWhatsApp(ownerPhone,
+        `✅ *Subscription Activated!*\n\nThank you for subscribing to weKerala. Your subscription is active until ${expiresAt.toLocaleDateString('en-IN')}.\n\nEnjoy all features! 🎉`,
+        shop);
+    }
+
+    console.log(`[Razorpay Webhook] Subscription activated for shop ${shopId} until ${expiresAt}`);
+  }
+
+  res.status(200).json({ received: true });
+});
 // Fires when a product's stockQty transitions from >0 to <=0.
 // Sends a WhatsApp alert to the shop owner so they can restock immediately.
 

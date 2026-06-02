@@ -5,9 +5,11 @@ import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/sales_summary_service.dart';
+import '../../../providers/billing_provider.dart';
 import '../../../providers/language_provider.dart';
 import '../../../providers/orders_provider.dart';
 import '../../../providers/shop_provider.dart';
+import '../../../models/bill_model.dart';
 import '../../../models/order_model.dart';
 import '../../../shared/widgets/shimmer_list.dart';
 
@@ -184,15 +186,11 @@ ${_topProduct.isNotEmpty ? '🏆 Top Product: $_topProduct\n──────�
           ),
           const SizedBox(height: 8),
           Expanded(
-            child: ordersAsync.when(
-              loading: () =>
-                  const ShimmerList(itemCount: 3, itemHeight: 80),
-              error: (e, _) => Center(child: Text(e.toString())),
-              data: (orders) => _AnalyticsContent(
-                    orders: orders,
-                    t: widget.t,
-                    onAnalyticsReady: _updateAnalytics,
-                  ),
+            child: _CombinedAnalytics(
+              shopId: widget.shopId,
+              ordersAsync: ordersAsync,
+              t: widget.t,
+              onAnalyticsReady: _updateAnalytics,
             ),
           ),
         ],
@@ -201,8 +199,49 @@ ${_topProduct.isNotEmpty ? '🏆 Top Product: $_topProduct\n──────�
   }
 }
 
+// Merges online orders + POS bills and renders _AnalyticsContent
+class _CombinedAnalytics extends ConsumerWidget {
+  final String shopId;
+  final AsyncValue<List<OrderModel>> ordersAsync;
+  final String Function(String) t;
+  final void Function({
+    required double revenue,
+    required int orderCount,
+    required int completedCount,
+    required int cancelledCount,
+    required String topProduct,
+    required String period,
+  }) onAnalyticsReady;
+
+  const _CombinedAnalytics({
+    required this.shopId,
+    required this.ordersAsync,
+    required this.t,
+    required this.onAnalyticsReady,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final billsAsync = ref.watch(weeklyBillsProvider(shopId));
+
+    return ordersAsync.when(
+      loading: () => const ShimmerList(itemCount: 3, itemHeight: 80),
+      error: (e, _) => Center(child: Text(e.toString())),
+      data: (orders) => billsAsync.when(
+        loading: () => _AnalyticsContent(
+            orders: orders, bills: const [], t: t, onAnalyticsReady: onAnalyticsReady),
+        error: (_, __) => _AnalyticsContent(
+            orders: orders, bills: const [], t: t, onAnalyticsReady: onAnalyticsReady),
+        data: (bills) => _AnalyticsContent(
+            orders: orders, bills: bills, t: t, onAnalyticsReady: onAnalyticsReady),
+      ),
+    );
+  }
+}
+
 class _AnalyticsContent extends StatelessWidget {
   final List<OrderModel> orders;
+  final List<BillModel> bills;
   final String Function(String) t;
   final void Function({
     required double revenue,
@@ -215,6 +254,7 @@ class _AnalyticsContent extends StatelessWidget {
 
   const _AnalyticsContent({
     required this.orders,
+    required this.bills,
     required this.t,
     required this.onAnalyticsReady,
   });
@@ -233,29 +273,56 @@ class _AnalyticsContent extends StatelessWidget {
     final monthOrders =
         orders.where((o) => o.createdAt.isAfter(monthStart)).toList();
 
+    // POS bills — merged into revenue numbers
+    final todayBills =
+        bills.where((b) => b.createdAt.isAfter(todayStart) && !b.isVoided).toList();
+    final weekBills =
+        bills.where((b) => b.createdAt.isAfter(weekStart) && !b.isVoided).toList();
+    final monthBills =
+        bills.where((b) => b.createdAt.isAfter(monthStart) && !b.isVoided).toList();
+
+    final todayRevenue = todayOrders.fold(0.0, (s, o) => s + o.totalAmount)
+        + todayBills.fold(0.0, (s, b) => s + b.finalAmount);
+    final weekRevenue = weekOrders.fold(0.0, (s, o) => s + o.totalAmount)
+        + weekBills.fold(0.0, (s, b) => s + b.finalAmount);
+    final monthRevenue = monthOrders.fold(0.0, (s, o) => s + o.totalAmount)
+        + monthBills.fold(0.0, (s, b) => s + b.finalAmount);
+
     final deliveredMonth =
         monthOrders.where((o) => o.status == 'delivered').length;
     final completionRate =
         monthOrders.isEmpty ? 0.0 : deliveredMonth / monthOrders.length * 100;
 
-    // 7-day revenue sparkline data
+    // 7-day revenue sparkline — orders + bills combined
     final last7 = List.generate(7, (i) {
       final day = DateTime.now().subtract(Duration(days: 6 - i));
       final dayStart = DateTime(day.year, day.month, day.day);
       final dayEnd = dayStart.add(const Duration(days: 1));
-      final dayRevenue = orders
+      final orderRev = orders
           .where((o) =>
               o.createdAt.isAfter(dayStart) && o.createdAt.isBefore(dayEnd))
           .fold(0.0, (s, o) => s + o.totalAmount);
-      return dayRevenue;
+      final billRev = bills
+          .where((b) =>
+              !b.isVoided &&
+              b.createdAt.isAfter(dayStart) &&
+              b.createdAt.isBefore(dayEnd))
+          .fold(0.0, (s, b) => s + b.finalAmount);
+      return orderRev + billRev;
     });
 
-    // Top 5 products this week
+    // Top 5 products this week — orders + bills
     final productCounts = <String, int>{};
     for (final o in weekOrders) {
       for (final item in o.items) {
         productCounts[item.productName] =
             (productCounts[item.productName] ?? 0) + 1;
+      }
+    }
+    for (final b in weekBills) {
+      for (final item in b.items) {
+        productCounts[item.productName] =
+            (productCounts[item.productName] ?? 0) + item.qty.toInt();
       }
     }
     final topProducts = productCounts.entries.toList()
@@ -268,8 +335,8 @@ class _AnalyticsContent extends StatelessWidget {
     // Notify parent with computed analytics for share report
     WidgetsBinding.instance.addPostFrameCallback((_) {
       onAnalyticsReady(
-        revenue: todayOrders.fold(0.0, (s, o) => s + o.totalAmount),
-        orderCount: todayOrders.length,
+        revenue: todayRevenue,
+        orderCount: todayOrders.length + todayBills.length,
         completedCount: todayOrders.where((o) => o.status == 'delivered').length,
         cancelledCount: todayOrders.where((o) => o.status == 'cancelled').length,
         topProduct: top5.isNotEmpty ? '${top5.first.key} (${top5.first.value} sold)' : '',
@@ -277,10 +344,13 @@ class _AnalyticsContent extends StatelessWidget {
       );
     });
 
-    // Peak hours this week (0-23)
+    // Peak hours this week (0-23) — orders + bills
     final hourCounts = List<int>.filled(24, 0);
     for (final o in weekOrders) {
       hourCounts[o.createdAt.hour]++;
+    }
+    for (final b in weekBills) {
+      hourCounts[b.createdAt.hour]++;
     }
 
     return ListView(
@@ -292,22 +362,22 @@ class _AnalyticsContent extends StatelessWidget {
         Row(children: [
           _KpiCard(
             label: t('analytics_today'),
-            value: '₹${todayOrders.fold(0, (s, o) => s + o.totalAmount.toInt())}',
-            subValue: '${todayOrders.length} orders',
+            value: '₹${todayRevenue.toInt()}',
+            subValue: '${todayOrders.length + todayBills.length} sales',
             color: AppColors.primary,
           ),
           const SizedBox(width: 8),
           _KpiCard(
             label: t('analytics_week'),
-            value: '₹${weekOrders.fold(0, (s, o) => s + o.totalAmount.toInt())}',
-            subValue: '${weekOrders.length} orders',
+            value: '₹${weekRevenue.toInt()}',
+            subValue: '${weekOrders.length + weekBills.length} sales',
             color: const Color(0xFF1976D2),
           ),
           const SizedBox(width: 8),
           _KpiCard(
             label: t('analytics_month'),
-            value: '₹${monthOrders.fold(0, (s, o) => s + o.totalAmount.toInt())}',
-            subValue: '${monthOrders.length} orders',
+            value: '₹${monthRevenue.toInt()}',
+            subValue: '${monthOrders.length + monthBills.length} sales',
             color: AppColors.success,
           ),
         ]),

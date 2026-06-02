@@ -80,6 +80,15 @@ class _SuppliersBodyState extends ConsumerState<_SuppliersBody> {
         ),
         automaticallyImplyLeading: false,
         elevation: 0,
+        actions: [
+          TextButton.icon(
+            onPressed: () => context.push('/stock-receive'),
+            icon: const Icon(Icons.inventory_2_outlined,
+                color: Colors.white, size: 18),
+            label: const Text('Receive Stock',
+                style: TextStyle(color: Colors.white, fontSize: 13)),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.success,
