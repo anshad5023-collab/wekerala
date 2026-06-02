@@ -12,57 +12,93 @@ if (getApps().length === 0) {
   initializeApp();
 }
 
-// Meta WhatsApp Cloud API credentials
-// Set via functions/.env — each shop can also override with their own credentials in Firestore
-const META_VERIFY_TOKEN = defineString('META_VERIFY_TOKEN', { default: 'wekerala_webhook_secret' });
+// ── Credentials (set in functions/.env) ────────────────────────────────────
+const META_VERIFY_TOKEN  = defineString('META_VERIFY_TOKEN',  { default: 'wekerala_webhook_secret' });
 const META_PHONE_NUMBER_ID = defineString('META_PHONE_NUMBER_ID', { default: '' });
-const META_ACCESS_TOKEN = defineString('META_ACCESS_TOKEN', { default: '' });
-const GEMINI_API_KEY = defineString('GEMINI_API_KEY', { default: '' });
-const RAZORPAY_KEY_ID = defineString('RAZORPAY_KEY_ID', { default: '' });
-const RAZORPAY_KEY_SECRET = defineString('RAZORPAY_KEY_SECRET', { default: '' });
+const META_ACCESS_TOKEN    = defineString('META_ACCESS_TOKEN',    { default: '' });
+const GEMINI_API_KEY       = defineString('GEMINI_API_KEY',       { default: '' });
+const RAZORPAY_KEY_ID      = defineString('RAZORPAY_KEY_ID',      { default: '' });
+const RAZORPAY_KEY_SECRET  = defineString('RAZORPAY_KEY_SECRET',  { default: '' });
 const RAZORPAY_WEBHOOK_SECRET = defineString('RAZORPAY_WEBHOOK_SECRET', { default: '' });
+// Gupshup — platform-level account, used for ALL shops (no per-shop setup needed)
+const GUPSHUP_API_KEY  = defineString('GUPSHUP_API_KEY',  { default: '' });
+const GUPSHUP_APP_NAME = defineString('GUPSHUP_APP_NAME', { default: 'wekerala' });
+// Your Gupshup registered WhatsApp source number (the one you registered with Gupshup)
+const GUPSHUP_SRC_NUMBER = defineString('GUPSHUP_SRC_NUMBER', { default: '' });
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+/**
+ * Sends a WhatsApp message.
+ * Priority: Gupshup (platform account) → Meta Cloud API (direct).
+ * Shop owners never need to set anything up — weKerala holds the credentials.
+ */
 async function sendWhatsApp(toPhone, message, shopData = null, retries = 2) {
-  const phoneNumberId = shopData?.whatsappPhoneNumberId || META_PHONE_NUMBER_ID.value();
-  const accessToken = shopData?.whatsappAccessToken || META_ACCESS_TOKEN.value();
+  const digits = toPhone.replace(/\D/g, '');
+  const e164 = digits.startsWith('91') && digits.length === 12
+    ? digits : `91${digits.slice(-10)}`;
 
-  if (!phoneNumberId || !accessToken) {
-    console.error('[WA] Missing Meta credentials — set META_PHONE_NUMBER_ID and META_ACCESS_TOKEN in functions/.env');
+  // ── Option 1: Gupshup (preferred — one account for all shops) ─────────────
+  const gupshupKey = GUPSHUP_API_KEY.value();
+  const gupshupSrc = GUPSHUP_SRC_NUMBER.value();
+  const gupshupApp = GUPSHUP_APP_NAME.value();
+
+  if (gupshupKey && gupshupSrc) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const params = new URLSearchParams({
+          channel: 'whatsapp',
+          source: gupshupSrc,
+          destination: e164,
+          message: JSON.stringify({ type: 'text', text: message }),
+          'src.name': gupshupApp,
+        });
+        const resp = await axios.post(
+          'https://api.gupshup.io/sm/api/v1/msg',
+          params.toString(),
+          {
+            headers: {
+              apikey: gupshupKey,
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            timeout: 10000,
+          }
+        );
+        console.log(`[WA/Gupshup] Sent to ${e164}: ${resp.data?.status}`);
+        return true;
+      } catch (err) {
+        const isLast = attempt === retries;
+        console.error(`[WA/Gupshup] Error (attempt ${attempt + 1}):`, err.response?.data ?? err.message);
+        if (!isLast) await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+      }
+    }
     return false;
   }
 
-  const digits = toPhone.replace(/\D/g, '');
-  const e164 = digits.startsWith('91') && digits.length === 12
-    ? digits
-    : `91${digits.slice(-10)}`;
+  // ── Option 2: Meta Cloud API (fallback / per-shop custom number) ──────────
+  const phoneNumberId = shopData?.whatsappPhoneNumberId || META_PHONE_NUMBER_ID.value();
+  const accessToken   = shopData?.whatsappAccessToken   || META_ACCESS_TOKEN.value();
 
-  console.log(`[WA] Sending to ${e164} via phone_number_id: ${phoneNumberId}`);
+  if (!phoneNumberId || !accessToken) {
+    console.error('[WA] No WhatsApp credentials configured. Add GUPSHUP_API_KEY + GUPSHUP_SRC_NUMBER to functions/.env');
+    return false;
+  }
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const resp = await axios.post(
         `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
+        { messaging_product: 'whatsapp', to: e164, type: 'text', text: { body: message } },
         {
-          messaging_product: 'whatsapp',
-          to: e164,
-          type: 'text',
-          text: { body: message },
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'application/json',
-          },
+          headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
           timeout: 10000,
         }
       );
-      console.log(`[WA] Meta response ${resp.status}:`, JSON.stringify(resp.data));
+      console.log(`[WA/Meta] Sent to ${e164}: ${resp.status}`);
       return true;
     } catch (err) {
       const isLast = attempt === retries;
-      console.error(`[WA] Meta send error (attempt ${attempt + 1}/${retries + 1}):`, err.response?.data ?? err.message);
+      console.error(`[WA/Meta] Error (attempt ${attempt + 1}):`, err.response?.data ?? err.message);
       if (!isLast) await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
     }
   }
