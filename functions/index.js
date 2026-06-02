@@ -1,6 +1,6 @@
 const { onDocumentCreated, onDocumentUpdated } = require('firebase-functions/v2/firestore');
 const { onSchedule } = require('firebase-functions/v2/scheduler');
-const { onRequest } = require('firebase-functions/v2/https');
+const { onRequest, onCall, HttpsError } = require('firebase-functions/v2/https');
 const { defineString } = require('firebase-functions/params');
 const axios = require('axios');
 const { initializeApp, getApps } = require('firebase-admin/app');
@@ -1347,52 +1347,111 @@ exports.autoCancelStaleOrders = onSchedule(
   }
 );
 
-// ─── Function 14: Broadcast WhatsApp Message to Recent Customers ──────────────
-
-const { onCall } = require('firebase-functions/v2/https');
+// ─── Function 14: Broadcast WhatsApp Message to All Customers ────────────────
+// Called from Flutter app BroadcastScreen via FirebaseFunctions.httpsCallable.
+// Uses the customers collection (populated when orders are confirmed) as source
+// of truth — falls back to scanning recent orders if customers collection is empty.
 
 exports.sendBroadcast = onCall({ maxInstances: 1 }, async (request) => {
-  if (!request.auth) throw new Error('Unauthenticated');
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Login required');
 
   const { shopId, message } = request.data;
-  if (!shopId || !message) throw new Error('Missing shopId or message');
+  if (!shopId || typeof message !== 'string' || !message.trim()) {
+    throw new HttpsError('invalid-argument', 'Missing shopId or message');
+  }
+  if (message.length > 4096) {
+    throw new HttpsError('invalid-argument', 'Message exceeds 4096 characters');
+  }
 
   const db = getFirestore();
-  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
 
-  const ordersSnap = await db.collection('shops').doc(shopId)
-    .collection('orders')
-    .where('createdAt', '>=', Timestamp.fromDate(ninetyDaysAgo))
-    .get();
+  // Get shop data for per-shop WhatsApp credentials
+  const shopSnap = await db.collection('shops').doc(shopId).get();
+  if (!shopSnap.exists) throw new HttpsError('not-found', 'Shop not found');
+  const shop = shopSnap.data();
 
+  // Primary: customers collection (accurate, built from confirmed orders)
+  const customersSnap = await db.collection('shops').doc(shopId).collection('customers').get();
   const phones = new Set();
-  ordersSnap.forEach(doc => {
-    const phone = doc.data().customerPhone;
-    if (phone) phones.add(phone);
-  });
 
-  const phoneList = Array.from(phones).slice(0, 200);
+  if (!customersSnap.empty) {
+    customersSnap.forEach(doc => {
+      const p = doc.data().phone || doc.id;
+      if (p && p.replace(/\D/g, '').length >= 10) phones.add(p);
+    });
+  }
+
+  // Fallback: scan orders from last 90 days (string ISO date comparison)
+  if (phones.size === 0) {
+    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const ordersSnap = await db.collection('shops').doc(shopId)
+      .collection('orders')
+      .where('createdAt', '>=', cutoff)
+      .get();
+    ordersSnap.forEach(doc => {
+      const phone = doc.data().customerPhone;
+      if (phone && phone.replace(/\D/g, '').length >= 10) phones.add(phone);
+    });
+  }
+
+  const phoneList = Array.from(phones).slice(0, 300);
+  if (phoneList.length === 0) return { sent: 0, failed: 0, message: 'No customers found' };
+
   let sent = 0;
   let failed = 0;
 
-  for (const phone of phoneList) {
-    try {
-      await sendWhatsApp(phone, message);
-      sent++;
-      await new Promise(r => setTimeout(r, 300));
-    } catch (err) {
-      failed++;
-      console.error('Broadcast failed for', phone, err);
+  for (let i = 0; i < phoneList.length; i++) {
+    const ok = await sendWhatsApp(phoneList[i], message, shop);
+    if (ok) sent++; else failed++;
+    // Respect WhatsApp rate limits: ~80 msg/min = pause 800ms every 10 msgs
+    if ((i + 1) % 10 === 0 && i < phoneList.length - 1) {
+      await new Promise(r => setTimeout(r, 800));
     }
   }
 
-  // Log broadcast
   await db.collection('shops').doc(shopId).collection('broadcasts').add({
     message,
     sentAt: FieldValue.serverTimestamp(),
-    recipientCount: sent,
+    recipientCount: phoneList.length,
+    sentCount: sent,
     failedCount: failed,
   });
 
+  console.log(`[sendBroadcast] shop=${shopId} total=${phoneList.length} sent=${sent} failed=${failed}`);
   return { sent, failed };
 });
+
+// ─── Function 15: Stock Depleted Alert ───────────────────────────────────────
+// Fires when a product's stockQty transitions from >0 to <=0.
+// Sends a WhatsApp alert to the shop owner so they can restock immediately.
+
+exports.onStockDepleted = onDocumentUpdated(
+  'shops/{shopId}/products/{productId}',
+  async (event) => {
+    const before = event.data?.before?.data();
+    const after = event.data?.after?.data();
+    if (!before || !after) return;
+
+    const wasAboveZero = (before.stockQty ?? -1) > 0;
+    const isNowZero = (after.stockQty ?? -1) <= 0;
+    if (!wasAboveZero || !isNowZero) return;
+
+    const shopId = event.params.shopId;
+    const db = getFirestore();
+    const shopSnap = await db.collection('shops').doc(shopId).get();
+    const shop = shopSnap.data();
+    if (!shop) return;
+
+    const ownerPhone = shop.ownerPhone || shop.ownerWhatsApp || '';
+    if (!ownerPhone || ownerPhone.length < 10) return;
+
+    const name = after.nameEn || after.productName || after.name || 'Unknown product';
+    const msg =
+      `⚠️ *Out of Stock Alert*\n\n` +
+      `*${name}* just ran out of stock at *${shop.shopName || 'your shop'}*.\n\n` +
+      `Update stock in weKerala app to continue selling this product.`;
+
+    await sendWhatsApp(ownerPhone, msg, shop);
+    console.log(`[StockAlert] ${name} (${event.params.productId}) hit zero in shop ${shopId}`);
+  }
+);

@@ -48,11 +48,23 @@ class ProductRepository {
           .doc(shopId)
           .collection('products');
 
-  static Future<void> add(String shopId, ProductModel p) =>
-      _col(shopId).doc(p.productId).set(p.toFirestore());
+  static Future<void> add(String shopId, ProductModel p) async {
+    await _col(shopId).doc(p.productId).set(p.toFirestore());
+    if (p.category.isNotEmpty) {
+      await FirebaseFirestore.instance.collection('shops').doc(shopId).update({
+        'categories': FieldValue.arrayUnion([p.category]),
+      });
+    }
+  }
 
-  static Future<void> update(String shopId, ProductModel p) =>
-      _col(shopId).doc(p.productId).set(p.toFirestore());
+  static Future<void> update(String shopId, ProductModel p) async {
+    await _col(shopId).doc(p.productId).set(p.toFirestore());
+    if (p.category.isNotEmpty) {
+      await FirebaseFirestore.instance.collection('shops').doc(shopId).update({
+        'categories': FieldValue.arrayUnion([p.category]),
+      });
+    }
+  }
 
   static Future<void> delete(String shopId, String productId) =>
       _col(shopId).doc(productId).delete();
