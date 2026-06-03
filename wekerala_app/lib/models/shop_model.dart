@@ -55,6 +55,8 @@ class ShopModel {
   final Map<String, dynamic> aiSettings;
   // Meta WhatsApp Cloud API — phone number ID for this shop's WhatsApp number
   final String whatsappPhoneNumberId;
+  // Per-shop WhatsApp notification preferences (toggles + udharReminderDays)
+  final Map<String, dynamic> whatsappSettings;
   // Loyalty program configuration
   final Map<String, dynamic> loyaltySettings;
 
@@ -107,6 +109,7 @@ class ShopModel {
     this.ondcSellerId,
     this.aiSettings = const {},
     this.whatsappPhoneNumberId = '',
+    this.whatsappSettings = const {},
     this.loyaltySettings = const {},
   });
 
@@ -167,6 +170,7 @@ class ShopModel {
       ondcSellerId: d['ondcSellerId'] as String?,
       aiSettings: Map<String, dynamic>.from(d['aiSettings'] as Map? ?? {}),
       whatsappPhoneNumberId: d['whatsappPhoneNumberId'] as String? ?? '',
+      whatsappSettings: Map<String, dynamic>.from(d['whatsappSettings'] as Map? ?? {}),
       loyaltySettings: Map<String, dynamic>.from(d['loyaltySettings'] as Map? ?? {}),
     );
   }
@@ -222,6 +226,7 @@ class ShopModel {
       if (ondcSellerId != null) 'ondcSellerId': ondcSellerId,
       'aiSettings': aiSettings,
       if (whatsappPhoneNumberId.isNotEmpty) 'whatsappPhoneNumberId': whatsappPhoneNumberId,
+      if (whatsappSettings.isNotEmpty) 'whatsappSettings': whatsappSettings,
       'loyaltySettings': loyaltySettings,
     };
   }
@@ -252,6 +257,7 @@ class ShopModel {
     Object? ondcSellerId = _shopSentinel,
     Map<String, dynamic>? aiSettings,
     String? whatsappPhoneNumberId,
+    Map<String, dynamic>? whatsappSettings,
     Map<String, dynamic>? loyaltySettings,
   }) {
     return ShopModel(
@@ -302,6 +308,7 @@ class ShopModel {
       ondcSellerId: ondcSellerId == _shopSentinel ? this.ondcSellerId : ondcSellerId as String?,
       aiSettings: aiSettings ?? this.aiSettings,
       whatsappPhoneNumberId: whatsappPhoneNumberId ?? this.whatsappPhoneNumberId,
+      whatsappSettings: whatsappSettings ?? this.whatsappSettings,
       loyaltySettings: loyaltySettings ?? this.loyaltySettings,
     );
   }

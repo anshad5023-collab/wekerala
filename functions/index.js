@@ -20,67 +20,24 @@ const GEMINI_API_KEY       = defineString('GEMINI_API_KEY',       { default: '' 
 const RAZORPAY_KEY_ID      = defineString('RAZORPAY_KEY_ID',      { default: '' });
 const RAZORPAY_KEY_SECRET  = defineString('RAZORPAY_KEY_SECRET',  { default: '' });
 const RAZORPAY_WEBHOOK_SECRET = defineString('RAZORPAY_WEBHOOK_SECRET', { default: '' });
-// Gupshup — platform-level account, used for ALL shops (no per-shop setup needed)
-const GUPSHUP_API_KEY  = defineString('GUPSHUP_API_KEY',  { default: '' });
-const GUPSHUP_APP_NAME = defineString('GUPSHUP_APP_NAME', { default: 'wekerala' });
-// Your Gupshup registered WhatsApp source number (the one you registered with Gupshup)
-const GUPSHUP_SRC_NUMBER = defineString('GUPSHUP_SRC_NUMBER', { default: '' });
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 /**
- * Sends a WhatsApp message.
- * Priority: Gupshup (platform account) → Meta Cloud API (direct).
- * Shop owners never need to set anything up — weKerala holds the credentials.
+ * Sends a WhatsApp message via Meta Cloud API.
+ * Uses the per-shop whatsappPhoneNumberId if set; falls back to platform META_PHONE_NUMBER_ID.
+ * Each shop owner adds their own Phone Number ID in Settings → WhatsApp Notifications.
  */
 async function sendWhatsApp(toPhone, message, shopData = null, retries = 2) {
   const digits = toPhone.replace(/\D/g, '');
   const e164 = digits.startsWith('91') && digits.length === 12
     ? digits : `91${digits.slice(-10)}`;
 
-  // ── Option 1: Gupshup (preferred — one account for all shops) ─────────────
-  const gupshupKey = GUPSHUP_API_KEY.value();
-  const gupshupSrc = GUPSHUP_SRC_NUMBER.value();
-  const gupshupApp = GUPSHUP_APP_NAME.value();
-
-  if (gupshupKey && gupshupSrc) {
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      try {
-        const params = new URLSearchParams({
-          channel: 'whatsapp',
-          source: gupshupSrc,
-          destination: e164,
-          message: JSON.stringify({ type: 'text', text: message }),
-          'src.name': gupshupApp,
-        });
-        const resp = await axios.post(
-          'https://api.gupshup.io/sm/api/v1/msg',
-          params.toString(),
-          {
-            headers: {
-              apikey: gupshupKey,
-              'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            timeout: 10000,
-          }
-        );
-        console.log(`[WA/Gupshup] Sent to ${e164}: ${resp.data?.status}`);
-        return true;
-      } catch (err) {
-        const isLast = attempt === retries;
-        console.error(`[WA/Gupshup] Error (attempt ${attempt + 1}):`, err.response?.data ?? err.message);
-        if (!isLast) await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
-      }
-    }
-    return false;
-  }
-
-  // ── Option 2: Meta Cloud API (fallback / per-shop custom number) ──────────
   const phoneNumberId = shopData?.whatsappPhoneNumberId || META_PHONE_NUMBER_ID.value();
   const accessToken   = shopData?.whatsappAccessToken   || META_ACCESS_TOKEN.value();
 
   if (!phoneNumberId || !accessToken) {
-    console.error('[WA] No WhatsApp credentials configured. Add GUPSHUP_API_KEY + GUPSHUP_SRC_NUMBER to functions/.env');
+    console.error('[WA] Missing META_PHONE_NUMBER_ID or META_ACCESS_TOKEN. Add them to functions/.env or in AI Settings.');
     return false;
   }
 
@@ -103,6 +60,16 @@ async function sendWhatsApp(toPhone, message, shopData = null, retries = 2) {
     }
   }
   return false;
+}
+
+/**
+ * Checks if a WhatsApp notification preference is enabled for a shop.
+ * Returns defaultVal when owner hasn't configured it yet.
+ */
+function isPrefOn(shopData, key, defaultVal) {
+  const val = shopData?.whatsappSettings?.[key];
+  if (val === undefined || val === null) return defaultVal;
+  return val === true;
 }
 
 /**
@@ -393,6 +360,8 @@ exports.onOrderCreated = onDocumentCreated(
       console.error(`[Order] No valid phone found for shop ${shopId}`);
       return;
     }
+    // Preference check — New Order Alert is OFF by default (owners prefer in-app push)
+    if (!isPrefOn(shop, 'newOrderAlert', false)) return;
 
     const itemNames = (order.items || []).map((i) => i.productName || i.name);
     const topItems = itemNames.slice(0, 3).join(', ');
@@ -473,6 +442,7 @@ exports.sendDailySalesSummary = onSchedule(
         const ownerPhone = shop.ownerPhone || shop.phoneNumber || shop.phone || shop.ownerWhatsApp || '';
 
         if (!ownerPhone || ownerPhone.length < 10) continue;
+        if (!isPrefOn(shop, 'dailySummary', true)) continue;
 
         // Query today's bills
         const billsSnap = await db
@@ -574,6 +544,10 @@ exports.sendUdharReminders = onSchedule(
         const shopName = shop.shopName || shop.name || 'Your Shop';
         const ownerPhone = shop.ownerPhone || shop.phoneNumber || shop.phone || shop.ownerWhatsApp || '';
 
+        // Reminder gap: how many days before due date to remind the customer (default 7)
+        const reminderDays = shop.whatsappSettings?.udharReminderDays ?? 7;
+        const reminderCutoff = new Date(todayUTC.getTime() + reminderDays * 24 * 60 * 60 * 1000);
+
         // Fetch all unpaid credits
         const creditsSnap = await db
           .collection('shops')
@@ -606,7 +580,7 @@ exports.sendUdharReminders = onSchedule(
                 typeof dueDateRaw.toDate === 'function'
                   ? dueDateRaw.toDate()
                   : new Date(dueDateRaw);
-              isDueSoon = dueDate <= tomorrowUTC;
+              isDueSoon = dueDate <= reminderCutoff; // within owner-configured reminder window
               isOverdue = dueDate < todayUTC;
               formattedDue = isOverdue ? 'Overdue' : formatDate(dueDate);
             }
@@ -639,8 +613,8 @@ exports.sendUdharReminders = onSchedule(
           }
         }
 
-        // Send owner summary if any overdue credits exist
-        if (overdueCredits.length > 0 && ownerPhone && ownerPhone.length >= 10) {
+        // Send owner summary if any overdue credits exist and pref is on
+        if (overdueCredits.length > 0 && ownerPhone && ownerPhone.length >= 10 && isPrefOn(shop, 'udharOverdueSummary', true)) {
           const overdueList = overdueCredits
             .map(
               (c) =>
@@ -700,6 +674,7 @@ exports.onProductStockUpdate = onDocumentUpdated(
 
       const ownerPhone = shop.ownerPhone || shop.phoneNumber || shop.phone || shop.ownerWhatsApp || '';
       if (!ownerPhone || ownerPhone.length < 10) return;
+      if (!isPrefOn(shop, 'lowStockAlert', true)) return;
 
       const shopName = shop.shopName || shop.name || 'Your Shop';
       const productName = newData.productName || newData.name || 'Product';
@@ -844,6 +819,7 @@ exports.sendMonthlyReport = onSchedule(
         const ownerPhone = shop.ownerPhone || shop.phoneNumber || shop.phone || shop.ownerWhatsApp || '';
 
         if (!ownerPhone || ownerPhone.length < 10) continue;
+        if (!isPrefOn(shop, 'monthlyReport', true)) continue;
 
         // Query last month's bills
         const billsSnap = await db
@@ -1174,6 +1150,7 @@ exports.checkReorderAlerts = onSchedule(
       try {
         const shop = shopDoc.data();
         if (!shop.ownerPhone) continue;
+        if (!isPrefOn(shop, 'reorderAlert', false)) continue; // OFF by default — can be spammy
 
         const productsSnap = await db.collection('shops').doc(shopDoc.id)
           .collection('products')
@@ -1303,7 +1280,7 @@ exports.processFlashSales = onSchedule(
 
           if (!sale.broadcastSent) {
             const shop = shopDoc.data();
-            if (shop.ownerPhone) {
+            if (shop.ownerPhone && isPrefOn(shop, 'flashSaleAlert', true)) {
               const url = `https://wekerala.vercel.app/shop?shopId=${shopDoc.id}`;
               const msg = `🔥 *FLASH SALE at ${shop.shopName}!*\n\nGet ${sale.discountPercent}% OFF — Limited time only!\n\nShop now: ${url}`;
               await sendWhatsApp(shop.ownerPhone, msg).catch(() => {});
@@ -1366,8 +1343,8 @@ exports.autoCancelStaleOrders = onSchedule(
               );
             }
 
-            // Notify owner
-            if (ownerPhone.length >= 10) {
+            // Notify owner (respects preference)
+            if (ownerPhone.length >= 10 && isPrefOn(shop, 'autoCancelAlert', true)) {
               await sendWhatsApp(
                 ownerPhone,
                 `⚠️ *Order Auto-Cancelled*\n\nOrder #${order.orderNumber} from ${order.customerName || 'a customer'} was auto-cancelled after 45 minutes with no action.\n\nPlease respond to new orders promptly in weKerala. 🙏`

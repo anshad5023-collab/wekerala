@@ -128,6 +128,13 @@ class _HubBody extends ConsumerWidget {
         _SectionHeader('Integrations'),
         _SettingsCard(children: [
           _SettingsTile(
+            icon: Icons.notifications_active_outlined,
+            title: 'WhatsApp Notifications',
+            subtitle: 'Choose which alerts you receive',
+            iconColor: const Color(0xFF25D366),
+            onTap: () => context.push('/settings/whatsapp-notifications'),
+          ),
+          _SettingsTile(
             icon: Icons.smart_toy_outlined,
             title: 'WhatsApp AI Assistant',
             iconColor: const Color(0xFF2D6A4F),
