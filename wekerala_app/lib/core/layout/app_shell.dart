@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../constants/app_colors.dart';
 import '../../shared/widgets/offline_banner.dart';
@@ -141,7 +142,12 @@ class _MobileShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: OfflineBanner(child: bodies[selectedIndex]),
+      body: OfflineBanner(
+        child: IndexedStack(
+          index: selectedIndex,
+          children: bodies,
+        ),
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: selectedIndex,
         onDestinationSelected: onDestinationSelected,
@@ -209,7 +215,14 @@ class _DesktopShell extends StatelessWidget {
             shopName: shopName,
             onDestinationSelected: onDestinationSelected,
           ),
-          Expanded(child: OfflineBanner(child: bodies[selectedIndex])),
+          Expanded(
+            child: OfflineBanner(
+              child: IndexedStack(
+                index: selectedIndex,
+                children: bodies,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -233,8 +246,9 @@ class _Sidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sidebarWidth = (MediaQuery.of(context).size.width * 0.18).clamp(180.0, 260.0);
     return Container(
-      width: 220,
+      width: sidebarWidth,
       color: AppColors.primaryDark,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -342,9 +356,15 @@ class _Sidebar extends StatelessWidget {
           Divider(color: Colors.white.withValues(alpha: 0.1), height: 1),
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Text(
-              'Oratas v1.0',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11),
+            child: FutureBuilder<PackageInfo>(
+              future: PackageInfo.fromPlatform(),
+              builder: (_, snap) {
+                final version = snap.data?.version ?? '';
+                return Text(
+                  version.isNotEmpty ? 'Oratas v$version' : 'Oratas',
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11),
+                );
+              },
             ),
           ),
         ],

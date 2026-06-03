@@ -239,7 +239,7 @@ class _CombinedAnalytics extends ConsumerWidget {
   }
 }
 
-class _AnalyticsContent extends StatelessWidget {
+class _AnalyticsContent extends StatefulWidget {
   final List<OrderModel> orders;
   final List<BillModel> bills;
   final String Function(String) t;
@@ -260,26 +260,70 @@ class _AnalyticsContent extends StatelessWidget {
   });
 
   @override
+  State<_AnalyticsContent> createState() => _AnalyticsContentState();
+}
+
+class _AnalyticsContentState extends State<_AnalyticsContent> {
+  // 0=Today, 1=Week, 2=Month, 3=Custom
+  int _periodIndex = 0;
+  DateTimeRange? _customRange;
+
+  Future<void> _pickRange() async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: now.subtract(const Duration(days: 365 * 2)),
+      lastDate: now,
+      initialDateRange: _customRange ??
+          DateTimeRange(start: now.subtract(const Duration(days: 7)), end: now),
+      builder: (ctx, child) => Theme(
+        data: Theme.of(ctx).copyWith(
+          colorScheme: const ColorScheme.light(primary: AppColors.primary),
+        ),
+        child: child!,
+      ),
+    );
+    if (picked != null) setState(() { _customRange = picked; _periodIndex = 3; });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
-    final weekStart = todayStart.subtract(Duration(days: now.weekday - 1));
+    final weekStart  = todayStart.subtract(Duration(days: now.weekday - 1));
     final monthStart = DateTime(now.year, now.month, 1);
 
-    final todayOrders =
-        orders.where((o) => o.createdAt.isAfter(todayStart)).toList();
-    final weekOrders =
-        orders.where((o) => o.createdAt.isAfter(weekStart)).toList();
-    final monthOrders =
-        orders.where((o) => o.createdAt.isAfter(monthStart)).toList();
+    DateTime rangeStart;
+    DateTime rangeEnd = now;
+    String periodLabel;
 
-    // POS bills — merged into revenue numbers
-    final todayBills =
-        bills.where((b) => b.createdAt.isAfter(todayStart) && !b.isVoided).toList();
-    final weekBills =
-        bills.where((b) => b.createdAt.isAfter(weekStart) && !b.isVoided).toList();
-    final monthBills =
-        bills.where((b) => b.createdAt.isAfter(monthStart) && !b.isVoided).toList();
+    switch (_periodIndex) {
+      case 1: rangeStart = weekStart;  periodLabel = 'This Week';  break;
+      case 2: rangeStart = monthStart; periodLabel = 'This Month'; break;
+      case 3:
+        rangeStart = _customRange?.start ?? todayStart;
+        rangeEnd   = _customRange?.end   ?? now;
+        final fmt  = (DateTime d) => '${d.day}/${d.month}';
+        periodLabel = '${fmt(rangeStart)}–${fmt(rangeEnd)}';
+        break;
+      default: rangeStart = todayStart; periodLabel = 'Today'; break;
+    }
+
+    // Use the selected range to filter all data
+    final filteredOrders = widget.orders
+        .where((o) => o.createdAt.isAfter(rangeStart) && o.createdAt.isBefore(rangeEnd.add(const Duration(days: 1))))
+        .toList();
+    final filteredBills = widget.bills
+        .where((b) => !b.isVoided && b.createdAt.isAfter(rangeStart) && b.createdAt.isBefore(rangeEnd.add(const Duration(days: 1))))
+        .toList();
+
+    // Keep the 3 fixed KPI cards (today/week/month) always visible for quick reference
+    final todayOrders = widget.orders.where((o) => o.createdAt.isAfter(todayStart)).toList();
+    final weekOrders  = widget.orders.where((o) => o.createdAt.isAfter(weekStart)).toList();
+    final monthOrders = widget.orders.where((o) => o.createdAt.isAfter(monthStart)).toList();
+    final todayBills  = widget.bills.where((b) => b.createdAt.isAfter(todayStart) && !b.isVoided).toList();
+    final weekBills   = widget.bills.where((b) => b.createdAt.isAfter(weekStart) && !b.isVoided).toList();
+    final monthBills  = widget.bills.where((b) => b.createdAt.isAfter(monthStart) && !b.isVoided).toList();
 
     final todayRevenue = todayOrders.fold(0.0, (s, o) => s + o.totalAmount)
         + todayBills.fold(0.0, (s, b) => s + b.finalAmount);
@@ -288,38 +332,36 @@ class _AnalyticsContent extends StatelessWidget {
     final monthRevenue = monthOrders.fold(0.0, (s, o) => s + o.totalAmount)
         + monthBills.fold(0.0, (s, b) => s + b.finalAmount);
 
-    final deliveredMonth =
-        monthOrders.where((o) => o.status == 'delivered').length;
+    final deliveredSelected =
+        filteredOrders.where((o) => o.status == 'delivered').length;
     final completionRate =
-        monthOrders.isEmpty ? 0.0 : deliveredMonth / monthOrders.length * 100;
+        filteredOrders.isEmpty ? 0.0 : deliveredSelected / filteredOrders.length * 100;
+    final filteredRevenue = filteredOrders.fold(0.0, (s, o) => s + o.totalAmount)
+        + filteredBills.fold(0.0, (s, b) => s + b.finalAmount);
 
     // 7-day revenue sparkline — orders + bills combined
     final last7 = List.generate(7, (i) {
       final day = DateTime.now().subtract(Duration(days: 6 - i));
       final dayStart = DateTime(day.year, day.month, day.day);
       final dayEnd = dayStart.add(const Duration(days: 1));
-      final orderRev = orders
-          .where((o) =>
-              o.createdAt.isAfter(dayStart) && o.createdAt.isBefore(dayEnd))
+      final orderRev = widget.orders
+          .where((o) => o.createdAt.isAfter(dayStart) && o.createdAt.isBefore(dayEnd))
           .fold(0.0, (s, o) => s + o.totalAmount);
-      final billRev = bills
-          .where((b) =>
-              !b.isVoided &&
-              b.createdAt.isAfter(dayStart) &&
-              b.createdAt.isBefore(dayEnd))
+      final billRev = widget.bills
+          .where((b) => !b.isVoided && b.createdAt.isAfter(dayStart) && b.createdAt.isBefore(dayEnd))
           .fold(0.0, (s, b) => s + b.finalAmount);
       return orderRev + billRev;
     });
 
-    // Top 5 products this week — orders + bills
+    // Top 5 products in selected period
     final productCounts = <String, int>{};
-    for (final o in weekOrders) {
+    for (final o in filteredOrders) {
       for (final item in o.items) {
         productCounts[item.productName] =
             (productCounts[item.productName] ?? 0) + 1;
       }
     }
-    for (final b in weekBills) {
+    for (final b in filteredBills) {
       for (final item in b.items) {
         productCounts[item.productName] =
             (productCounts[item.productName] ?? 0) + item.qty.toInt();
@@ -329,69 +371,120 @@ class _AnalyticsContent extends StatelessWidget {
       ..sort((a, b) => b.value.compareTo(a.value));
     final top5 = topProducts.take(5).toList();
 
-    // Max count for proportional progress bars in product tiles
     final maxProductCount = top5.isEmpty ? 1 : top5.first.value;
 
-    // Notify parent with computed analytics for share report
+    // Peak hours — selected period
+    final hourCounts = List<int>.filled(24, 0);
+    for (final o in filteredOrders) hourCounts[o.createdAt.hour]++;
+    for (final b in filteredBills)  hourCounts[b.createdAt.hour]++;
+
+    // Notify parent for share report
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      onAnalyticsReady(
-        revenue: todayRevenue,
-        orderCount: todayOrders.length + todayBills.length,
-        completedCount: todayOrders.where((o) => o.status == 'delivered').length,
-        cancelledCount: todayOrders.where((o) => o.status == 'cancelled').length,
+      widget.onAnalyticsReady(
+        revenue: filteredRevenue,
+        orderCount: filteredOrders.length + filteredBills.length,
+        completedCount: deliveredSelected,
+        cancelledCount: filteredOrders.where((o) => o.status == 'cancelled').length,
         topProduct: top5.isNotEmpty ? '${top5.first.key} (${top5.first.value} sold)' : '',
-        period: 'Today',
+        period: periodLabel,
       );
     });
-
-    // Peak hours this week (0-23) — orders + bills
-    final hourCounts = List<int>.filled(24, 0);
-    for (final o in weekOrders) {
-      hourCounts[o.createdAt.hour]++;
-    }
-    for (final b in weekBills) {
-      hourCounts[b.createdAt.hour]++;
-    }
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        // Period selector chips
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(children: [
+            _PeriodChip(label: 'Today',      index: 0, selected: _periodIndex, onTap: (i) => setState(() { _periodIndex = i; })),
+            const SizedBox(width: 8),
+            _PeriodChip(label: 'This Week',  index: 1, selected: _periodIndex, onTap: (i) => setState(() { _periodIndex = i; })),
+            const SizedBox(width: 8),
+            _PeriodChip(label: 'This Month', index: 2, selected: _periodIndex, onTap: (i) => setState(() { _periodIndex = i; })),
+            const SizedBox(width: 8),
+            GestureDetector(
+              onTap: _pickRange,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                decoration: BoxDecoration(
+                  color: _periodIndex == 3 ? AppColors.primary : Colors.transparent,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: _periodIndex == 3 ? AppColors.primary : Colors.grey.shade400),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.date_range, size: 14,
+                      color: _periodIndex == 3 ? Colors.white : AppColors.textSecondary),
+                  const SizedBox(width: 4),
+                  Text(
+                    _periodIndex == 3 ? periodLabel : 'Custom',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: _periodIndex == 3 ? Colors.white : AppColors.textSecondary,
+                      fontWeight: _periodIndex == 3 ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                ]),
+              ),
+            ),
+          ]),
+        ),
+        const SizedBox(height: 16),
+
+        // Selected period summary card
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _SummaryChip('₹${filteredRevenue.toInt()}', 'Revenue'),
+              _SummaryChip('${filteredOrders.length + filteredBills.length}', 'Sales'),
+              _SummaryChip('${completionRate.toStringAsFixed(0)}%', 'Completed'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
         // Hero KPI tiles
-        _SectionTitle(t('analytics_overview')),
+        _SectionTitle(widget.t('analytics_overview')),
         const SizedBox(height: 8),
         Row(children: [
           _KpiCard(
-            label: t('analytics_today'),
+            label: widget.t('analytics_today'),
             value: '₹${todayRevenue.toInt()}',
             subValue: '${todayOrders.length + todayBills.length} sales',
             color: AppColors.primary,
           ),
           const SizedBox(width: 8),
           _KpiCard(
-            label: t('analytics_week'),
+            label: widget.t('analytics_week'),
             value: '₹${weekRevenue.toInt()}',
             subValue: '${weekOrders.length + weekBills.length} sales',
             color: const Color(0xFF1976D2),
           ),
           const SizedBox(width: 8),
           _KpiCard(
-            label: t('analytics_month'),
+            label: widget.t('analytics_month'),
             value: '₹${monthRevenue.toInt()}',
             subValue: '${monthOrders.length + monthBills.length} sales',
             color: AppColors.success,
           ),
         ]),
         const SizedBox(height: 12),
-        _CompletionCard(rate: completionRate, t: t),
+        _CompletionCard(rate: completionRate, t: widget.t),
         const SizedBox(height: 12),
         _SparklineChart(values: last7),
         const SizedBox(height: 16),
 
         // Top products
-        _SectionTitle(t('analytics_top_products')),
+        _SectionTitle(widget.t('analytics_top_products')),
         const SizedBox(height: 8),
         if (top5.isEmpty)
-          _EmptyCard(t('analytics_no_data'))
+          _EmptyCard(widget.t('analytics_no_data'))
         else
           ...top5.asMap().entries.map((e) => _ProductRankTile(
                 rank: e.key + 1,
@@ -402,13 +495,62 @@ class _AnalyticsContent extends StatelessWidget {
         const SizedBox(height: 16),
 
         // Peak hours chart
-        _SectionTitle(t('analytics_peak_hours')),
+        _SectionTitle(widget.t('analytics_peak_hours')),
         const SizedBox(height: 8),
         _PeakHoursChart(hourCounts: hourCounts),
         const SizedBox(height: 20),
       ],
     );
   }
+}
+
+// ─── Period chip ────────────────────────────────────────────────────────────
+
+class _PeriodChip extends StatelessWidget {
+  final String label;
+  final int index;
+  final int selected;
+  final ValueChanged<int> onTap;
+  const _PeriodChip({required this.label, required this.index, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final isSelected = index == selected;
+    return GestureDetector(
+      onTap: () => onTap(index),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isSelected ? AppColors.primary : Colors.grey.shade400),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            color: isSelected ? Colors.white : AppColors.textSecondary,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SummaryChip extends StatelessWidget {
+  final String value;
+  final String label;
+  const _SummaryChip(this.value, this.label);
+
+  @override
+  Widget build(BuildContext context) => Column(
+    children: [
+      Text(value, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800)),
+      const SizedBox(height: 2),
+      Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+    ],
+  );
 }
 
 // ─── KPI Card (replaces _StatCard) ──────────────────────────────────────────

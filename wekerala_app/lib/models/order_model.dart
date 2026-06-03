@@ -91,13 +91,34 @@ class OrderModel {
 
   static Color statusColor(String status) {
     switch (status) {
-      case 'new': return Colors.red;
-      case 'confirmed': return Colors.blue;
-      case 'processing': return Colors.orange;
-      case 'ready': return Colors.green;
-      case 'delivered': return Colors.grey;
-      case 'cancelled': return Colors.red.shade900;
-      default: return Colors.grey;
+      case 'new':        return const Color(0xFFF57C00); // amber
+      case 'confirmed':  return const Color(0xFF1976D2); // blue
+      case 'processing': return const Color(0xFFFFA000); // dark amber
+      case 'preparing':  return const Color(0xFFFFA000); // same as processing
+      case 'ready':      return const Color(0xFF43A047); // green
+      case 'delivered':  return const Color(0xFF757575); // grey
+      case 'cancelled':  return const Color(0xFFD32F2F); // red
+      default:           return const Color(0xFF757575);
+    }
+  }
+
+  static String? nextStatus(String status) {
+    switch (status) {
+      case 'new':        return 'confirmed';
+      case 'confirmed':  return 'processing';
+      case 'processing': return 'ready';
+      case 'ready':      return 'delivered';
+      default:           return null;
+    }
+  }
+
+  static String nextStatusLabel(String status) {
+    switch (status) {
+      case 'new':        return 'Confirm';
+      case 'confirmed':  return 'Processing';
+      case 'processing': return 'Mark Ready';
+      case 'ready':      return 'Deliver';
+      default:           return '';
     }
   }
 

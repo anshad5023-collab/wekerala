@@ -22,54 +22,7 @@ String _relativeTime(DateTime dt) {
   return '${diff.inDays}d ago';
 }
 
-Color _statusChipColor(String status) {
-  switch (status) {
-    case 'new':
-      return const Color(0xFFF57C00); // amber
-    case 'confirmed':
-      return const Color(0xFF1976D2); // blue
-    case 'processing':
-      return const Color(0xFF7B1FA2); // purple
-    case 'ready':
-      return const Color(0xFF2E7D32); // dark green
-    case 'delivered':
-      return const Color(0xFF43A047); // green
-    case 'cancelled':
-      return const Color(0xFFD32F2F); // red
-    default:
-      return AppColors.textSecondary;
-  }
-}
-
-String _nextStatusLabel(String status) {
-  switch (status) {
-    case 'new':
-      return 'Confirm';
-    case 'confirmed':
-      return 'Process';
-    case 'processing':
-      return 'Ready';
-    case 'ready':
-      return 'Delivered';
-    default:
-      return '';
-  }
-}
-
-String? _nextStatusValue(String status) {
-  switch (status) {
-    case 'new':
-      return 'confirmed';
-    case 'confirmed':
-      return 'processing';
-    case 'processing':
-      return 'ready';
-    case 'ready':
-      return 'delivered';
-    default:
-      return null;
-  }
-}
+// Status color, nextStatus, nextStatusLabel are on OrderModel — no duplication here.
 
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
@@ -160,7 +113,7 @@ class _OrdersBody extends ConsumerWidget {
           indicatorColor: Colors.white,
           tabs: _kStatuses.map((s) {
             final count = countByStatus[s] ?? 0;
-            final badgeColor = s == 'new' ? Colors.red : _statusChipColor(s);
+            final badgeColor = s == 'new' ? Colors.red : OrderModel.statusColor(s);
             if (s != 'all' && count > 0) {
               return Tab(
                 child: Row(
@@ -262,7 +215,6 @@ class _OrdersBody extends ConsumerWidget {
                     color: AppColors.primary,
                     onRefresh: () async {
                       ref.invalidate(ordersStreamProvider(shopId));
-                      await Future.delayed(const Duration(milliseconds: 500));
                     },
                     child: ListView.builder(
                       padding: const EdgeInsets.all(12),
@@ -287,7 +239,7 @@ class _OrdersBody extends ConsumerWidget {
                                   color: Color(0xFF2E7D32), size: 28),
                               const SizedBox(width: 8),
                               Text(
-                                _nextStatusLabel(order.status),
+                                OrderModel.nextStatusLabel(order.status),
                                 style: const TextStyle(
                                     color: Color(0xFF2E7D32),
                                     fontWeight: FontWeight.w600),
@@ -317,10 +269,23 @@ class _OrdersBody extends ConsumerWidget {
                         ),
                         confirmDismiss: (direction) async {
                           if (direction == DismissDirection.startToEnd) {
-                            final nextStatus = _nextStatusValue(order.status);
+                            final nextStatus = OrderModel.nextStatus(order.status);
                             if (nextStatus != null) {
-                              await updateOrderStatus(
-                                  shopId, order.orderId, nextStatus);
+                              final prevStatus = order.status;
+                              await updateOrderStatus(shopId, order.orderId, nextStatus);
+                              if (ctx.mounted) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Order moved to ${nextStatus[0].toUpperCase()}${nextStatus.substring(1)}'),
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: const Duration(seconds: 5),
+                                    action: SnackBarAction(
+                                      label: 'Undo',
+                                      onPressed: () => updateOrderStatus(shopId, order.orderId, prevStatus),
+                                    ),
+                                  ),
+                                );
+                              }
                             }
                             return false;
                           } else {
@@ -414,7 +379,7 @@ class _OrdersDesktopTable extends StatelessWidget {
                       Divider(height: 1, color: Colors.grey.shade100),
                   itemBuilder: (ctx, i) {
                     final order = orders[i];
-                    final chipColor = _statusChipColor(order.status);
+                    final chipColor = OrderModel.statusColor(order.status);
                     final dateStr =
                         DateFormat('d MMM yyyy').format(order.createdAt);
                     final isDelivery = order.deliveryType == 'delivery';

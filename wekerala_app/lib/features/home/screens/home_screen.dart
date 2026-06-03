@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -172,7 +173,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         : now.hour < 17
             ? 'Good Afternoon'
             : 'Good Evening';
-    final dateStr = '${_weekday(now.weekday)}, ${now.day} ${_month(now.month)}';
+    final dateStr = DateFormat('EEE, d MMM').format(now);
 
     // ── Desktop: 3-column dashboard ──────────────────────────────────────────
     if (isDesktop(context)) {
@@ -253,7 +254,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             shopId: shopId,
             completedToday: _completedToday,
           ).animate().fadeIn(duration: 400.ms, delay: 220.ms),
-          const SizedBox(height: 28),
+          const SizedBox(height: 12),
+
+          // Row 3b — Share your store banner
+          _ShareStoreBanner(
+            shopId: shopId,
+            shopSlug: biz['shopSlug'] as String? ?? '',
+            shopName: shopName,
+          ).animate().fadeIn(duration: 400.ms, delay: 270.ms),
+          const SizedBox(height: 20),
 
           // Row 4 — Quick Access grid
           const Text(
@@ -309,12 +318,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 
-  String _weekday(int d) =>
-      ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][d - 1];
-  String _month(int m) => [
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-      ][m - 1];
 }
 
 // ─── Mobile KPI Widgets ───────────────────────────────────────────────────────
@@ -565,6 +568,86 @@ class _InfoTile extends StatelessWidget {
                 ],
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Share Store Banner ────────────────────────────────────────────────────────
+
+class _ShareStoreBanner extends StatelessWidget {
+  final String shopId;
+  final String shopSlug;
+  final String shopName;
+  const _ShareStoreBanner({
+    required this.shopId,
+    required this.shopSlug,
+    required this.shopName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final url = shopSlug.isNotEmpty
+        ? 'https://wekerala.vercel.app/shops/$shopSlug'
+        : 'https://wekerala.vercel.app/shop?shopId=$shopId';
+
+    return GestureDetector(
+      onTap: () => context.push('/share'),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF25D366), Color(0xFF1DA851)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF25D366).withValues(alpha: 0.30),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.share_rounded, color: Colors.white, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Share your store',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    url,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 14),
           ],
         ),
       ),
@@ -831,19 +914,10 @@ class _OrderRow extends StatelessWidget {
   final OrderModel order;
   const _OrderRow({required this.order});
 
-  static const _statusColors = {
-    'new': Color(0xFFFFA000),
-    'confirmed': Color(0xFF1976D2),
-    'processing': Color(0xFFF57C00),
-    'ready': Color(0xFF43A047),
-    'delivered': Color(0xFF757575),
-    'cancelled': Color(0xFFD32F2F),
-  };
-
   @override
   Widget build(BuildContext context) {
     final status = order.status;
-    final color = _statusColors[status] ?? const Color(0xFFFFA000);
+    final color = OrderModel.statusColor(status);
     final orderNum = order.orderNumber > 0
         ? '#${order.orderNumber}'
         : '#${order.orderId.substring(order.orderId.length > 6 ? order.orderId.length - 6 : 0)}';

@@ -288,7 +288,7 @@ class _ActionButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final next = _nextStatus(order.status);
+    final next = OrderModel.nextStatus(order.status);
     final nextLabel = _nextLabel(order.status, t);
 
     if (next == null) return const SizedBox.shrink();
@@ -330,16 +330,6 @@ class _ActionButtons extends StatelessWidget {
         ],
       ],
     );
-  }
-
-  String? _nextStatus(String status) {
-    switch (status) {
-      case 'new': return 'confirmed';
-      case 'confirmed': return 'processing';
-      case 'processing': return 'ready';
-      case 'ready': return 'delivered';
-      default: return null;
-    }
   }
 
   String _nextLabel(String status, String Function(String) t) {

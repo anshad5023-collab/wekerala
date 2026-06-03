@@ -40,6 +40,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
   final TextEditingController _discountCtrl = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
   String _searchQuery = '';
+  bool _saving = false;
 
   @override
   void initState() {
@@ -68,12 +69,26 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
 
   void _onDiscountChanged(String value) {
     final amount = double.tryParse(value) ?? 0;
+    final total = ref.read(billingProvider).subtotal;
+    if (amount > total && total > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Discount cannot exceed the bill total.'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _discountCtrl.text = total.toStringAsFixed(2);
+      ref.read(billingProvider.notifier).setDiscount(total);
+      return;
+    }
     ref.read(billingProvider.notifier).setDiscount(amount);
   }
 
   // ── payment flow ──────────────────────────────────────────────────────────
 
   Future<void> _onPaymentTap(String method) async {
+    if (_saving) return;
     final billingState = ref.read(billingProvider);
     if (billingState.cartItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -144,6 +159,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     final gstin = shop?.gstin ?? '';
     final autoSend = shop?.autoSendWhatsappReceipt ?? false;
 
+    setState(() => _saving = true);
     try {
       final bill = await ref.read(billingProvider.notifier).saveBill(
             shopId: shopId,
@@ -204,12 +220,19 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
 
       if (!mounted) return;
       context.pop();
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('saveBill error: $e\n$st');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save bill: $e')),
+          SnackBar(
+            content: Text('Failed to save bill. Please try again.'),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 

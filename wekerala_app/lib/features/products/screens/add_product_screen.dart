@@ -313,6 +313,85 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     }
   }
 
+  void _clearForm() {
+    _nameEnCtrl.clear();
+    _nameMlCtrl.clear();
+    _priceCtrl.clear();
+    _offerPriceCtrl.clear();
+    _minQtyCtrl.clear();
+    _stockQtyCtrl.clear();
+    _batchNumberCtrl.clear();
+    _hsnCode.clear();
+    setState(() {
+      _imageUrl = '';
+      _imageFile = null;
+      _imageSource = 'placeholder';
+      _trackStock = false;
+      _hasVariants = false;
+      _variants = [];
+      _expiryDate = null;
+      _gstRate = 0;
+    });
+    _formKey.currentState?.reset();
+  }
+
+  Future<void> _saveAndAddAnother(String shopId, List<String> categories) async {
+    if (!_formKey.currentState!.validate()) return;
+    if (!_hasVariants) {
+      final price = double.tryParse(_priceCtrl.text.trim()) ?? 0;
+      if (price <= 0) { _showError('Enter a valid price'); return; }
+    }
+    setState(() => _saving = true);
+    try {
+      final productId = FirebaseFirestore.instance.collection('_').doc().id;
+      String finalImageUrl = _imageUrl;
+      String finalImageSource = _imageSource;
+      if (_imageFile != null) {
+        finalImageUrl = await StorageService.uploadProductImage(shopId, productId, _imageFile!);
+        finalImageSource = 'owner';
+      }
+      final now = DateTime.now();
+      final product = ProductModel(
+        productId: productId,
+        nameEn: _nameEnCtrl.text.trim(),
+        nameMl: _nameMlCtrl.text.trim(),
+        category: _category,
+        price: double.tryParse(_priceCtrl.text.trim()) ?? 0,
+        offerPrice: double.tryParse(_offerPriceCtrl.text.trim()) ?? 0,
+        unit: _unit,
+        minQty: double.tryParse(_minQtyCtrl.text.trim()) ?? 0,
+        imageUrl: finalImageUrl,
+        imageSource: finalImageSource,
+        hasVariants: _hasVariants,
+        variants: _variants,
+        createdAt: now,
+        updatedAt: now,
+        orderCount: 0,
+        stockQty: _trackStock ? (int.tryParse(_stockQtyCtrl.text.trim())) : null,
+        lowStockThreshold: int.tryParse(_lowStockThresholdCtrl.text.trim()) ?? 5,
+        expiryDate: _expiryDate,
+        gstRate: _gstRate,
+        hsnCode: _hsnCode.text.trim().isEmpty ? null : _hsnCode.text.trim(),
+        priceIncludesGst: _priceIncludesGst,
+        batchNumber: _batchNumberCtrl.text.trim().isEmpty ? null : _batchNumberCtrl.text.trim(),
+      );
+      await ProductRepository.add(shopId, product);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${product.nameEn} saved! Add next product.'),
+            backgroundColor: AppColors.success,
+          ),
+        );
+        _clearForm();
+      }
+    } catch (e) {
+      _showError(e.toString());
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
   Future<void> _delete(String shopId) async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -564,6 +643,21 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                           child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
                       : Text(t('product_save')),
                 ),
+                // Only show for new products (not when editing)
+                if (widget.productId == null) ...[
+                  const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: _saving ? null : () => _saveAndAddAnother(shopId, categories),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Save & Add Another'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primary,
+                      side: const BorderSide(color: AppColors.primary),
+                      minimumSize: const Size.fromHeight(46),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

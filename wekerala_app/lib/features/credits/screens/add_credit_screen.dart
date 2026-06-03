@@ -201,8 +201,10 @@ class _AddCreditScreenState extends ConsumerState<AddCreditScreen> {
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 validator: (v) {
                   if (v == null || v.trim().isEmpty) return 'Phone is required';
-                  if (v.trim().length < 10) {
-                    return 'Enter a valid 10-digit number';
+                  final digits = v.trim();
+                  if (digits.length != 10) return 'Enter a valid 10-digit number';
+                  if (!RegExp(r'^[6-9]\d{9}$').hasMatch(digits)) {
+                    return 'Must start with 6, 7, 8, or 9';
                   }
                   return null;
                 },

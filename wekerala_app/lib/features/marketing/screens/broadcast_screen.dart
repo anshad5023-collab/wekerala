@@ -397,9 +397,18 @@ class _BodyState extends ConsumerState<_Body> {
                     color: const Color(0xFFDCF8C6),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Text(
-                    previewText,
-                    style: const TextStyle(fontSize: 14, height: 1.5),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        const Icon(Icons.phone_android, size: 12, color: Color(0xFF777777)),
+                        const SizedBox(width: 4),
+                        const Text('Preview (as customer sees it)',
+                            style: TextStyle(fontSize: 10, color: Color(0xFF777777))),
+                      ]),
+                      const SizedBox(height: 6),
+                      _WhatsAppText(previewText),
+                    ],
                   ),
                 ),
         ),
@@ -485,4 +494,53 @@ class _Template {
   final String label;
   final String body;
   const _Template({required this.label, required this.body});
+}
+
+// ── WhatsApp markdown renderer ─────────────────────────────────────────────────
+// Renders *bold*, _italic_, ~strikethrough~ exactly as WhatsApp displays them.
+
+class _WhatsAppText extends StatelessWidget {
+  final String text;
+  const _WhatsAppText(this.text);
+
+  List<InlineSpan> _parse(String input) {
+    final spans = <InlineSpan>[];
+    // Matches *bold*, _italic_, ~strikethrough~ — non-greedy, no nesting
+    final regex = RegExp(r'\*((?:[^*])+)\*|_((?:[^_])+)_|~((?:[^~])+)~');
+    int last = 0;
+    for (final m in regex.allMatches(input)) {
+      if (m.start > last) {
+        spans.addAll(_plainLines(input.substring(last, m.start)));
+      }
+      if (m.group(1) != null) {
+        spans.add(TextSpan(
+          text: m.group(1),
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ));
+      } else if (m.group(2) != null) {
+        spans.add(TextSpan(
+          text: m.group(2),
+          style: const TextStyle(fontStyle: FontStyle.italic),
+        ));
+      } else if (m.group(3) != null) {
+        spans.add(TextSpan(
+          text: m.group(3),
+          style: const TextStyle(decoration: TextDecoration.lineThrough),
+        ));
+      }
+      last = m.end;
+    }
+    if (last < input.length) spans.addAll(_plainLines(input.substring(last)));
+    return spans;
+  }
+
+  List<InlineSpan> _plainLines(String text) => [TextSpan(text: text)];
+
+  @override
+  Widget build(BuildContext context) => Text.rich(
+    TextSpan(
+      children: _parse(text),
+      style: const TextStyle(fontSize: 14, height: 1.5),
+    ),
+  );
 }

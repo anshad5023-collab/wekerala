@@ -45,13 +45,16 @@ class _AppButtonState extends State<AppButton> {
 
   @override
   Widget build(BuildContext context) {
+    final spinnerColor = widget.variant == AppButtonVariant.primary
+        ? Colors.white
+        : AppColors.primary;
     final child = widget.isLoading
-        ? const SizedBox(
+        ? SizedBox(
             width: 22,
             height: 22,
             child: CircularProgressIndicator(
               strokeWidth: 2.5,
-              valueColor: AlwaysStoppedAnimation(Colors.white),
+              valueColor: AlwaysStoppedAnimation(spinnerColor),
             ),
           )
         : widget.icon != null
