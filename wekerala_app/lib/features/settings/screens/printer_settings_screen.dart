@@ -1,9 +1,8 @@
-import 'dart:async';
 import 'dart:io';
 
-import 'package:bluetooth_print/bluetooth_print_model.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/print_service.dart';
 
@@ -15,18 +14,18 @@ class PrinterSettingsScreen extends StatefulWidget {
 }
 
 class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
-  List<BluetoothDevice> _devices = [];
-  bool _isScanning = false;
-  BluetoothDevice? _connectedDevice;
+  List<BluetoothInfo> _devices = [];
+  bool _isLoading = false;
+  String? _connectedMac;
   bool _connecting = false;
   bool _testPrinting = false;
   String? _savedAddress;
-  StreamSubscription<List<BluetoothDevice>>? _scanSub;
 
   @override
   void initState() {
     super.initState();
     _loadSavedAddress();
+    _loadPairedDevices();
   }
 
   Future<void> _loadSavedAddress() async {
@@ -34,62 +33,39 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
     if (mounted) setState(() => _savedAddress = addr);
   }
 
-  Future<void> _startScan() async {
-    setState(() {
-      _isScanning = true;
-      _devices = [];
-    });
-    _scanSub?.cancel();
-    _scanSub = PrintService.scanDevices().listen((devices) {
-      if (mounted) setState(() => _devices = devices);
-    });
-    // Stop scanning after 6 seconds
-    Future.delayed(const Duration(seconds: 6), () {
-      if (mounted) {
-        _scanSub?.cancel();
-        PrintService.stopScan();
-        setState(() => _isScanning = false);
-      }
-    });
+  Future<void> _loadPairedDevices() async {
+    setState(() => _isLoading = true);
+    final devices = await PrintService.getPairedDevices();
+    if (mounted) setState(() { _devices = devices; _isLoading = false; });
   }
 
-  Future<void> _connectToDevice(BluetoothDevice device) async {
+  Future<void> _connectToDevice(BluetoothInfo device) async {
     setState(() => _connecting = true);
     try {
-      final success = await PrintService.connect(device);
+      final success = await PrintService.connect(device.macAdress);
       if (!mounted) return;
       if (success) {
-        await PrintService.savePrinterAddress(device.address ?? '');
+        await PrintService.savePrinterAddress(device.macAdress);
         setState(() {
-          _connectedDevice = device;
-          _savedAddress = device.address;
+          _connectedMac = device.macAdress;
+          _savedAddress = device.macAdress;
         });
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Connected to ${device.name ?? device.address ?? 'printer'}'),
-              backgroundColor: AppColors.success,
-            ),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Connected to ${device.name}'),
+          backgroundColor: AppColors.success,
+        ));
       } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Connection failed. Make sure the printer is on and in range.'),
-              backgroundColor: AppColors.error,
-            ),
-          );
-        }
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Connection failed. Make sure the printer is on and in range.'),
+          backgroundColor: AppColors.error,
+        ));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: AppColors.error,
+        ));
       }
     } finally {
       if (mounted) setState(() => _connecting = false);
@@ -101,32 +77,21 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
     try {
       await PrintService.printTest();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Test page sent to printer'),
-            backgroundColor: AppColors.success,
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Test page sent to printer'),
+          backgroundColor: AppColors.success,
+        ));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Print failed: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Print failed: $e'),
+          backgroundColor: AppColors.error,
+        ));
       }
     } finally {
       if (mounted) setState(() => _testPrinting = false);
     }
-  }
-
-  @override
-  void dispose() {
-    _scanSub?.cancel();
-    PrintService.stopScan();
-    super.dispose();
   }
 
   @override
@@ -155,10 +120,8 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                   child: const Icon(Icons.print_outlined, size: 56, color: AppColors.primary),
                 ),
                 const SizedBox(height: 20),
-                const Text(
-                  'Printing on Windows',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                ),
+                const Text('Printing on Windows',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
                 const Text(
                   'Bluetooth printers work on the Android phone app.\n\nOn Windows, connect your thermal printer via USB and use the Windows printer dialog (Ctrl + P) to print bills.',
@@ -192,6 +155,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
         ),
       );
     }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -200,16 +164,16 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.bluetooth),
-            tooltip: 'Bluetooth',
-            onPressed: null,
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+            onPressed: _isLoading ? null : _loadPairedDevices,
           ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Saved/paired printer card
+          // Connected/saved printer card
           if (_savedAddress != null) ...[
             Card(
               color: AppColors.surface,
@@ -225,39 +189,25 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _connectedDevice?.name ?? 'Saved Printer',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
-                              fontSize: 15,
-                            ),
+                            _devices.where((d) => d.macAdress == _savedAddress).firstOrNull?.name ?? 'Saved Printer',
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary, fontSize: 15),
                           ),
-                          Text(
-                            _savedAddress!,
-                            style: const TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 12,
-                            ),
-                          ),
+                          Text(_savedAddress!, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                         ],
                       ),
                     ),
-                    if (_connectedDevice != null)
+                    if (_connectedMac == _savedAddress)
                       Chip(
                         label: const Text('Connected'),
                         backgroundColor: AppColors.success.withValues(alpha: 0.15),
-                        labelStyle: const TextStyle(
-                          color: AppColors.success,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
+                        labelStyle: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold, fontSize: 12),
                         side: BorderSide.none,
                       ),
                   ],
                 ),
               ),
             ),
-            if (_connectedDevice != null) ...[
+            if (_connectedMac != null) ...[
               const SizedBox(height: 8),
               SizedBox(
                 width: double.infinity,
@@ -268,11 +218,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                   icon: _testPrinting
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
-                        )
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
                       : const Icon(Icons.print_outlined, color: AppColors.primary),
                   label: Text(
                     _testPrinting ? 'Printing...' : 'Test Print',
@@ -285,40 +231,24 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
             const SizedBox(height: 20),
           ],
 
-          // Scan section header
+          // Header
           Row(
             children: [
-              const Text(
-                'Available Printers',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
-              ),
+              const Text('Paired Printers',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
               const Spacer(),
-              if (_isScanning)
-                const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.primary,
-                  ),
-                ),
+              if (_isLoading)
+                const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
             ],
           ),
           const SizedBox(height: 4),
           Text(
-            'Make sure your Bluetooth printer is powered on and in pairing mode.',
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: AppColors.textSecondary),
+            'Shows Bluetooth devices already paired with this phone. Pair your printer in Android Settings → Bluetooth first.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
           ),
           const SizedBox(height: 12),
 
-          // Scan button
+          // Refresh button
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
@@ -328,26 +258,22 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              icon: _isScanning
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
+              icon: _isLoading
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                   : const Icon(Icons.bluetooth_searching),
-              label: Text(_isScanning ? 'Scanning...' : 'Scan for Printers'),
-              onPressed: _isScanning ? null : _startScan,
+              label: Text(_isLoading ? 'Loading...' : 'Refresh Paired Devices'),
+              onPressed: _isLoading ? null : _loadPairedDevices,
             ),
           ),
           const SizedBox(height: 16),
 
           // Device list
-          if (_devices.isEmpty && !_isScanning)
+          if (_devices.isEmpty && !_isLoading)
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 24),
               child: Center(
                 child: Text(
-                  'No printers found. Tap "Scan for Printers" to search.',
+                  'No paired printers found.\nPair your printer in Android Settings → Bluetooth, then tap Refresh.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: AppColors.textSecondary),
                 ),
@@ -355,44 +281,29 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
             )
           else
             ..._devices.map((device) {
-              final isConnected = _connectedDevice?.address == device.address;
+              final isConnected = _connectedMac == device.macAdress;
               return Card(
                 color: AppColors.surface,
                 margin: const EdgeInsets.only(bottom: 8),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 child: ListTile(
-                  leading: Icon(
-                    Icons.print_outlined,
-                    color: isConnected ? AppColors.success : AppColors.primary,
-                  ),
-                  title: Text(
-                    device.name ?? 'Unknown Device',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: isConnected ? AppColors.success : AppColors.textPrimary,
-                    ),
-                  ),
-                  subtitle: Text(
-                    device.address ?? '',
-                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-                  ),
+                  leading: Icon(Icons.print_outlined,
+                      color: isConnected ? AppColors.success : AppColors.primary),
+                  title: Text(device.name,
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: isConnected ? AppColors.success : AppColors.textPrimary)),
+                  subtitle: Text(device.macAdress,
+                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                   trailing: isConnected
                       ? const Chip(
                           label: Text('Connected'),
                           backgroundColor: Color(0xFFE8F5E9),
-                          labelStyle: TextStyle(
-                            color: AppColors.success,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          labelStyle: TextStyle(color: AppColors.success, fontSize: 11, fontWeight: FontWeight.bold),
                           side: BorderSide.none,
                         )
                       : _connecting
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
-                            )
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
                           : const Icon(Icons.chevron_right, color: AppColors.textSecondary),
                   onTap: (_connecting || isConnected) ? null : () => _connectToDevice(device),
                 ),
