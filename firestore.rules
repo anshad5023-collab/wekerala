@@ -29,10 +29,11 @@ service cloud.firestore {
         allow write: if isOwner(shopId);
       }
 
-      // Orders — anyone can create (customer checkout); owner manages
+      // Orders — anyone can create (customer checkout); owner can read/update only
+      // Delete intentionally blocked — orders are permanent audit records
       match /orders/{orderId} {
         allow create: if true;
-        allow read, update, delete: if isOwner(shopId);
+        allow read, update: if isOwner(shopId);
       }
 
       // Customers — owner only
@@ -80,6 +81,22 @@ service cloud.firestore {
       match /flashSales/{saleId} {
         allow read, write: if isOwner(shopId);
       }
+
+      // WhatsApp usage counters — owner read only; writes from Cloud Functions (admin SDK)
+      match /waUsage/{monthId} {
+        allow read: if isOwner(shopId);
+        allow write: if false;
+      }
+
+      // Sent stock alerts — internal only (Cloud Functions admin SDK)
+      match /sentAlerts/{productId} {
+        allow read, write: if false;
+      }
+    }
+
+    // Processed WhatsApp message IDs — deduplication store, Cloud Functions only
+    match /processedWaMessages/{msgId} {
+      allow read, write: if false;
     }
 
     // ── Business listing collections ─────────────────────────────────────────

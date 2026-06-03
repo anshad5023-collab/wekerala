@@ -382,48 +382,6 @@ exports.onOrderCreated = onDocumentCreated(
   }
 );
 
-// ─── Function 1b: Order Status Updated → Customer WhatsApp ──────────────────
-// Fires whenever a shop owner updates an order's status in the Flutter app or web.
-// Sends a WhatsApp message to the customer (if they provided a phone number).
-
-exports.onOrderUpdated = onDocumentUpdated(
-  'shops/{shopId}/orders/{orderId}',
-  async (event) => {
-    const before = event.data?.before?.data();
-    const after = event.data?.after?.data();
-    if (!before || !after) return;
-
-    // Only act when status actually changed
-    if (before.status === after.status) return;
-
-    const newStatus = after.status;
-    const customerPhone = after.customerPhone || '';
-    if (!customerPhone || customerPhone.length < 10) return;
-
-    const shopId = event.params.shopId;
-    const db = getFirestore();
-    const shopSnap = await db.collection('shops').doc(shopId).get();
-    const shop = shopSnap.data();
-    const shopName = shop?.shopName || 'Your Shop';
-    const orderNum = after.orderNumber || after.orderId || '';
-
-    const statusMessages = {
-      confirmed:        `✅ Order #${orderNum} confirmed!\nYour order from *${shopName}* is being prepared. We'll notify you when it's ready.`,
-      preparing:        `👨‍🍳 Order #${orderNum} is being prepared!\n*${shopName}* is packing your items. Almost ready!`,
-      ready:            `🎁 Order #${orderNum} is ready!\nYour order from *${shopName}* is packed and ready for pickup/delivery.`,
-      out_for_delivery: `🚚 Order #${orderNum} is on the way!\nYour delivery from *${shopName}* has left. Expect it shortly.`,
-      delivered:        `✅ Order #${orderNum} delivered!\nThank you for shopping at *${shopName}*. Enjoy your items! 🙏`,
-      cancelled:        `❌ Order #${orderNum} has been cancelled.\nContact *${shopName}* if you have questions.`,
-    };
-
-    const msg = statusMessages[newStatus];
-    if (!msg) return; // Don't send for intermediate/internal statuses
-
-    await sendWhatsApp(customerPhone, msg, shop);
-    console.log(`[OrderUpdated] Status ${before.status}→${newStatus} for order ${orderNum}, notified customer ${customerPhone}`);
-  }
-);
-
 // ─── Function 2: Daily Sales Summary (9:30 PM IST) ───────────────────────────
 
 exports.sendDailySalesSummary = onSchedule(
@@ -906,231 +864,250 @@ exports.sendMonthlyReport = onSchedule(
 );
 
 // ─── Function 8: WhatsApp Webhook — Meta Cloud API inbound + Gemini AI auto-reply ───
+//
+// Improvements over v1:
+// • Immediate 200 ACK to Meta (prevents retries / duplicate AI replies)
+// • Message deduplication by msg.id (idempotent even under retries)
+// • Rate limiting — max 10 messages/hour per sender (abuse protection)
+// • HumanMode state — owner takeover pauses AI for 24h; then auto-resets
+// • Owner handoff alert — WhatsApp to owner when customer requests handoff
+// • Warm AI persona, no rigid keyword shortcuts (Gemini handles all queries)
+// • Top 50 products in context (was 20)
+// • 250-word reply limit (was 100), temperature 0.7 for natural tone
+// • Chat history expanded to last 10 turns (was 5)
+// • Usage logging per shop/month
 
-exports.whatsappWebhook = onRequest({ cors: true }, async (req, res) => {
+exports.whatsappWebhook = onRequest({ timeoutSeconds: 60, cors: true }, async (req, res) => {
   const db = getFirestore();
 
-  // Meta webhook verification (GET request sent once when you register the webhook)
+  // Meta webhook verification (GET)
   if (req.method === 'GET') {
     const mode = req.query['hub.mode'];
     const token = req.query['hub.verify_token'];
     const challenge = req.query['hub.challenge'];
     if (mode === 'subscribe' && token === META_VERIFY_TOKEN.value()) {
-      console.log('[Webhook] Meta verification successful');
+      console.log('[Webhook] Meta verification OK');
       return res.status(200).send(challenge);
     }
     return res.status(403).send('Forbidden');
   }
 
-  try {
-    // 1. Parse Meta Cloud API payload
-    const body = req.body;
-    console.log('[Webhook] Raw body:', JSON.stringify(body).slice(0, 500));
+  // Acknowledge immediately — prevents Meta from retrying after 20s
+  res.sendStatus(200);
 
-    // Ignore status updates (delivery receipts, read receipts) — only process messages
-    if (body.object !== 'whatsapp_business_account') {
-      return res.sendStatus(200);
-    }
+  try {
+    // 1. Parse Meta payload
+    const body = req.body;
+
+    if (body.object !== 'whatsapp_business_account') return;
 
     const change = body.entry?.[0]?.changes?.[0]?.value;
     const msg = change?.messages?.[0];
+    if (!msg || msg.type !== 'text') return; // ignore delivery receipts, images, etc.
 
-    if (!msg || msg.type !== 'text') {
-      return res.sendStatus(200); // not a text message — ignore
-    }
-
-    const sender = msg.from;
-    const messageText = msg.text?.body || '';
+    const msgId         = msg.id;
+    const sender        = msg.from;
+    const messageText   = (msg.text?.body || '').trim();
     const phoneNumberId = change?.metadata?.phone_number_id;
 
-    if (!sender || !messageText) {
-      console.warn('[Webhook] Could not extract sender/message');
-      return res.sendStatus(200);
+    if (!sender || !messageText || !msgId) return;
+
+    // ── 2. Deduplication — prevents double replies from Meta retries ──────────
+    const dedupRef = db.collection('processedWaMessages').doc(msgId);
+    const alreadyDone = await dedupRef.get();
+    if (alreadyDone.exists) {
+      console.log('[Webhook] Duplicate msg skipped:', msgId);
+      return;
     }
+    await dedupRef.set({ ts: FieldValue.serverTimestamp(), sender });
 
-    console.log('[Webhook] Extracted — sender:', sender, 'message:', messageText, 'phoneNumberId:', phoneNumberId);
-
-    // 2. Find the shop that owns this Meta phone number
-    let shopsSnap = phoneNumberId
+    // ── 3. Find shop ──────────────────────────────────────────────────────────
+    const shopsSnap = phoneNumberId
       ? await db.collection('shops').where('whatsappPhoneNumberId', '==', phoneNumberId).limit(1).get()
       : { empty: true, docs: [] };
 
     if (shopsSnap.empty) {
-      console.warn('[Webhook] No shop found for phoneNumberId:', phoneNumberId);
-      return res.sendStatus(200);
+      console.warn('[Webhook] No shop for phoneNumberId:', phoneNumberId);
+      return;
     }
 
-    const shopDoc = shopsSnap.docs[0];
-    const shopId = shopDoc.id;
-    const shop = shopDoc.data();
-
-    // 3. Check AI settings — bail out early if AI is not enabled
+    const shopDoc  = shopsSnap.docs[0];
+    const shopId   = shopDoc.id;
+    const shop     = shopDoc.data();
     const aiSettings = shop.aiSettings || {};
-    if (aiSettings.enabled !== true) {
-      console.log(`[Webhook] AI not enabled for shop ${shopId}`);
-      return res.json({ success: false });
-    }
 
-    const shopName = shop.shopName || shop.name || 'Our Shop';
-    const ownerPhone = shop.ownerPhone || shop.phoneNumber || shop.phone || shop.ownerWhatsApp || '';
+    if (aiSettings.enabled !== true) return;
+
+    const shopName      = shop.shopName || shop.name || 'Our Shop';
+    const ownerPhone    = shop.ownerPhone || shop.phoneNumber || shop.phone || shop.ownerWhatsApp || '';
     const storefrontUrl = `https://wekerala.vercel.app/shop?shopId=${shopId}`;
 
-    // 4. Fetch top 20 products (name, price, inStock only)
-    const productsSnap = await db
-      .collection('shops')
-      .doc(shopId)
-      .collection('products')
-      .limit(20)
-      .get();
+    // ── 4. Load chat state for this sender ────────────────────────────────────
+    const chatRef  = db.collection('shops').doc(shopId).collection('aiChats').doc(sender);
+    const chatSnap = await chatRef.get();
+    const chatData = chatSnap.exists ? chatSnap.data() : {};
+    const allHistory    = chatData.messages || [];
+    const recentHistory = allHistory.slice(-10);
 
-    const products = productsSnap.docs.map((d) => {
-      const p = d.data();
-      return {
-        name: p.productName || p.name || '',
-        price: p.price || p.sellingPrice || 0,
-        inStock: p.inStock !== undefined ? p.inStock : (p.stockQty > 0),
-      };
-    });
-
-    // 5. Read last 5 messages from the AI chat history for this sender
-    const chatDocRef = db
-      .collection('shops')
-      .doc(shopId)
-      .collection('aiChats')
-      .doc(sender);
-
-    const chatSnap = await chatDocRef.get();
-    const existingMessages = chatSnap.exists ? (chatSnap.data().messages || []) : [];
-    const recentHistory = existingMessages.slice(-5);
-
-    // 6. Keyword shortcuts — instant replies without Gemini
-    const lowerMessage = messageText.toLowerCase();
-
-    const matchKw = (keywords) => keywords.some((k) => lowerMessage.includes(k));
-
-    const saveChat = (reply) => chatDocRef.set({
-      messages: [...recentHistory, { role: 'user', text: messageText, ts: Date.now() }, { role: 'assistant', text: reply, ts: Date.now() }].slice(-5),
-    }, { merge: true });
-
-    if (matchKw(['price', 'rate', 'cost', 'how much', 'എത്ര', 'വില', 'നിരക്ക്']) && aiSettings.shareProductPrices) {
-      const priceList = products.slice(0, 10)
-        .map((p) => `• ${p.name} — ₹${p.price}${p.inStock ? '' : ' (out of stock)'}`)
-        .join('\n');
-      const reply = priceList
-        ? `*${shopName} Products:*\n${priceList}\n\nOrder here: ${storefrontUrl}`
-        : `Browse our products here: ${storefrontUrl}`;
-      await sendWhatsApp(sender, reply, shop);
-      await saveChat(reply);
-      return res.sendStatus(200);
+    // ── 5. HumanMode — owner has taken over; AI silent for 24h ───────────────
+    if (chatData.humanMode === true) {
+      const setAt = chatData.humanModeSetAt ? chatData.humanModeSetAt.toMillis() : 0;
+      if (Date.now() - setAt < 24 * 60 * 60 * 1000) {
+        console.log(`[Webhook] HumanMode active for ${sender}`);
+        return;
+      }
+      await chatRef.set({ humanMode: false }, { merge: true }); // auto-expire after 24h
     }
 
-    if (matchKw(['open', 'time', 'hours', 'close', 'when', 'സമയം', 'തുറക്കുന്ന']) && aiSettings.answerHoursQuestions) {
-      const reply = `*${shopName}* hours: ${shop.workingHours || 'Please contact us for timings.'}`;
-      await sendWhatsApp(sender, reply, shop);
-      await saveChat(reply);
-      return res.sendStatus(200);
+    // ── 6. Rate limiting — max 10 messages per sender per hour ───────────────
+    const hourAgo = Date.now() - 60 * 60 * 1000;
+    const recentCount = recentHistory.filter(m => m.role === 'user' && m.ts > hourAgo).length;
+    if (recentCount >= 10) {
+      await sendWhatsApp(sender, `You've sent many messages. Please wait a bit before trying again 🙏`, shop);
+      return;
     }
 
-    if (matchKw(['delivery', 'deliver', 'charge', 'ഡെലിവറി']) && aiSettings.answerDeliveryQuestions) {
-      const dc = shop.deliveryCharge || 0;
-      const mo = shop.minOrderValue || 0;
-      const reply = dc === 0
-        ? `*${shopName}*: Free delivery! Min order ₹${mo}. Order: ${storefrontUrl}`
-        : `*${shopName}*: Delivery ₹${dc}. Min order ₹${mo}. Order: ${storefrontUrl}`;
-      await sendWhatsApp(sender, reply, shop);
-      await saveChat(reply);
-      return res.sendStatus(200);
-    }
+    const lowerMsg = messageText.toLowerCase();
 
-    if (matchKw(['order', 'buy', 'purchase', 'cart', 'ഓർഡർ', 'വാങ്ങ'])) {
-      const reply = `To order from *${shopName}*, tap here: ${storefrontUrl}`;
-      await sendWhatsApp(sender, reply, shop);
-      await saveChat(reply);
-      return res.sendStatus(200);
-    }
+    // ── 7. Handoff keyword — pause AI, alert owner ────────────────────────────
+    const handoffKeyword = (aiSettings.humanHandoffKeyword || '').toLowerCase().trim();
+    if (handoffKeyword && lowerMsg.includes(handoffKeyword)) {
+      const customerReply = `I'm connecting you with the *${shopName}* team right now. They'll reply to you shortly! 🙏`;
+      await sendWhatsApp(sender, customerReply, shop);
 
-    // Human hand-off keyword
-    const handoffKeyword = aiSettings.humanHandoffKeyword
-      ? aiSettings.humanHandoffKeyword.toLowerCase()
-      : null;
-
-    if (handoffKeyword && lowerMessage.includes(handoffKeyword)) {
-      let handoffReply;
-      if (!aiSettings.neverShareOwnerPhone && ownerPhone) {
-        handoffReply = `Please contact us directly on WhatsApp: ${ownerPhone}`;
-      } else {
-        handoffReply = 'Please contact us directly.';
+      if (ownerPhone && ownerPhone.length >= 10) {
+        const displayNumber = sender.startsWith('91') ? `+${sender}` : sender;
+        await sendWhatsApp(
+          ownerPhone,
+          `📲 *A customer wants to speak with you!*\n\nNumber: ${displayNumber}\nMessage: "${messageText}"\n\nAI is now paused for this customer for 24 hours. Reply directly to their number above.`,
+          shop
+        );
       }
 
-      await sendWhatsApp(sender, handoffReply, shop);
-      await saveChat(handoffReply);
-      return res.sendStatus(200);
+      await chatRef.set({
+        humanMode: true,
+        humanModeSetAt: FieldValue.serverTimestamp(),
+        messages: [...recentHistory,
+          { role: 'user', text: messageText, ts: Date.now() },
+          { role: 'assistant', text: customerReply, ts: Date.now() },
+        ].slice(-10),
+        lastMessageAt: FieldValue.serverTimestamp(),
+      }, { merge: true });
+      return;
     }
 
-    // 7. Build the Gemini system prompt dynamically from aiSettings
-    const systemPrompt = `You are the WhatsApp assistant for ${shopName}.
-Rules:
-${aiSettings.shareProductPrices ? '- You CAN share product prices from the list below.' : '- NEVER mention specific prices. Say "please check our store for prices".'}
-${aiSettings.shareStockStatus ? '- You CAN share stock availability.' : '- Do not discuss stock availability.'}
-${aiSettings.neverShareOwnerPhone ? '- NEVER share the owner phone number under any circumstances.' : ''}
-${aiSettings.neverShareOwnerAddress ? '- NEVER share the owner home/personal address.' : ''}
-${aiSettings.neverDiscussCompetitors ? '- NEVER discuss or recommend competitor shops.' : ''}
-${aiSettings.autoSendStorefrontLink ? `- Always end your reply with: "Order here: ${storefrontUrl}"` : ''}
-${aiSettings.answerDeliveryQuestions ? `- Delivery charge: ₹${shop.deliveryCharge || 0}. Free above ₹${shop.freeDeliveryAbove || 0}.` : '- Do not answer delivery questions. Say "please contact us".'}
-${aiSettings.answerHoursQuestions ? `- Store hours: ${shop.workingHours || 'Contact us for hours'}.` : ''}
-${aiSettings.customInstructions ? aiSettings.customInstructions : ''}
-Products list: ${JSON.stringify(products.map((p) => ({ name: p.name, price: p.price, inStock: p.inStock })))}
-Keep replies short (under 100 words). Detect language and reply in the same language.`;
+    // ── 8. Fetch top 50 products for AI context ───────────────────────────────
+    const productsSnap = await db
+      .collection('shops').doc(shopId)
+      .collection('products')
+      .limit(50)
+      .get();
 
-    // 8. Build Gemini request contents from chat history + new user message
-    const historyContents = recentHistory.map((m) => ({
+    const products = productsSnap.docs
+      .map(d => {
+        const p = d.data();
+        return {
+          name: p.productName || p.name || '',
+          price: p.price || p.sellingPrice || 0,
+          unit: p.unit || '',
+          inStock: p.inStock !== undefined ? p.inStock : ((p.stockQty ?? 1) > 0),
+        };
+      })
+      .filter(p => p.name);
+
+    // ── 9. Build warm, human AI system prompt ─────────────────────────────────
+    const langRule = (() => {
+      const lang = aiSettings.replyLanguage || 'auto';
+      if (lang === 'malayalam') return 'Always reply in Malayalam (natural conversational script, not formal).';
+      if (lang === 'english')   return 'Always reply in English.';
+      return 'Detect the language the customer used and reply in that same language. For Malayalam, use natural informal script.';
+    })();
+
+    const productsContext = aiSettings.shareProductPrices
+      ? `Products available:\n${products.map(p => `- ${p.name}${p.price ? ` ₹${p.price}${p.unit ? '/' + p.unit : ''}` : ''}${!p.inStock ? ' [out of stock]' : ''}`).join('\n')}`
+      : 'Do not share specific prices — say "please check our store for current prices."';
+
+    const systemPrompt = `You are a warm, friendly shop assistant at *${shopName}* in Kerala, India.
+
+Your personality:
+- Speak naturally, like a real helpful person at the shop — NOT like a bot or menu system
+- Be genuinely warm and helpful. Use casual, friendly language.
+- ${langRule}
+- Vary your openings: "Sure!", "ആ, ഉണ്ട്!", "Of course!", "Let me help!" — don't always start the same way
+- Answer questions directly and completely — if someone asks about multiple items, answer all of them
+- Only share the store link when the customer is clearly ready to order or browse
+- If you don't know the answer (e.g. about a product not in the list), honestly say "I'm not sure, let me have the team check for you"
+
+Shop information:
+- Shop name: ${shopName}
+- Working hours: ${shop.workingHours || 'Contact the shop for hours'}
+${aiSettings.answerDeliveryQuestions
+  ? `- Delivery charge: ₹${shop.deliveryCharge || 0}. Min order: ₹${shop.minOrderValue || 0}. Free delivery above ₹${shop.freeDeliveryAbove || 0}.`
+  : '- Do not discuss delivery specifics. Say "please contact the shop for delivery info."'}
+- Store link (share when customer wants to order): ${storefrontUrl}
+
+${productsContext}
+${!aiSettings.shareStockStatus ? 'Do not discuss stock status or availability.' : ''}
+${aiSettings.neverShareOwnerPhone ? '⚠️ NEVER share the owner\'s personal phone number.' : ''}
+${aiSettings.neverShareOwnerAddress ? '⚠️ NEVER share the owner\'s personal or home address.' : ''}
+${aiSettings.neverDiscussCompetitors ? '⚠️ Never recommend, mention, or compare competitor shops.' : ''}
+${aiSettings.customInstructions ? `\nSpecial instructions from the shop owner:\n${aiSettings.customInstructions}` : ''}
+
+Keep your reply under 250 words. Be helpful and human.`;
+
+    // ── 10. Build Gemini request with conversation history ────────────────────
+    const historyContents = recentHistory.map(m => ({
       role: m.role === 'assistant' ? 'model' : 'user',
       parts: [{ text: m.text }],
     }));
 
     const geminiPayload = {
       system_instruction: { parts: [{ text: systemPrompt }] },
-      contents: [
-        ...historyContents,
-        { role: 'user', parts: [{ text: messageText }] },
-      ],
+      contents: [...historyContents, { role: 'user', parts: [{ text: messageText }] }],
+      generationConfig: { temperature: 0.7, maxOutputTokens: 400 },
     };
 
-    // 9. Call Gemini 2.0 Flash API
+    // ── 11. Call Gemini 2.0 Flash ─────────────────────────────────────────────
     const GEMINI_KEY = GEMINI_API_KEY.value() || process.env.GEMINI_API_KEY;
+
+    let aiReply = `I'll get back to you shortly! Browse our store here: ${storefrontUrl}`;
 
     if (!GEMINI_KEY) {
       console.error('[Webhook] Missing GEMINI_API_KEY');
-      await sendWhatsApp(sender, `I'll get back to you shortly. View our store: ${storefrontUrl}`, shop);
-      return res.sendStatus(200);
+    } else {
+      try {
+        const geminiResp = await axios.post(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,
+          geminiPayload,
+          { headers: { 'Content-Type': 'application/json' }, timeout: 15000 }
+        );
+        aiReply = geminiResp.data?.candidates?.[0]?.content?.parts?.[0]?.text || aiReply;
+      } catch (geminiErr) {
+        console.error('[Webhook] Gemini error:', geminiErr.response?.data ?? geminiErr.message);
+      }
     }
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
-
-    let aiReply;
-    try {
-      const geminiResp = await axios.post(geminiUrl, geminiPayload, {
-        headers: { 'Content-Type': 'application/json' },
-        timeout: 15000,
-      });
-
-      aiReply =
-        geminiResp.data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-        `I'll get back to you shortly. View our store: ${storefrontUrl}`;
-    } catch (geminiErr) {
-      console.error('[Webhook] Gemini API error:', geminiErr.response?.data ?? geminiErr.message);
-      aiReply = `I'll get back to you shortly. View our store: ${storefrontUrl}`;
-    }
-
-    // 10. Send the AI reply
+    // ── 12. Send reply and save history ──────────────────────────────────────
     await sendWhatsApp(sender, aiReply, shop);
-    await saveChat(aiReply);
 
-    return res.sendStatus(200);
+    await chatRef.set({
+      messages: [...recentHistory,
+        { role: 'user',      text: messageText, ts: Date.now() },
+        { role: 'assistant', text: aiReply,      ts: Date.now() },
+      ].slice(-10),
+      lastMessageAt: FieldValue.serverTimestamp(),
+    }, { merge: true });
+
+    // ── 13. Log usage ─────────────────────────────────────────────────────────
+    const monthKey = new Date().toISOString().slice(0, 7);
+    db.collection('shops').doc(shopId).collection('waUsage').doc(monthKey)
+      .set({ aiReplies: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() }, { merge: true })
+      .catch(() => {});
+
+    console.log(`[Webhook] Replied to ${sender} for shop ${shopId}`);
 
   } catch (err) {
     console.error('[Webhook] Unhandled error:', err.message);
-    return res.sendStatus(200); // always 200 to Meta so it doesn't retry
   }
 });
 

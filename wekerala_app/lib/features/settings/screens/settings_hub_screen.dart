@@ -124,27 +124,22 @@ class _HubBody extends ConsumerWidget {
           ),
         ]),
 
-        // ── Integrations ──────────────────────────────────
-        _SectionHeader('Integrations'),
+        // ── WhatsApp ──────────────────────────────────────
+        _SectionHeader('WhatsApp'),
         _SettingsCard(children: [
           _SettingsTile(
             icon: Icons.notifications_active_outlined,
-            title: 'WhatsApp Notifications',
-            subtitle: 'Choose which alerts you receive',
+            title: 'Notification Preferences',
+            subtitle: 'Choose which alerts you receive via WhatsApp',
             iconColor: const Color(0xFF25D366),
             onTap: () => context.push('/settings/whatsapp-notifications'),
           ),
           _SettingsTile(
             icon: Icons.smart_toy_outlined,
-            title: 'WhatsApp AI Assistant',
+            title: 'AI Auto-Reply',
+            subtitle: 'Gemini answers customer WhatsApp messages automatically',
             iconColor: const Color(0xFF2D6A4F),
             onTap: () => context.push('/settings/ai'),
-          ),
-          _SettingsTile(
-            icon: Icons.hub_outlined,
-            title: 'ONDC Integration',
-            iconColor: const Color(0xFF1565C0),
-            onTap: () => context.push('/settings/ondc'),
           ),
         ]),
 
@@ -236,20 +231,29 @@ class _HubBody extends ConsumerWidget {
           ),
         ]),
 
-        // ── Staff & Devices ───────────────────────────────
-        _SectionHeader('Staff & Devices'),
+        // ── Advanced ──────────────────────────────────────
+        _SectionHeader('Advanced'),
         _SettingsCard(children: [
           _SettingsTile(
             icon: Icons.people_outline,
             title: 'Staff Management',
+            subtitle: 'Add staff accounts and set permissions',
             iconColor: const Color(0xFF1976D2),
             onTap: () => context.push('/settings/staff', extra: shopId),
           ),
           _SettingsTile(
             icon: Icons.print_outlined,
             title: 'Printer Settings',
+            subtitle: 'Configure Bluetooth / WiFi receipt printer',
             iconColor: const Color(0xFF546E7A),
             onTap: () => context.push('/settings/printer'),
+          ),
+          _SettingsTile(
+            icon: Icons.hub_outlined,
+            title: 'ONDC Integration',
+            subtitle: 'List your shop on Swiggy, Juspay & ONDC network',
+            iconColor: const Color(0xFF1565C0),
+            onTap: () => context.push('/settings/ondc'),
           ),
         ]),
 
