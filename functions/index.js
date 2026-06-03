@@ -693,12 +693,14 @@ exports.onOrderStatusChange = onDocumentUpdated(
       const shopName = (shopDoc.data() && (shopDoc.data().shopName || shopDoc.data().name)) || 'Your Shop';
 
       const shopId2 = shopId; // alias for clarity inside template literal
+      const preparingMsg = `👨‍🍳 *Order Being Prepared!*\n\nHi ${customerName}, your order at *${shopName}* is now being prepared.\n\nAlmost ready — hang tight! ⏱️`;
       const statusMessages = {
-        confirmed: `✅ *Order Confirmed!*\n\nHi ${customerName}, your order at *${shopName}* has been confirmed! 🎉\n\nOrder Total: ₹${orderTotal}\n\nWe'll update you once it's ready. Thank you! 🙏`,
-        preparing: `👨‍🍳 *Order Being Prepared!*\n\nHi ${customerName}, your order at *${shopName}* is now being prepared.\n\nAlmost ready — hang tight! ⏱️`,
-        ready: `🎉 *Order Ready!*\n\nHi ${customerName}, your order at *${shopName}* is READY for pickup/delivery!\n\nOrder Total: ₹${orderTotal}\n\nThank you for your patience! 🙏`,
-        delivered: `✅ *Order Delivered!*\n\nHi ${customerName}, your order from *${shopName}* has been delivered!\n\nThank you for shopping with us. We'd love to see you again! 🛍️\n\nOrder online anytime: https://wekerala.app/shop/${shopId2}`,
-        cancelled: `❌ *Order Cancelled*\n\nHi ${customerName}, your order at *${shopName}* has been cancelled.\n\nWe're sorry for the inconvenience. Please contact us to reorder.\n\nShop again: https://wekerala.app/shop/${shopId2}`,
+        confirmed:        `✅ *Order Confirmed!*\n\nHi ${customerName}, your order at *${shopName}* has been confirmed! 🎉\n\nOrder Total: ₹${orderTotal}\n\nWe'll update you once it's ready. Thank you! 🙏`,
+        preparing:        preparingMsg,
+        processing:       preparingMsg, // Flutter uses 'processing'; treat identically to 'preparing'
+        ready:            `🎉 *Order Ready!*\n\nHi ${customerName}, your order at *${shopName}* is READY for pickup/delivery!\n\nOrder Total: ₹${orderTotal}\n\nThank you for your patience! 🙏`,
+        delivered:        `✅ *Order Delivered!*\n\nHi ${customerName}, your order from *${shopName}* has been delivered!\n\nThank you for shopping with us. We'd love to see you again! 🛍️\n\nOrder online anytime: https://wekerala.app/shop/${shopId2}`,
+        cancelled:        `❌ *Order Cancelled*\n\nHi ${customerName}, your order at *${shopName}* has been cancelled.\n\nWe're sorry for the inconvenience. Please contact us to reorder.\n\nShop again: https://wekerala.app/shop/${shopId2}`,
         out_for_delivery: `🚗 *Out for Delivery!*\n\nHi ${customerName}, your order from *${shopName}* is on its way! 🚀\n\nExpect delivery very soon. Get ready! 🎁`,
       };
 
@@ -715,6 +717,7 @@ exports.onOrderStatusChange = onDocumentUpdated(
           const pushTitles = {
             confirmed: '✅ Order Confirmed!',
             preparing: '👨‍🍳 Being Prepared!',
+            processing: '👨‍🍳 Being Prepared!',
             ready: '🎉 Order Ready!',
             out_for_delivery: '🚗 On the Way!',
             delivered: '✅ Delivered!',
@@ -723,6 +726,7 @@ exports.onOrderStatusChange = onDocumentUpdated(
           const pushBodies = {
             confirmed: `Your order at ${shopName} is confirmed.`,
             preparing: `Your order at ${shopName} is being prepared.`,
+            processing: `Your order at ${shopName} is being prepared.`,
             ready: `Your order at ${shopName} is ready!`,
             out_for_delivery: `Your order from ${shopName} is out for delivery!`,
             delivered: `Your order from ${shopName} has been delivered. Thank you!`,
