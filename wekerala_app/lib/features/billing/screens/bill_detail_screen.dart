@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/invoice_pdf_service.dart';
 import '../../../core/services/print_service.dart';
 import '../../../models/bill_model.dart';
 import '../../../providers/billing_provider.dart';
@@ -20,6 +21,7 @@ class BillDetailScreen extends ConsumerStatefulWidget {
 
 class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
   bool _printing = false;
+  bool _sharingPdf = false;
   late BillModel _bill;
 
   @override
@@ -233,6 +235,56 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10)),
               ),
+            ),
+            const SizedBox(height: 10),
+            // PDF Invoice share
+            shopAsync.when(
+              data: (shop) => OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  side: const BorderSide(color: AppColors.primary),
+                  minimumSize: const Size.fromHeight(48),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: _sharingPdf
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: AppColors.primary),
+                      )
+                    : const Icon(Icons.picture_as_pdf_outlined,
+                        color: AppColors.primary),
+                label: Text(
+                  _sharingPdf ? 'Generating...' : 'Download PDF Invoice',
+                  style: const TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.bold),
+                ),
+                onPressed: _sharingPdf
+                    ? null
+                    : () async {
+                        setState(() => _sharingPdf = true);
+                        final messenger = ScaffoldMessenger.of(context);
+                        try {
+                          await InvoicePdfService.shareInvoice(_bill, shop);
+                        } catch (e) {
+                          if (mounted) {
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text('PDF failed: $e'),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                          }
+                        } finally {
+                          if (mounted) setState(() => _sharingPdf = false);
+                        }
+                      },
+              ),
+              loading: () => const SizedBox.shrink(),
+              error: (_, __) => const SizedBox.shrink(),
             ),
             const SizedBox(height: 10),
             // Print button — wired to PrintService

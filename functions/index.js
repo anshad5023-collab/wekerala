@@ -1590,3 +1590,71 @@ exports.onStockDepleted = onDocumentUpdated(
     console.log(`[StockAlert] ${name} (${event.params.productId}) hit zero in shop ${shopId}`);
   }
 );
+
+// ── Customer Win-Back Messages ────────────────────────────────────────────────
+// Runs daily at 10:00 AM IST. For each shop, sends a re-engagement WhatsApp
+// to customers who haven't purchased in 30+ days and haven't been messaged
+// in the last 7 days. Capped at 50 messages per shop per run.
+exports.sendWinBackMessages = onSchedule(
+  { schedule: '0 10 * * *', timeZone: 'Asia/Kolkata' },
+  async () => {
+    const db = getFirestore();
+    const now = new Date();
+    const thirtyDaysAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo  = new Date(now - 7  * 24 * 60 * 60 * 1000);
+    const MAX_PER_SHOP  = 50;
+
+    const shopsSnap = await db.collection('shops').get();
+    let totalSent = 0;
+
+    for (const shopDoc of shopsSnap.docs) {
+      const shop = shopDoc.data();
+      const shopId = shopDoc.id;
+
+      // Only message shops with an active WhatsApp subscription
+      if (shop.subscriptionStatus !== 'active') continue;
+
+      const customersSnap = await db
+        .collection('shops').doc(shopId)
+        .collection('customers')
+        .where('lastOrderDate', '<', thirtyDaysAgo)
+        .limit(MAX_PER_SHOP)
+        .get();
+
+      let shopSent = 0;
+      for (const custDoc of customersSnap.docs) {
+        const cust = custDoc.data();
+        const phone = cust.phone || cust.customerPhone || custDoc.id;
+        if (!phone || phone.length < 10) continue;
+
+        // Skip if we messaged this customer in the last 7 days
+        const lastWinBack = cust.winBackSentAt?.toDate?.() || null;
+        if (lastWinBack && lastWinBack > sevenDaysAgo) continue;
+
+        const name = cust.name || cust.customerName || 'there';
+        const shopName = shop.shopName || 'our shop';
+        const msg =
+          `Hi ${name}! 👋\n\n` +
+          `We miss you at *${shopName}*! It's been a while since your last visit.\n\n` +
+          `Come back and shop with us — we have fresh stock and great deals waiting for you! 🛒\n\n` +
+          `Order online: ${shop.storeUrl || 'Visit us in store'}\n\n` +
+          `_Reply STOP to unsubscribe from messages._`;
+
+        try {
+          await sendWhatsApp(phone, msg, shop);
+          await custDoc.ref.update({ winBackSentAt: now });
+          shopSent++;
+          totalSent++;
+        } catch (err) {
+          console.error(`[WinBack] Failed for ${phone} in shop ${shopId}:`, err.message);
+        }
+      }
+
+      if (shopSent > 0) {
+        console.log(`[WinBack] Sent ${shopSent} messages for shop ${shopId}`);
+      }
+    }
+
+    console.log(`[WinBack] Total sent: ${totalSent}`);
+  }
+);
