@@ -373,6 +373,32 @@ class _AnalyticsContentState extends State<_AnalyticsContent> {
 
     final maxProductCount = top5.isEmpty ? 1 : top5.first.value;
 
+    // Payment method breakdown for the period (from bills only)
+    double cashRevenue = 0, upiRevenue = 0, udharRevenue = 0;
+    for (final b in filteredBills) {
+      if (b.isVoided) continue;
+      if (b.paymentMethod == 'cash') cashRevenue += b.finalAmount;
+      else if (b.paymentMethod == 'upi') upiRevenue += b.finalAmount;
+      else if (b.paymentMethod == 'split') {
+        cashRevenue += b.cashAmount ?? 0;
+        upiRevenue += b.upiAmount ?? 0;
+      } else if (b.isUdhar) udharRevenue += b.finalAmount;
+    }
+
+    // Category revenue breakdown from bill items
+    final categoryRevenue = <String, double>{};
+    for (final b in filteredBills) {
+      if (b.isVoided) continue;
+      for (final item in b.items) {
+        if (item.category.isNotEmpty) {
+          categoryRevenue[item.category] =
+              (categoryRevenue[item.category] ?? 0) + item.subtotal;
+        }
+      }
+    }
+    final topCategories = categoryRevenue.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
     // Peak hours — selected period
     final hourCounts = List<int>.filled(24, 0);
     for (final o in filteredOrders) hourCounts[o.createdAt.hour]++;
@@ -494,12 +520,98 @@ class _AnalyticsContentState extends State<_AnalyticsContent> {
               )),
         const SizedBox(height: 16),
 
+        // Payment method breakdown
+        if (cashRevenue + upiRevenue + udharRevenue > 0) ...[
+          const SizedBox(height: 4),
+          const _SectionTitle('Payment Methods (Billing)'),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Row(
+              children: [
+                _PaymentBreakItem(label: 'Cash', value: cashRevenue, color: AppColors.success),
+                const SizedBox(width: 12),
+                _PaymentBreakItem(label: 'UPI', value: upiRevenue, color: const Color(0xFF1565C0)),
+                const SizedBox(width: 12),
+                _PaymentBreakItem(label: 'Udhar', value: udharRevenue, color: AppColors.accent),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        // Category revenue breakdown
+        if (topCategories.isNotEmpty) ...[
+          const _SectionTitle('Revenue by Category'),
+          const SizedBox(height: 8),
+          ...topCategories.take(6).map((e) {
+            final pct = categoryRevenue.values.isNotEmpty
+                ? e.value / categoryRevenue.values.reduce((a, b) => a + b)
+                : 0.0;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 100,
+                    child: Text(e.key,
+                        style: const TextStyle(fontSize: 12),
+                        overflow: TextOverflow.ellipsis),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: pct,
+                        backgroundColor: Colors.grey.shade200,
+                        color: AppColors.primary,
+                        minHeight: 8,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('₹${e.value.toInt()}',
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            );
+          }),
+          const SizedBox(height: 16),
+        ],
+
         // Peak hours chart
         _SectionTitle(widget.t('analytics_peak_hours')),
         const SizedBox(height: 8),
         _PeakHoursChart(hourCounts: hourCounts),
         const SizedBox(height: 20),
       ],
+    );
+  }
+}
+
+class _PaymentBreakItem extends StatelessWidget {
+  final String label;
+  final double value;
+  final Color color;
+  const _PaymentBreakItem({required this.label, required this.value, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text('₹${value.toInt()}',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: color)),
+          Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+        ],
+      ),
     );
   }
 }

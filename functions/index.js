@@ -1616,3 +1616,49 @@ exports.sendWinBackMessages = onSchedule(
     console.log(`[WinBack] Total sent: ${totalSent}`);
   }
 );
+
+// ─── Function 19: Send Test WhatsApp Message ──────────────────────────────────
+// Called from Flutter WhatsApp Settings screen to verify Meta API connectivity.
+// Sends a test message to the shop owner's registered phone number.
+
+exports.sendTestWhatsApp = onCall({ maxInstances: 1 }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Login required');
+
+  const { shopId } = request.data;
+  if (!shopId) throw new HttpsError('invalid-argument', 'Missing shopId');
+
+  const db = getFirestore();
+  const shopSnap = await db.collection('shops').doc(shopId).get();
+  if (!shopSnap.exists) throw new HttpsError('not-found', 'Shop not found');
+  const shop = shopSnap.data();
+
+  const ownerPhone = shop.ownerPhone || shop.ownerWhatsApp || '';
+  if (!ownerPhone || ownerPhone.replace(/\D/g, '').length < 10) {
+    throw new HttpsError(
+      'failed-precondition',
+      'No valid owner phone number found. Add your phone number in Shop Settings.'
+    );
+  }
+
+  const shopName = shop.shopName || 'your shop';
+  const msg =
+    `✅ *weKerala WhatsApp Test*\n\n` +
+    `Hello! Your WhatsApp notifications for *${shopName}* are working correctly.\n\n` +
+    `You will receive:\n` +
+    `• Order alerts\n` +
+    `• Daily sales summaries\n` +
+    `• Stock warnings\n` +
+    `• Credit reminders\n\n` +
+    `_Powered by weKerala × Meta Cloud API_`;
+
+  const ok = await sendWhatsApp(ownerPhone, msg, shop);
+  if (!ok) {
+    throw new HttpsError(
+      'internal',
+      'Failed to send. Make sure META_PHONE_NUMBER_ID and META_ACCESS_TOKEN are set in functions/.env, then run: firebase deploy --only functions'
+    );
+  }
+
+  console.log(`[TestWA] Test message sent to ${ownerPhone} for shop ${shopId}`);
+  return { success: true };
+});

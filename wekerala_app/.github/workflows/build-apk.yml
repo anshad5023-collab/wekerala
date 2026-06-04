@@ -46,8 +46,6 @@ jobs:
           APP_VERSION=${{ github.ref_name }}
           USE_FIREBASE_EMULATOR=false
           DEBUG_MODE=false
-          GUPSHUP_API_KEY=${{ secrets.GUPSHUP_API_KEY }}
-          GUPSHUP_APP_NAME=${{ secrets.GUPSHUP_APP_NAME }}
           EOF
 
       - name: Create google-services.json
