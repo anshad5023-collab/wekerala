@@ -1769,6 +1769,7 @@ class _ExpiryAlertsCard extends ConsumerWidget {
     final isPharmacy   = type.contains('pharmacy');
     final isMeat       = type.contains('meat') || type.contains('fish');
     final isBakery     = type.contains('bakery');
+    final isFancy      = type.contains('fancy') || type.contains('gift') || type.contains('stationery');
 
     if (isRestaurant) {
       return [
@@ -1818,6 +1819,32 @@ class _ExpiryAlertsCard extends ConsumerWidget {
           subtitle: 'Track batch & expiry',
           color: const Color(0xFF00838F),
           onTap: () => GoRouter.of(context).push('/products'),
+        ),
+      ];
+    }
+
+    if (isFancy) {
+      return [
+        _FeatureCard(
+          icon: Icons.bolt_outlined,
+          title: 'Flash Sale',
+          subtitle: 'Category discounts for events',
+          color: const Color(0xFFE91E63),
+          onTap: () => GoRouter.of(context).push('/marketing/flash-sale'),
+        ),
+        _FeatureCard(
+          icon: Icons.card_giftcard_outlined,
+          title: 'Loyalty Program',
+          subtitle: 'Reward repeat customers',
+          color: const Color(0xFF7B1FA2),
+          onTap: () => GoRouter.of(context).push('/marketing/loyalty'),
+        ),
+        _FeatureCard(
+          icon: Icons.campaign_outlined,
+          title: 'Broadcast',
+          subtitle: 'Announce new arrivals',
+          color: const Color(0xFF1565C0),
+          onTap: () => GoRouter.of(context).push('/marketing/broadcast'),
         ),
       ];
     }
