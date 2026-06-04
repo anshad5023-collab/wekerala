@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/bill_model.dart';
@@ -217,7 +218,11 @@ class BillingNotifier extends Notifier<BillingState> {
     String? gstinSnapshot,
     double? cashAmount,
     double? upiAmount,
+    String? billNote,
   }) async {
+    // Auto-capture who is billing (staff name from Firebase Auth)
+    final billedByName =
+        FirebaseAuth.instance.currentUser?.displayName ?? '';
     state = state.copyWith(isLoading: true);
     try {
       final db = FirebaseFirestore.instance;
@@ -251,6 +256,8 @@ class BillingNotifier extends Notifier<BillingState> {
             : null,
         cashAmount: cashAmount,
         upiAmount: upiAmount,
+        billedByName: billedByName.isNotEmpty ? billedByName : null,
+        billNote: (billNote != null && billNote.isNotEmpty) ? billNote : null,
       );
 
       // Generate sequential invoice number using a Firestore transaction counter
@@ -282,6 +289,8 @@ class BillingNotifier extends Notifier<BillingState> {
         invoiceNumber: invoiceNum,
         cashAmount: bill.cashAmount,
         upiAmount: bill.upiAmount,
+        billedByName: bill.billedByName,
+        billNote: bill.billNote,
       );
       await ref.set(billWithInvoice.toFirestore());
 

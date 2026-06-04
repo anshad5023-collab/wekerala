@@ -103,6 +103,8 @@ class BillModel {
   final String? invoiceNumber;
   final double? cashAmount;   // only for paymentMethod == 'split'
   final double? upiAmount;    // only for paymentMethod == 'split'
+  final String? billedByName; // staff name who created this bill
+  final String? billNote;     // free-text note (e.g. prescription number)
 
   const BillModel({
     required this.billId,
@@ -124,6 +126,8 @@ class BillModel {
     this.invoiceNumber,
     this.cashAmount,
     this.upiAmount,
+    this.billedByName,
+    this.billNote,
   });
 
   factory BillModel.fromFirestore(DocumentSnapshot doc) {
@@ -157,6 +161,8 @@ class BillModel {
       invoiceNumber: d['invoiceNumber'] as String?,
       cashAmount: (d['cashAmount'] as num?)?.toDouble(),
       upiAmount: (d['upiAmount'] as num?)?.toDouble(),
+      billedByName: d['billedByName'] as String?,
+      billNote: d['billNote'] as String?,
     );
   }
 
@@ -182,6 +188,8 @@ class BillModel {
     if (invoiceNumber != null) m['invoiceNumber'] = invoiceNumber;
     if (cashAmount != null) m['cashAmount'] = cashAmount;
     if (upiAmount != null) m['upiAmount'] = upiAmount;
+    if (billedByName != null && billedByName!.isNotEmpty) m['billedByName'] = billedByName;
+    if (billNote != null && billNote!.isNotEmpty) m['billNote'] = billNote;
     return m;
   }
 }

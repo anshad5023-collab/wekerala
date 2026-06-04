@@ -183,6 +183,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
 
     String customerName = '';
     String customerPhone = '';
+    String billNote = '';
 
     if (!mounted) return;
     // For udhar, name + phone are required; otherwise optional.
@@ -190,9 +191,10 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
       context,
       requireFields: method == 'udhar',
       shopId: shopId,
-      onSubmit: (name, phone) {
+      onSubmit: (name, phone, note) {
         customerName = name;
         customerPhone = phone;
+        billNote = note;
       },
     );
 
@@ -215,6 +217,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
             gstinSnapshot: gstin,
             cashAmount: method == 'split' ? _splitCashAmount : null,
             upiAmount: method == 'split' ? _splitUpiAmount : null,
+            billNote: billNote.isNotEmpty ? billNote : null,
           );
 
       if (!mounted) return;
@@ -360,11 +363,12 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
   Future<bool> _showCustomerDialog(
     BuildContext context, {
     required bool requireFields,
-    required void Function(String name, String phone) onSubmit,
+    required void Function(String name, String phone, String note) onSubmit,
     String? shopId,
   }) async {
     final nameCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
+    final noteCtrl = TextEditingController();
     final formKey = GlobalKey<FormState>();
 
     // Read existing customers for autocomplete suggestions (may be empty if
@@ -507,6 +511,12 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                         : null
                     : null,
               ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: noteCtrl,
+                decoration: _inputDecoration(
+                    'Note / Prescription No. (optional)'),
+              ),
             ],
           ),
         ),
@@ -523,7 +533,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
             ),
             onPressed: () {
               if (formKey.currentState?.validate() ?? true) {
-                onSubmit(nameCtrl.text.trim(), phoneCtrl.text.trim());
+                onSubmit(nameCtrl.text.trim(), phoneCtrl.text.trim(), noteCtrl.text.trim());
                 Navigator.pop(ctx, true);
               }
             },
