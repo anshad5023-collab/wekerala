@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
 
     const shopName = (shop.shopName as string) ?? 'this shop';
     const address = (shop.address as string) ?? '';
+    const googleMapsLink = (shop.googleMapsLink as string) ?? '';
     const workingHours = (shop.workingHours as string) ?? 'Please contact the shop for hours';
     const deliveryType = (shop.deliveryType as string) ?? 'both';
     const minOrder = (shop.minOrderValue as number) ?? 0;
@@ -83,9 +84,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (matchKeyword(message, LOCATION_KEYWORDS)) {
+      const mapsText = googleMapsLink ? ` 📍 Directions: ${googleMapsLink}` : '';
       return NextResponse.json({ reply: language === 'ml'
-        ? `${shopName} വിലാസം: ${address}`
-        : `${shopName} is located at: ${address}` });
+        ? `${shopName} വിലാസം: ${address}${mapsText}`
+        : `${shopName} is located at: ${address}${mapsText}` });
     }
 
     if (matchKeyword(message, DELIVERY_KEYWORDS)) {
