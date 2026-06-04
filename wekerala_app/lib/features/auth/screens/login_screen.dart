@@ -70,7 +70,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _sendOtp() async {
     if (!_termsAccepted) {
       await _showTermsDialog();
-      return;
+      if (!_termsAccepted) return; // user cancelled — don't send
+      // terms just accepted — fall through and send OTP automatically
     }
     final phone = _phoneController.text.trim();
     if (phone.length != 10) {
@@ -104,6 +105,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     ref.listen<AuthState>(authProvider, (_, next) {
       if (next.status == AuthStatus.otpSent) {
         context.go('/verify', extra: next.phoneNumber ?? '');
+      }
+      // Auto-verification: Android detected SMS and signed in without OTP screen
+      if (next.status == AuthStatus.authenticated) {
+        ref.read(authProvider.notifier).hasShops().then((hasShop) {
+          if (mounted) context.go(hasShop ? '/home' : '/onboard/type');
+        });
       }
       if (next.status == AuthStatus.error && next.errorMessage != null) {
         ScaffoldMessenger.of(context).showSnackBar(
