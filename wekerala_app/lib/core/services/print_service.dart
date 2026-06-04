@@ -75,6 +75,12 @@ class PrintService {
     if (bill.customerName.isNotEmpty) {
       bytes.addAll(gen.text('Customer: ${bill.customerName}'));
     }
+    if (bill.billNote != null && bill.billNote!.isNotEmpty) {
+      bytes.addAll(gen.text('Note: ${bill.billNote}'));
+    }
+    if (bill.billedByName != null && bill.billedByName!.isNotEmpty) {
+      bytes.addAll(gen.text('Billed by: ${bill.billedByName}'));
+    }
     bytes.addAll(gen.hr());
 
     // Items
@@ -88,6 +94,10 @@ class PrintService {
       final line =
           '$name  ${qtyStr}x${item.price.toStringAsFixed(0)} ${(item.qty * item.price).toStringAsFixed(2)}';
       bytes.addAll(gen.text(line));
+      if (item.batchNumber != null && item.batchNumber!.isNotEmpty) {
+        bytes.addAll(gen.text('  Batch: ${item.batchNumber}',
+            styles: const PosStyles(height: PosTextSize.size1)));
+      }
     }
     bytes.addAll(gen.hr(ch: '='));
 
