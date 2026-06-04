@@ -13,6 +13,7 @@ export interface Product {
   category: string;
   image: string;
   isOutOfStock: boolean;
+  description?: string; // optional long description for product detail sheet
 }
 
 export interface AiSettings {
@@ -92,6 +93,7 @@ export function firestoreToProduct(data: Record<string, any>, id: string): Produ
     category: data['category'] ?? '',
     image: data['imageUrl'] ?? '',
     isOutOfStock: data['isOutOfStock'] ?? false,
+    description: data['description'] as string | undefined,
   };
 }
 

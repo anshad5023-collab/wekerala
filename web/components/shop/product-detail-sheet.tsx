@@ -91,6 +91,13 @@ export function ProductDetailSheet({ product, language, onClose }: ProductDetail
             Category: {product.category}
           </div>
 
+          {/* Product description — shown if owner has added one */}
+          {product.description && (
+            <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2">
+              <p className="text-sm text-gray-600 leading-relaxed">{product.description}</p>
+            </div>
+          )}
+
           {product.isOutOfStock && (
             <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-600">
               This item is currently out of stock
