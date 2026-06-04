@@ -769,7 +769,24 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
       );
     }
 
-    return Scaffold(
+    // Keyboard shortcuts for desktop/Windows POS
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.f2): () =>
+            _searchFocus.requestFocus(),
+        const SingleActivator(LogicalKeyboardKey.f10): () async {
+          final items = ref.read(billingProvider).cartItems;
+          if (items.isNotEmpty && !_saving) await _onPaymentTap('cash');
+        },
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          _searchFocus.unfocus();
+          _searchCtrl.clear();
+          setState(() => _search = '');
+        },
+      },
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Quick Billing'),
@@ -833,7 +850,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
         ],
       ),
       body: body,
-    );
+    )));
   }
 }
 
