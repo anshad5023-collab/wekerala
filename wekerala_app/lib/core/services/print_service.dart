@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:flutter/foundation.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/bill_model.dart';
@@ -22,14 +23,23 @@ class PrintService {
     return prefs.getString(_prefKey);
   }
 
+  // Request Bluetooth runtime permission (Android 12+ requires BLUETOOTH_CONNECT)
+  static Future<bool> _requestBluetoothPermission() async {
+    if (!Platform.isAndroid) return true;
+    final status = await Permission.bluetoothConnect.request();
+    return status.isGranted;
+  }
+
   // Returns list of already-paired Bluetooth devices (no active scan needed)
   static Future<List<BluetoothInfo>> getPairedDevices() async {
     if (!_supported) return [];
+    await _requestBluetoothPermission();
     return PrintBluetoothThermal.pairedBluetooths;
   }
 
   static Future<bool> connect(String macAddress) async {
     if (!_supported) return false;
+    if (!await _requestBluetoothPermission()) return false;
     return PrintBluetoothThermal.connect(macPrinterAddress: macAddress);
   }
 
