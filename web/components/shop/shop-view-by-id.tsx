@@ -73,7 +73,10 @@ export function ShopViewById({ shopId }: { shopId: string }) {
 
   const filteredProducts = useMemo(() => {
     // Only show products with a price (owner may have added products without setting price yet)
-    let filtered = products.filter((p) => p.price > 0);
+    // Sort by orderCount desc so most-popular products appear first
+    let filtered = products
+      .filter((p) => p.price > 0)
+      .sort((a, b) => (b.orderCount ?? 0) - (a.orderCount ?? 0));
     if (selectedCategory && selectedCategory !== 'all') filtered = filtered.filter((p) => p.category === selectedCategory);
     if (searchQuery) {
       const q = searchQuery.toLowerCase();

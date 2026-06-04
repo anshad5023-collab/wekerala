@@ -15,6 +15,7 @@ export interface Product {
   isOutOfStock: boolean;
   description?: string; // optional long description for product detail sheet
   searchAlias?: string; // generic/alternate name for search (e.g. 'paracetamol' for 'Dolo 650')
+  orderCount?: number; // times this product was billed — used for popularity sort
 }
 
 export interface AiSettings {
@@ -96,6 +97,7 @@ export function firestoreToProduct(data: Record<string, any>, id: string): Produ
     isOutOfStock: data['isOutOfStock'] ?? false,
     description: data['description'] as string | undefined,
     searchAlias: data['searchAlias'] as string | undefined,
+    orderCount: (data['orderCount'] as number | undefined) ?? 0,
   };
 }
 
