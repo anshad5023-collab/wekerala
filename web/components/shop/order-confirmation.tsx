@@ -53,6 +53,15 @@ export function OrderConfirmation({ language, customerDetails, onBackToShop, wha
     window.open(`https://wa.me/${phoneNumber}?text=${generateWhatsAppMessage()}`, '_blank');
   };
 
+  const handleCopyOrder = async () => {
+    const itemList = items
+      .map((i) => `• ${i.product.name[language]} x${i.quantity} — ₹${i.product.price * i.quantity}`)
+      .join('\n');
+    const text = `📦 My Order\nOrder ID: ${orderId}\n\n${itemList}\n\nTotal: ₹${total}\nPhone: ${customerDetails.phone}`;
+    await navigator.clipboard.writeText(text).catch(() => {});
+    alert('Order details copied!');
+  };
+
   const handleEnableNotifications = async () => {
     if (!orderId || !shopId) return;
     setPushState('loading');
@@ -147,6 +156,13 @@ export function OrderConfirmation({ language, customerDetails, onBackToShop, wha
               Track Order
             </a>
           )}
+
+          <button
+            onClick={handleCopyOrder}
+            className="mt-2 w-full rounded-lg border border-gray-200 py-2 text-sm text-gray-500 hover:bg-gray-50"
+          >
+            📋 Copy Order Details
+          </button>
 
           <a
             href="/customer/orders"
