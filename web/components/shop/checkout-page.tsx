@@ -95,7 +95,10 @@ export function CheckoutPage({ language, onBack, onConfirm, onLanguageToggle, sh
   const validate = () => {
     const newErrors: Partial<CustomerDetails> = {};
     if (!formData.name.trim()) newErrors.name = 'Required';
-    if (!formData.phone.trim()) newErrors.phone = 'Required';
+    const cleanPhone = formData.phone.replace(/\D/g, '');
+    if (!cleanPhone) newErrors.phone = 'Required';
+    else if (cleanPhone.length !== 10 && !(cleanPhone.length === 12 && cleanPhone.startsWith('91')))
+      newErrors.phone = 'Enter a valid 10-digit mobile number';
     if (!formData.address.trim()) newErrors.address = 'Required';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -104,8 +107,10 @@ export function CheckoutPage({ language, onBack, onConfirm, onLanguageToggle, sh
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (validate()) {
+      const normalizedPhone = formData.phone.replace(/\D/g, '').slice(-10);
       onConfirm({
         ...formData,
+        phone: normalizedPhone,
         couponCode: appliedCoupon?.code,
         discountPercent: appliedCoupon?.discountPercent,
         deliveryCharge: actualDelivery,
