@@ -9,8 +9,12 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/layout/adaptive_layout.dart';
 import '../../../providers/language_provider.dart';
 import '../../../providers/shop_provider.dart';
+import 'package:go_router/go_router.dart';
 import '../../../providers/orders_provider.dart';
+import '../../../providers/billing_provider.dart';
+import '../../../providers/products_provider.dart';
 import '../../../models/order_model.dart';
+import '../../../models/product_model.dart';
 import 'orders_list_screen.dart' show CancelReasonDialog;
 
 class OrderDetailScreen extends ConsumerWidget {
@@ -305,6 +309,82 @@ class _ActionButtons extends StatelessWidget {
           ),
           child: Text(nextLabel),
         ),
+        // Convert to Bill — for bakery pre-orders or restaurant pick-up
+        if (order.status == 'ready' || order.status == 'confirmed') ...[
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.point_of_sale_outlined, size: 18),
+            label: const Text('Convert to Bill'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.success,
+              side: const BorderSide(color: AppColors.success),
+              minimumSize: const Size.fromHeight(44),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              final ref2 = context.findAncestorStateOfType<ConsumerStatefulWidget>() != null
+                  ? null : null; // handled by Consumer below
+              // Navigate to billing with order pre-loaded via billingProvider
+              // We read from billingProvider directly via a Consumer
+              showDialog<void>(
+                context: context,
+                builder: (ctx) => Consumer(
+                  builder: (ctx, ref, _) {
+                    return AlertDialog(
+                      title: const Text('Convert to Bill?'),
+                      content: Text(
+                          'Load ${order.items.length} items from this order into billing?\n\nNote: "${order.customerName}" will be pre-filled.'),
+                      actions: [
+                        TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('Cancel')),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.success,
+                              foregroundColor: Colors.white),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            final notifier = ref.read(billingProvider.notifier);
+                            notifier.clearCart();
+                            notifier.setPreNote(
+                                order.customerName.isNotEmpty
+                                    ? 'Order #${order.orderNumber}: ${order.customerName}'
+                                    : 'Order #${order.orderNumber}');
+                            final products = ref
+                                    .read(productsStreamProvider(shopId))
+                                    .valueOrNull ??
+                                [];
+                            for (final item in order.items) {
+                              final match = products.firstWhere(
+                                (p) => p.productId == item.productId ||
+                                    p.nameEn.toLowerCase() ==
+                                        item.productName.toLowerCase(),
+                                orElse: () => ProductModel(
+                                  productId: item.productId,
+                                  nameEn: item.productName,
+                                  category: '',
+                                  price: item.price,
+                                  unit: item.unit,
+                                  createdAt: DateTime.now(),
+                                  updatedAt: DateTime.now(),
+                                ),
+                              );
+                              for (var i = 0; i < item.qty.toInt(); i++) {
+                                notifier.addItem(match);
+                              }
+                            }
+                            context.push('/billing');
+                          },
+                          child: const Text('Convert'),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+        ],
         if (order.status != 'delivered' && order.status != 'cancelled') ...[
           const SizedBox(height: 8),
           OutlinedButton(
