@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../models/bill_model.dart';
 import '../../../providers/billing_provider.dart';
@@ -87,6 +88,47 @@ class _BillHistoryScreenState extends ConsumerState<BillHistoryScreen> {
     }).toList();
   }
 
+  // Export filtered bills as CSV — for accountant monthly reconciliation
+  void _exportCsv(BuildContext context) {
+    final shopAsync = ref.read(activeShopIdProvider);
+    shopAsync.whenData((shopId) {
+      if (shopId == null) return;
+      final range = BillDateRange(_start, _end);
+      final allBillsAsync = ref.read(billHistoryProvider((shopId: shopId, range: range)));
+      final filtered = (allBillsAsync.valueOrNull ?? []).where((b) => !b.isVoided).toList();
+
+      if (filtered.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No bills in selected period to export')),
+        );
+        return;
+      }
+
+      final fmt = DateFormat('yyyy-MM-dd HH:mm');
+      final buf = StringBuffer();
+      buf.writeln('Invoice,Date,Customer,Phone,Items,Cash,UPI,Udhar,Total,Note');
+      for (final b in filtered) {
+        final inv = b.invoiceNumber?.toString() ?? b.billId.substring(0, 8).toUpperCase();
+        final date = fmt.format(b.createdAt);
+        final customer = b.customerName.replaceAll(',', ' ');
+        final phone = b.customerPhone;
+        final items = b.items.length;
+        final cash = b.cashAmount.toStringAsFixed(2);
+        final upi = b.upiAmount.toStringAsFixed(2);
+        final udhar = b.paymentMethod == 'udhar' ? b.finalAmount.toStringAsFixed(2) : '0.00';
+        final total = b.finalAmount.toStringAsFixed(2);
+        final note = (b.billNote ?? '').replaceAll(',', ' ');
+        buf.writeln('$inv,$date,$customer,$phone,$items,$cash,$upi,$udhar,$total,$note');
+      }
+
+      final total = filtered.fold(0.0, (s, b) => s + b.finalAmount).toStringAsFixed(0);
+      Share.share(
+        buf.toString(),
+        subject: 'Bills Export – $_selectedPeriod | ${filtered.length} bills | ₹$total',
+      );
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final shopAsync = ref.watch(activeShopIdProvider);
@@ -163,6 +205,11 @@ class _BillHistoryBody extends ConsumerWidget {
             icon: const Icon(Icons.receipt_long_outlined),
             tooltip: 'GSTR-1 Export',
             onPressed: () => context.push('/gstr1'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.download_outlined),
+            tooltip: 'Export CSV for Accountant',
+            onPressed: () => _exportCsv(context),
           ),
         ],
       ),
