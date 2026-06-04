@@ -72,7 +72,8 @@ export function ShopViewById({ shopId }: { shopId: string }) {
   }, [shopId]);
 
   const filteredProducts = useMemo(() => {
-    let filtered = products;
+    // Only show products with a price (owner may have added products without setting price yet)
+    let filtered = products.filter((p) => p.price > 0);
     if (selectedCategory && selectedCategory !== 'all') filtered = filtered.filter((p) => p.category === selectedCategory);
     if (searchQuery) {
       filtered = filtered.filter(
