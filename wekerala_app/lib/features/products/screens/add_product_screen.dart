@@ -1089,6 +1089,7 @@ class _VariantRowState extends State<_VariantRow> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _priceCtrl;
   late final TextEditingController _offerCtrl;
+  late final TextEditingController _stockCtrl;
 
   @override
   void initState() {
@@ -1098,6 +1099,8 @@ class _VariantRowState extends State<_VariantRow> {
         text: widget.variant.price > 0 ? widget.variant.price.toString() : '');
     _offerCtrl = TextEditingController(
         text: widget.variant.offerPrice > 0 ? widget.variant.offerPrice.toString() : '');
+    _stockCtrl = TextEditingController(
+        text: widget.variant.stockQty?.toString() ?? '');
   }
 
   @override
@@ -1105,6 +1108,7 @@ class _VariantRowState extends State<_VariantRow> {
     _nameCtrl.dispose();
     _priceCtrl.dispose();
     _offerCtrl.dispose();
+    _stockCtrl.dispose();
     super.dispose();
   }
 
@@ -1113,6 +1117,9 @@ class _VariantRowState extends State<_VariantRow> {
       name: _nameCtrl.text.trim(),
       price: double.tryParse(_priceCtrl.text.trim()) ?? 0,
       offerPrice: double.tryParse(_offerCtrl.text.trim()) ?? 0,
+      stockQty: _stockCtrl.text.trim().isEmpty
+          ? null
+          : int.tryParse(_stockCtrl.text.trim()),
     ));
   }
 
@@ -1148,6 +1155,16 @@ class _VariantRowState extends State<_VariantRow> {
               onChanged: (_) => _notify(),
               keyboardType: TextInputType.number,
               decoration: _dec('Offer'),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            flex: 2,
+            child: TextField(
+              controller: _stockCtrl,
+              onChanged: (_) => _notify(),
+              keyboardType: TextInputType.number,
+              decoration: _dec('Stock'),
             ),
           ),
           IconButton(

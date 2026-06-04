@@ -32,11 +32,15 @@ class BillingState {
   double get subtotal =>
       cartItems.fold(0.0, (acc, item) => acc + item.subtotal);
 
-  // If category is set, discount only applies to items in that category
-  // (BillItemModel doesn't carry category, so we approximate using all items
-  // unless the owner is using category-aware billing — full support requires
-  // passing category through BillItemModel, which is a future enhancement)
-  double get flashSaleDiscount => subtotal * (flashSalePercent / 100);
+  // If category is set, discount applies only to items in that category
+  double get flashSaleDiscount {
+    if (flashSalePercent == 0) return 0;
+    if (flashSaleCategory.isEmpty) return subtotal * (flashSalePercent / 100);
+    final categorySubtotal = cartItems
+        .where((item) => item.category == flashSaleCategory)
+        .fold(0.0, (acc, item) => acc + item.subtotal);
+    return categorySubtotal * (flashSalePercent / 100);
+  }
 
   double get total => subtotal - flashSaleDiscount - discountAmount;
 
@@ -137,6 +141,7 @@ class BillingNotifier extends Notifier<BillingState> {
       items.add(BillItemModel(
         productId: cartId,
         productName: displayName,
+        category: product.category,
         qty: 1,
         unit: product.unit,
         price: effectivePrice,
@@ -280,15 +285,27 @@ class BillingNotifier extends Notifier<BillingState> {
       );
       await ref.set(billWithInvoice.toFirestore());
 
-      // Decrement stock for each item
+      // Decrement stock for each item.
+      // Variant items have productId = 'realId_variantId' — handle separately.
       final batch = FirebaseFirestore.instance.batch();
       for (final item in state.cartItems) {
-        if (item.productId.isNotEmpty) {
-          final productRef = FirebaseFirestore.instance
-              .collection('shops')
-              .doc(shopId)
-              .collection('products')
-              .doc(item.productId);
+        if (item.productId.isEmpty) continue;
+        final parts = item.productId.split('_');
+        final realProductId = parts.first;
+        final isVariant = parts.length > 1;
+        final productRef = FirebaseFirestore.instance
+            .collection('shops')
+            .doc(shopId)
+            .collection('products')
+            .doc(realProductId);
+        if (isVariant) {
+          final variantId = parts.sublist(1).join('_');
+          // Decrement per-variant stock using a map field
+          batch.update(productRef, {
+            'variantStock.$variantId':
+                FieldValue.increment(-item.qty.toInt()),
+          });
+        } else {
           batch.update(productRef, {
             'stockQty': FieldValue.increment(-item.qty),
           });

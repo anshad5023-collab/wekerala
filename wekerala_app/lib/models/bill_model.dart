@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class BillItemModel {
   final String productId;
   final String productName;
+  final String category; // product category — used for category-level flash sale
   final double qty;
   final String unit;
   final double price;
@@ -14,6 +15,7 @@ class BillItemModel {
   const BillItemModel({
     required this.productId,
     required this.productName,
+    this.category = '',
     required this.qty,
     required this.unit,
     required this.price,
@@ -26,6 +28,7 @@ class BillItemModel {
   BillItemModel copyWith({
     String? productId,
     String? productName,
+    String? category,
     double? qty,
     String? unit,
     double? price,
@@ -37,6 +40,7 @@ class BillItemModel {
     return BillItemModel(
       productId: productId ?? this.productId,
       productName: productName ?? this.productName,
+      category: category ?? this.category,
       qty: qty ?? this.qty,
       unit: unit ?? this.unit,
       price: price ?? this.price,
@@ -51,6 +55,7 @@ class BillItemModel {
     return BillItemModel(
       productId: map['productId'] as String? ?? '',
       productName: map['productName'] as String? ?? '',
+      category: map['category'] as String? ?? '',
       qty: (map['qty'] as num?)?.toDouble() ?? 0,
       unit: map['unit'] as String? ?? 'piece',
       price: (map['price'] as num?)?.toDouble() ?? 0,
@@ -65,6 +70,7 @@ class BillItemModel {
     final m = <String, dynamic>{
       'productId': productId,
       'productName': productName,
+      'category': category,
       'qty': qty,
       'unit': unit,
       'price': price,
