@@ -322,10 +322,6 @@ class _ActionButtons extends StatelessWidget {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: () {
-              final ref2 = context.findAncestorStateOfType<ConsumerStatefulWidget>() != null
-                  ? null : null; // handled by Consumer below
-              // Navigate to billing with order pre-loaded via billingProvider
-              // We read from billingProvider directly via a Consumer
               showDialog<void>(
                 context: context,
                 builder: (ctx) => Consumer(
