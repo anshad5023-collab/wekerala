@@ -324,6 +324,17 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     final customers = shopId != null
         ? (ref.read(customersStreamProvider(shopId)).valueOrNull ?? <CustomerModel>[])
         : <CustomerModel>[];
+    // Build phone → outstanding udhar map so we can warn before adding more credit.
+    final credits = shopId != null
+        ? (ref.read(allCreditsStreamProvider(shopId)).valueOrNull ?? <CreditModel>[])
+        : <CreditModel>[];
+    final Map<String, double> udharByPhone = {};
+    for (final c in credits) {
+      if (c.isActive) {
+        udharByPhone[c.customerPhone] =
+            (udharByPhone[c.customerPhone] ?? 0) + c.outstanding;
+      }
+    }
 
     final result = await showDialog<bool>(
       context: context,
@@ -1556,6 +1567,33 @@ class _PaymentBar extends ConsumerStatefulWidget {
 
 class _PaymentBarState extends ConsumerState<_PaymentBar> {
   String? _selectedMethod;
+  bool _splitMode = false;
+  final _cashSplitCtrl = TextEditingController();
+  final _upiSplitCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _cashSplitCtrl.dispose();
+    _upiSplitCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onSplitConfirm(double total) {
+    final cash = double.tryParse(_cashSplitCtrl.text) ?? 0;
+    final upi = double.tryParse(_upiSplitCtrl.text) ?? 0;
+    if ((cash + upi - total).abs() > 0.01) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'Cash (₹) + UPI (₹) must equal ₹'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    setState(() { _splitMode = false; _selectedMethod = 'split'; });
+    widget.onTap('split');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1619,13 +1657,67 @@ class _PaymentBarState extends ConsumerState<_PaymentBar> {
                   icon: Icons.account_balance_wallet_outlined,
                   color: AppColors.accent,
                   onTap: () {
-                    setState(() => _selectedMethod = 'udhar');
+                    setState(() { _selectedMethod = 'udhar'; _splitMode = false; });
                     widget.onTap('udhar');
                   },
                 ),
               ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _PayButton(
+                  label: 'Split',
+                  icon: Icons.call_split_outlined,
+                  color: Colors.purple,
+                  isSelected: _splitMode,
+                  onTap: () => setState(() { _splitMode = !_splitMode; _selectedMethod = null; }),
+                ),
+              ),
             ],
           ),
+          // Split payment fields
+          if (_splitMode) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _cashSplitCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: 'Cash ₹',
+                      isDense: true,
+                      border: const OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.payments_outlined, color: AppColors.success, size: 18),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _upiSplitCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: 'UPI ₹',
+                      isDense: true,
+                      border: const OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.qr_code_scanner_outlined, color: Color(0xFF1565C0), size: 18),
+                    ),
+                    onSubmitted: (_) => _onSplitConfirm(billingState.total),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: () => _onSplitConfirm(billingState.total),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purple,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                    minimumSize: Size.zero,
+                  ),
+                  child: const Text('OK', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            ),
+          ],
           // Show UPI QR card when UPI is selected
           if (_selectedMethod == 'upi')
             shopIdAsync.when(
@@ -1664,12 +1756,14 @@ class _PayButton extends StatefulWidget {
   final IconData icon;
   final Color color;
   final VoidCallback onTap;
+  final bool isSelected;
 
   const _PayButton({
     required this.label,
     required this.icon,
     required this.color,
     required this.onTap,
+    this.isSelected = false,
   });
 
   @override
@@ -1695,18 +1789,22 @@ class _PayButtonState extends State<_PayButton> {
         child: Container(
           height: 52,
           decoration: BoxDecoration(
-            color: widget.color,
+            color: widget.isSelected ? Colors.white : widget.color,
             borderRadius: BorderRadius.circular(26),
+            border: widget.isSelected
+                ? Border.all(color: widget.color, width: 2)
+                : null,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(widget.icon, color: Colors.white, size: 18),
+              Icon(widget.icon,
+                  color: widget.isSelected ? widget.color : Colors.white, size: 18),
               const SizedBox(width: 6),
               Text(
                 widget.label,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: widget.isSelected ? widget.color : Colors.white,
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
                 ),

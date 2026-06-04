@@ -14,6 +14,7 @@ import '../../../providers/orders_provider.dart';
 import '../../../providers/products_provider.dart';
 import '../../../providers/shell_tab_provider.dart'; // also exports ShellTabX extension
 import '../../../providers/shop_provider.dart';
+import '../../../providers/billing_provider.dart';
 import '../../../shared/widgets/shimmer_list.dart';
 
 /// Home dashboard body — no Scaffold, no navigation.
@@ -258,6 +259,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             shopId: shopId,
             completedToday: _completedToday,
           ).animate().fadeIn(duration: 400.ms, delay: 220.ms),
+          const SizedBox(height: 12),
+
+          // Row 3a.5 — Cash / UPI breakdown for today
+          _PaymentBreakdownRow(shopId: shopId)
+              .animate().fadeIn(duration: 400.ms, delay: 230.ms),
           const SizedBox(height: 12),
 
           // Row 3b — Expiry alerts (shows only if any products expiring within 7 days)
@@ -1512,7 +1518,102 @@ class _NewOrdersBannerState extends State<_NewOrdersBanner>
 // ─── Shop-type Feature Cards ──────────────────────────────────────────────────
 
 
-// ─── Expiry Alerts Card ───────────────────────────────────────────────────────
+
+// ─── Payment Breakdown Row (today's cash / UPI / udhar totals) ───────────────
+
+class _PaymentBreakdownRow extends ConsumerWidget {
+  final String shopId;
+  const _PaymentBreakdownRow({required this.shopId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final summary = ref.watch(dailySalesSummaryProvider(shopId));
+    final cash = summary['cashTotal'] ?? 0;
+    final upi = summary['upiTotal'] ?? 0;
+    final udhar = summary['udharTotal'] ?? 0;
+
+    String fmt(double v) => '₹${v.toStringAsFixed(0)}';
+
+    return Row(
+      children: [
+        Expanded(
+          child: _MiniTile(
+            icon: Icons.payments_outlined,
+            label: 'Cash Today',
+            value: fmt(cash),
+            color: AppColors.success,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _MiniTile(
+            icon: Icons.qr_code_scanner_outlined,
+            label: 'UPI Today',
+            value: fmt(upi),
+            color: const Color(0xFF1565C0),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _MiniTile(
+            icon: Icons.account_balance_wallet_outlined,
+            label: 'Udhar Given',
+            value: fmt(udhar),
+            color: udhar > 0 ? AppColors.accent : AppColors.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MiniTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  const _MiniTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 14,
+              color: color,
+            ),
+          ),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 10,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}// ─── Expiry Alerts Card ───────────────────────────────────────────────────────
 
 class _ExpiryAlertsCard extends ConsumerWidget {
   final String shopId;
