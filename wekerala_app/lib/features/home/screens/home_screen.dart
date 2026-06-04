@@ -169,9 +169,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final shopId = biz['_id'] as String;
     final shopName = biz['shopName'] as String? ?? 'Your Shop';
 
-    // Watch new orders
+    // Watch new orders + today's billing revenue
     final ordersAsync = ref.watch(ordersStreamProvider(shopId));
     final newOrderCount = ordersAsync.valueOrNull?.where((o) => o.status == 'new').length ?? 0;
+    final billingSummary = ref.watch(dailySalesSummaryProvider(shopId));
+    final billingRevenue = (billingSummary['totalSales'] ?? 0.0) as double;
+    // Total revenue = orders delivered today + POS bills today
+    final totalTodayRevenue = _todayRevenue + billingRevenue;
 
     final now = DateTime.now();
     final greeting = now.hour < 12
@@ -229,7 +233,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const SizedBox(height: 20),
 
           // Row 1 — Hero KPI tile: Today's Revenue (full width)
-          _HeroRevenueTile(revenue: _todayRevenue, yesterday: _yesterdayRevenue)
+          _HeroRevenueTile(revenue: totalTodayRevenue, yesterday: _yesterdayRevenue)
               .animate()
               .fadeIn(duration: 400.ms, delay: 80.ms),
           const SizedBox(height: 12),
