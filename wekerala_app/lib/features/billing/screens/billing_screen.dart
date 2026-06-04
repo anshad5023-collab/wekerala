@@ -378,7 +378,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
         : <CreditModel>[];
     final Map<String, double> udharByPhone = {};
     for (final c in credits) {
-      if (c.isActive) {
+      if (c.status != 'paid') {
         udharByPhone[c.customerPhone] =
             (udharByPhone[c.customerPhone] ?? 0) + c.outstanding;
       }

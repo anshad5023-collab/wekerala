@@ -9,6 +9,7 @@ import '../../../models/customer_model.dart';
 import '../../../providers/customers_provider.dart';
 import '../../../providers/shop_provider.dart';
 import '../../../shared/widgets/shimmer_list.dart';
+import 'package:go_router/go_router.dart';
 
 // ── Filter enum ───────────────────────────────────────────────────────────
 
@@ -907,6 +908,7 @@ class _CustomerCard extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }

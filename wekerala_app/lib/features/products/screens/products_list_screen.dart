@@ -329,7 +329,7 @@ class _ProductsBody extends ConsumerWidget {
                                         child: OutlinedButton.icon(
                                           icon: const Icon(Icons.expand_more),
                                           label: Text(
-                                              'Showing \ products — Load more'),
+                                              'Showing ${filtered.length} products — Load more'),
                                           onPressed: () {
                                             final notifier = ref.read(
                                                 productLimitProvider(shopId).notifier);
