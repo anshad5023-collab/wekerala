@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -54,27 +53,8 @@ class AuthNotifier extends Notifier<AuthState> {
     return const AuthState(status: AuthStatus.unauthenticated);
   }
 
-  Future<bool> _canReachFirebase() async {
-    try {
-      final result = await InternetAddress.lookup('identitytoolkit.googleapis.com')
-          .timeout(const Duration(seconds: 6));
-      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
-    } catch (_) {
-      return false;
-    }
-  }
-
   Future<void> sendOtp(String phoneNumber) async {
     state = state.copyWith(status: AuthStatus.loading, phoneNumber: phoneNumber);
-
-    final canReach = await _canReachFirebase();
-    if (!canReach) {
-      state = state.copyWith(
-        status: AuthStatus.error,
-        errorMessage: 'Cannot reach Google servers. Switch to mobile data and try again.',
-      );
-      return;
-    }
 
     try {
       await _auth.verifyPhoneNumber(
@@ -186,13 +166,17 @@ class AuthNotifier extends Notifier<AuthState> {
       case 'too-many-requests':
         return 'Too many attempts. Please wait a few minutes and try again.';
       case 'network-request-failed':
-        return 'Cannot reach Google servers. Switch to mobile data (4G) and try again.';
+        return 'No internet. Switch to mobile data (4G) and try again.';
       case 'invalid-phone-number':
         return 'Invalid phone number. Please enter a valid 10-digit number.';
       case 'quota-exceeded':
         return 'SMS limit reached. Please try again tomorrow.';
+      case 'app-not-authorized':
+        return 'App not authorized for OTP. Please contact support.';
+      case 'missing-phone-number':
+        return 'Please enter a phone number.';
       default:
-        return 'Something went wrong. Please try again.';
+        return 'Error ($code). Please try again or contact support.';
     }
   }
 }

@@ -43,6 +43,46 @@ jobs:
         working-directory: wekerala_app/android/app
         run: echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > google-services.json
 
+      - name: Set up release keystore
+        working-directory: wekerala_app/android
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "Using release keystore from secrets"
+            echo "$KEYSTORE_BASE64" | base64 --decode > app/release.keystore
+            cat > key.properties << EOF
+          storePassword=$STORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=release.keystore
+          EOF
+            echo "✅ Release keystore written"
+          else
+            echo "⚠️  No KEYSTORE_BASE64 secret — using debug signing"
+          fi
+
+      - name: Print signing SHA-1 (add to Firebase Console)
+        working-directory: wekerala_app/android
+        run: |
+          if [ -f "key.properties" ] && [ -f "app/release.keystore" ]; then
+            ALIAS=$(grep keyAlias key.properties | cut -d= -f2)
+            PASS=$(grep storePassword key.properties | cut -d= -f2)
+            echo "=== RELEASE KEYSTORE SHA-1 ==="
+            keytool -list -v -alias "$ALIAS" -keystore app/release.keystore -storepass "$PASS" 2>/dev/null | grep "SHA1:"
+            echo "Add this SHA-1 to Firebase Console → Project Settings → Your Apps → Android → SHA certificate fingerprints"
+          else
+            echo "=== DEBUG KEYSTORE SHA-1 ==="
+            keytool -list -v -alias androiddebugkey \
+              -keystore ~/.android/debug.keystore \
+              -storepass android 2>/dev/null | grep "SHA1:"
+            echo "⚠️  Add this SHA-1 to Firebase Console for OTP to work with this APK"
+            echo "Firebase Console → Project Settings → Your Apps → com.wekerala.app → SHA certificate fingerprints → Add fingerprint"
+          fi
+
       - run: flutter pub get
         working-directory: wekerala_app
 
