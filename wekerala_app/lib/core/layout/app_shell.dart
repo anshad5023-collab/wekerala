@@ -1,3 +1,5 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +16,7 @@ import '../../providers/shop_provider.dart';
 import '../../providers/orders_provider.dart';
 import '../../providers/shell_tab_provider.dart';
 import '../../providers/role_provider.dart';
+import '../services/local_notification_service.dart';
 import '../services/stock_notification_service.dart';
 import 'breakpoints.dart';
 
@@ -30,9 +33,40 @@ class _AppShellState extends ConsumerState<AppShell> {
   @override
   void initState() {
     super.initState();
-    // Defer stock check until the first frame so providers are ready
     WidgetsBinding.instance
         .addPostFrameCallback((_) => _checkNotifications());
+    // Handle notification taps — both local and FCM
+    if (!kIsWeb) {
+      // Local notification tap (foreground)
+      WidgetsBinding.instance.addPostFrameCallback((_) => _handlePendingPayload());
+      // FCM notification tap from background/terminated
+      FirebaseMessaging.onMessageOpenedApp.listen(_handleFcmOpen);
+    }
+  }
+
+  void _handlePendingPayload() {
+    final payload = LocalNotificationService.consumePendingPayload();
+    if (payload != null) _navigateToPayload(payload);
+  }
+
+  void _handleFcmOpen(RemoteMessage message) {
+    final screen = message.data['screen'] as String?;
+    if (screen != null) _navigateToPayload(screen);
+  }
+
+  void _navigateToPayload(String payload) {
+    if (!mounted) return;
+    switch (payload) {
+      case 'orders':
+        ref.read(shellTabProvider.notifier).state = 1; // Orders tab
+        break;
+      case 'analytics':
+        context.push('/analytics');
+        break;
+      case 'products':
+        ref.read(shellTabProvider.notifier).state = 2;
+        break;
+    }
   }
 
   Future<void> _checkNotifications() async {
