@@ -297,18 +297,20 @@ export function CheckoutPage({ language, onBack, onConfirm, onLanguageToggle, sh
                 <span className="text-2xl">💵</span>
                 <span className="text-sm font-semibold italic">Cash on Delivery</span>
               </button>
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('upi')}
-                className={`flex flex-col items-center gap-1 rounded-xl border-2 p-3 transition-colors ${
-                  paymentMethod === 'upi'
-                    ? 'border-primary bg-primary/10 text-primary'
-                    : 'border-border bg-card text-muted-foreground hover:border-primary/40'
-                }`}
-              >
-                <span className="text-2xl">📱</span>
-                <span className="text-sm font-semibold italic">Pay via UPI</span>
-              </button>
+              {upiId && (
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('upi')}
+                  className={`flex flex-col items-center gap-1 rounded-xl border-2 p-3 transition-colors ${
+                    paymentMethod === 'upi'
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-border bg-card text-muted-foreground hover:border-primary/40'
+                  }`}
+                >
+                  <span className="text-2xl">📱</span>
+                  <span className="text-sm font-semibold italic">Pay via UPI</span>
+                </button>
+              )}
             </div>
             {paymentMethod === 'upi' && upiId && (
               <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-2">
