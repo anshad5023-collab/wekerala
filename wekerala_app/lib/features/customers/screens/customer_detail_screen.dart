@@ -124,6 +124,11 @@ class CustomerDetailScreen extends ConsumerWidget {
                                 value:
                                     '₹${moneyFmt.format(totalOutstanding)}',
                                 color: AppColors.error),
+                          if (customer.loyaltyPoints > 0)
+                            _StatChip(
+                                label: 'Points',
+                                value: '${customer.loyaltyPoints}⭐',
+                                color: const Color(0xFFF59E0B)),
                         ],
                       ),
                       const SizedBox(height: 12),

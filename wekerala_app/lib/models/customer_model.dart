@@ -8,6 +8,7 @@ class CustomerModel {
   final double totalSpent;
   final DateTime lastOrderDate;
   final DateTime firstOrderDate;
+  final int loyaltyPoints;
 
   const CustomerModel({
     required this.customerId,
@@ -17,6 +18,7 @@ class CustomerModel {
     required this.totalSpent,
     required this.lastOrderDate,
     required this.firstOrderDate,
+    this.loyaltyPoints = 0,
   });
 
   // ── Computed getters ──────────────────────────────────────────────────────
@@ -48,6 +50,7 @@ class CustomerModel {
       totalSpent: (m['totalSpent'] as num?)?.toDouble() ?? 0.0,
       lastOrderDate: _parseDate(m['lastOrderDate']),
       firstOrderDate: _parseDate(m['firstOrderDate']),
+      loyaltyPoints: (m['loyaltyPoints'] as num?)?.toInt() ?? 0,
     );
   }
 
