@@ -752,9 +752,13 @@ class _DesktopDashboard extends ConsumerWidget {
     final todayDelivered = allOrders.today
         .where((o) => o.status == 'delivered')
         .toList();
-    final streamRevenue =
+    final orderRevenue =
         todayDelivered.fold<double>(0, (acc, o) => acc + o.totalAmount);
-    final completedToday = todayDelivered.length;
+    final billingSummary = ref.watch(dailySalesSummaryProvider(shopId));
+    final billingRevenue = (billingSummary['totalSales'] ?? 0.0) as double;
+    final billingCount = ((billingSummary['billCount'] ?? 0.0) as double).toInt();
+    final streamRevenue = orderRevenue + billingRevenue;
+    final completedToday = todayDelivered.length + billingCount;
     final recentOrders = allOrders.take(5).toList();
 
     // Prefer stream-derived revenue when available; fall back to Firestore value.
