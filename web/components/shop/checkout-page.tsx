@@ -35,6 +35,8 @@ interface SavedAddress { id: string; label: string; address: string; isDefault: 
 export function CheckoutPage({ language, onBack, onConfirm, onLanguageToggle, shopId, deliveryCharge = 0, freeDeliveryAbove = 0, upiId }: CheckoutPageProps) {
   const t = translations[language];
   const subtotal = useCartStore((state) => state.getTotal());
+  const cartItems = useCartStore((state) => state.items);
+  const itemCount = useCartStore((state) => state.getItemCount());
   const { uid, phone: savedPhone } = useAuthStore();
 
   const [formData, setFormData] = useState<CustomerDetails>({
@@ -144,6 +146,26 @@ export function CheckoutPage({ language, onBack, onConfirm, onLanguageToggle, sh
           {language === 'en' ? 'മല' : 'EN'}
         </Button>
       </header>
+
+      {/* Order Summary Strip */}
+      <div className="bg-white border-b border-border px-4 py-3">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-foreground">{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
+          <span className="text-sm font-bold text-primary">₹{(subtotal + (discountAmount > 0 ? -discountAmount : 0)).toFixed(0)}</span>
+        </div>
+        <div className="mt-1 flex gap-1.5 overflow-x-auto pb-1">
+          {cartItems.slice(0, 5).map((item) => (
+            <span key={item.product.id} className="whitespace-nowrap rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+              {item.product.name.en} ×{item.quantity}
+            </span>
+          ))}
+          {cartItems.length > 5 && (
+            <span className="whitespace-nowrap rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+              +{cartItems.length - 5} more
+            </span>
+          )}
+        </div>
+      </div>
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="flex flex-1 flex-col">
