@@ -2,13 +2,19 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/product_model.dart';
 
+// Tracks how many products to load — starts at 300, user can expand
+final productLimitProvider =
+    StateProvider.family<int, String>((ref, shopId) => 300);
+
 final productsStreamProvider =
     StreamProvider.family<List<ProductModel>, String>((ref, shopId) {
+  final limit = ref.watch(productLimitProvider(shopId));
   return FirebaseFirestore.instance
       .collection('shops')
       .doc(shopId)
       .collection('products')
       .orderBy('createdAt', descending: true)
+      .limit(limit)
       .snapshots()
       .map((s) => s.docs.map(ProductModel.fromFirestore).toList());
 });

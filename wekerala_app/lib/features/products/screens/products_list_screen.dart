@@ -108,7 +108,8 @@ class _ProductsBody extends ConsumerWidget {
         data: (products) {
           // KPI computations
           final total = products.length;
-          final atLimit = total >= 300;
+          final currentLimit = ref.watch(productLimitProvider(shopId));
+          final atLimit = total >= currentLimit;
           final lowStockCount = products.where((p) => p.isLowStock).length;
           final totalValue = products.fold<double>(0, (acc, p) {
             final qty = (p.stockQty ?? 0).clamp(0, 999999);
