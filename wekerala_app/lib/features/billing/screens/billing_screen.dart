@@ -1389,7 +1389,9 @@ class _ProductPanel extends ConsumerWidget {
                           (p.searchAlias != null &&
                               p.searchAlias!.toLowerCase().contains(sq)) ||
                           (p.barcode != null && p.barcode!.contains(searchQuery))))
-                  .toList();
+                  .toList()
+                // Sort by orderCount desc so most-billed products appear first
+                ..sort((a, b) => b.orderCount.compareTo(a.orderCount));
 
               if (visible.isEmpty) {
                 return const Center(

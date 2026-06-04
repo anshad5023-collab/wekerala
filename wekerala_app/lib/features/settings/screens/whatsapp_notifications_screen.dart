@@ -1,8 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../models/shop_model.dart';
 import '../../../providers/shop_provider.dart';
 
 class WhatsappNotificationsScreen extends ConsumerStatefulWidget {
@@ -15,32 +17,48 @@ class WhatsappNotificationsScreen extends ConsumerStatefulWidget {
 
 class _WhatsappNotificationsScreenState
     extends ConsumerState<WhatsappNotificationsScreen> {
-  // ── Owner notification toggles ─────────────────────────────────────────────
-  bool _newOrderAlert = false;       // OFF by default — owners prefer in-app push
+  // ── Owner notification toggles (saved to whatsappSettings) ────────────────
+  bool _newOrderAlert = false;
   bool _autoCancelAlert = true;
   bool _dailySummary = true;
   bool _monthlyReport = true;
   bool _lowStockAlert = true;
-  bool _reorderAlert = false;        // OFF by default — fires every 6h, can be noisy
+  bool _reorderAlert = false;
   bool _udharOverdueSummary = true;
   bool _flashSaleAlert = true;
-
-  // ── Udhar reminder ────────────────────────────────────────────────────────
   final _reminderDaysCtrl = TextEditingController(text: '7');
 
+  // ── AI WhatsApp Assistant (saved to aiSettings) ───────────────────────────
+  bool _aiEnabled = false;
+  String _replyLanguage = 'auto'; // 'auto' | 'english' | 'malayalam'
+  bool _shareProductPrices = true;
+  bool _shareStockStatus = false;
+  bool _answerDeliveryQuestions = true;
+  bool _neverShareOwnerPhone = true;
+  bool _neverShareOwnerAddress = true;
+  bool _neverDiscussCompetitors = false;
+  final _handoffKeywordCtrl = TextEditingController();
+  final _customInstructionsCtrl = TextEditingController();
+
   bool _saving = false;
+  bool _testingSend = false;
   bool _loaded = false;
 
   @override
   void dispose() {
     _reminderDaysCtrl.dispose();
+    _handoffKeywordCtrl.dispose();
+    _customInstructionsCtrl.dispose();
     super.dispose();
   }
 
-  void _loadFrom(Map<String, dynamic>? s) {
-    if (_loaded || s == null) return;
+  void _loadFrom(ShopModel shop) {
+    if (_loaded) return;
     _loaded = true;
+    final s = shop.whatsappSettings;
+    final ai = shop.aiSettings;
     setState(() {
+      // Notification toggles
       _newOrderAlert       = s['newOrderAlert']       as bool? ?? false;
       _autoCancelAlert     = s['autoCancelAlert']     as bool? ?? true;
       _dailySummary        = s['dailySummary']        as bool? ?? true;
@@ -51,6 +69,18 @@ class _WhatsappNotificationsScreenState
       _flashSaleAlert      = s['flashSaleAlert']      as bool? ?? true;
       final days = s['udharReminderDays'];
       _reminderDaysCtrl.text = days?.toString() ?? '7';
+
+      // AI settings
+      _aiEnabled               = ai['enabled']                 as bool?   ?? false;
+      _replyLanguage           = ai['replyLanguage']           as String? ?? 'auto';
+      _shareProductPrices      = ai['shareProductPrices']      as bool?   ?? true;
+      _shareStockStatus        = ai['shareStockStatus']        as bool?   ?? false;
+      _answerDeliveryQuestions = ai['answerDeliveryQuestions'] as bool?   ?? true;
+      _neverShareOwnerPhone    = ai['neverShareOwnerPhone']    as bool?   ?? true;
+      _neverShareOwnerAddress  = ai['neverShareOwnerAddress']  as bool?   ?? true;
+      _neverDiscussCompetitors = ai['neverDiscussCompetitors'] as bool?   ?? false;
+      _handoffKeywordCtrl.text    = ai['humanHandoffKeyword']  as String? ?? '';
+      _customInstructionsCtrl.text = ai['customInstructions'] as String? ?? '';
     });
   }
 
@@ -60,20 +90,32 @@ class _WhatsappNotificationsScreenState
     try {
       await FirebaseFirestore.instance.collection('shops').doc(shopId).update({
         'whatsappSettings': {
-          'newOrderAlert': _newOrderAlert,
-          'autoCancelAlert': _autoCancelAlert,
-          'dailySummary': _dailySummary,
-          'monthlyReport': _monthlyReport,
-          'lowStockAlert': _lowStockAlert,
-          'reorderAlert': _reorderAlert,
+          'newOrderAlert':       _newOrderAlert,
+          'autoCancelAlert':     _autoCancelAlert,
+          'dailySummary':        _dailySummary,
+          'monthlyReport':       _monthlyReport,
+          'lowStockAlert':       _lowStockAlert,
+          'reorderAlert':        _reorderAlert,
           'udharOverdueSummary': _udharOverdueSummary,
-          'flashSaleAlert': _flashSaleAlert,
-          'udharReminderDays': days.clamp(1, 90),
+          'flashSaleAlert':      _flashSaleAlert,
+          'udharReminderDays':   days.clamp(1, 90),
+        },
+        'aiSettings': {
+          'enabled':                 _aiEnabled,
+          'replyLanguage':           _replyLanguage,
+          'shareProductPrices':      _shareProductPrices,
+          'shareStockStatus':        _shareStockStatus,
+          'answerDeliveryQuestions': _answerDeliveryQuestions,
+          'neverShareOwnerPhone':    _neverShareOwnerPhone,
+          'neverShareOwnerAddress':  _neverShareOwnerAddress,
+          'neverDiscussCompetitors': _neverDiscussCompetitors,
+          'humanHandoffKeyword':     _handoffKeywordCtrl.text.trim(),
+          'customInstructions':      _customInstructionsCtrl.text.trim(),
         },
       });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Notification preferences saved'),
+          content: Text('Preferences saved'),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
         ));
@@ -91,6 +133,40 @@ class _WhatsappNotificationsScreenState
     }
   }
 
+  Future<void> _sendTest(String shopId) async {
+    setState(() => _testingSend = true);
+    try {
+      final callable =
+          FirebaseFunctions.instance.httpsCallable('sendTestWhatsApp');
+      await callable.call({'shopId': shopId});
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('✅ Test message sent to your WhatsApp!'),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } on FirebaseFunctionsException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('❌ ${e.message}'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('❌ $e'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _testingSend = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final shopAsync = ref.watch(activeShopIdProvider);
@@ -104,40 +180,279 @@ class _WhatsappNotificationsScreenState
           return const Scaffold(body: Center(child: Text('No shop found')));
         }
         final shopStream = ref.watch(shopStreamProvider(shopId));
-        shopStream.whenData((shop) => _loadFrom(shop.whatsappSettings));
+        shopStream.whenData((shop) => _loadFrom(shop));
 
         return Scaffold(
           backgroundColor: const Color(0xFFF5F5F5),
           appBar: AppBar(
-            title: const Text('WhatsApp Notifications'),
+            title: const Text('WhatsApp Settings'),
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,
           ),
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              // Info banner
-              Container(
-                padding: const EdgeInsets.all(12),
-                margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8F5E9),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFF2D6A4F).withValues(alpha: 0.3)),
+              // ── Connection Status ─────────────────────────────────────
+              _ConnectionBanner(
+                onTest: _testingSend ? null : () => _sendTest(shopId),
+                testing: _testingSend,
+              ),
+              const SizedBox(height: 20),
+
+              // ── AI WhatsApp Assistant ─────────────────────────────────
+              _SectionLabel('AI WhatsApp Assistant'),
+              _Card(children: [
+                _PrefTile(
+                  icon: Icons.smart_toy_outlined,
+                  iconColor: const Color(0xFF7B1FA2),
+                  title: 'Enable AI Auto-Reply',
+                  subtitle:
+                      'AI replies to customer WhatsApp messages using your product data',
+                  value: _aiEnabled,
+                  onChanged: (v) => setState(() => _aiEnabled = v),
                 ),
-                child: const Row(children: [
-                  Icon(Icons.info_outline, size: 18, color: Color(0xFF2D6A4F)),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Choose which WhatsApp alerts you receive. Turning off saves cost — you still get in-app notifications for everything.',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF2D6A4F)),
+                if (_aiEnabled) ...[
+                  const Divider(height: 1, indent: 64),
+
+                  // Reply language
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 38, height: 38,
+                          decoration: BoxDecoration(
+                            color:
+                                const Color(0xFF7B1FA2).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.translate_outlined,
+                              color: Color(0xFF7B1FA2), size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Reply Language',
+                                  style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500)),
+                              Text(
+                                  'Which language should AI use to reply?',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF6B7280))),
+                            ],
+                          ),
+                        ),
+                        DropdownButton<String>(
+                          value: _replyLanguage,
+                          underline: const SizedBox(),
+                          borderRadius: BorderRadius.circular(10),
+                          items: const [
+                            DropdownMenuItem(
+                                value: 'auto',
+                                child: Text('Auto-detect')),
+                            DropdownMenuItem(
+                                value: 'malayalam',
+                                child: Text('Malayalam')),
+                            DropdownMenuItem(
+                                value: 'english',
+                                child: Text('English')),
+                          ],
+                          onChanged: (v) =>
+                              setState(() => _replyLanguage = v ?? 'auto'),
+                        ),
+                      ],
                     ),
                   ),
-                ]),
-              ),
+                  const Divider(height: 1, indent: 64),
 
-              // ── Orders ─────────────────────────────────────────────────────
+                  _PrefTile(
+                    icon: Icons.price_change_outlined,
+                    iconColor: const Color(0xFF2D6A4F),
+                    title: 'Share Product Prices',
+                    subtitle:
+                        'AI tells customers the price of items they ask about',
+                    value: _shareProductPrices,
+                    onChanged: (v) =>
+                        setState(() => _shareProductPrices = v),
+                  ),
+                  const Divider(height: 1, indent: 64),
+                  _PrefTile(
+                    icon: Icons.inventory_outlined,
+                    iconColor: const Color(0xFF2D6A4F),
+                    title: 'Share Stock Availability',
+                    subtitle:
+                        'AI tells customers if an item is in stock or out of stock',
+                    value: _shareStockStatus,
+                    onChanged: (v) =>
+                        setState(() => _shareStockStatus = v),
+                  ),
+                  const Divider(height: 1, indent: 64),
+                  _PrefTile(
+                    icon: Icons.local_shipping_outlined,
+                    iconColor: const Color(0xFF1976D2),
+                    title: 'Answer Delivery Questions',
+                    subtitle:
+                        'AI shares delivery charge, min order, and free delivery details',
+                    value: _answerDeliveryQuestions,
+                    onChanged: (v) =>
+                        setState(() => _answerDeliveryQuestions = v),
+                  ),
+                  const Divider(height: 1, indent: 64),
+
+                  // Human handoff keyword
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 38, height: 38,
+                          decoration: BoxDecoration(
+                            color:
+                                const Color(0xFFE53935).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.support_agent_outlined,
+                              color: Color(0xFFE53935), size: 20),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Human Handoff Word',
+                                  style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500)),
+                              SizedBox(height: 2),
+                              Text(
+                                'When customer types this, AI pauses and alerts you',
+                                style: TextStyle(
+                                    fontSize: 12,
+                                    color: Color(0xFF6B7280)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 100,
+                          child: TextField(
+                            controller: _handoffKeywordCtrl,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 13),
+                            decoration: InputDecoration(
+                              hintText: 'e.g. human',
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8)),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                                borderSide:
+                                    BorderSide(color: AppColors.primary),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 10),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ]),
+              const SizedBox(height: 16),
+
+              // ── Privacy Controls (only when AI enabled) ───────────────
+              if (_aiEnabled) ...[
+                _SectionLabel('AI Privacy Controls'),
+                _Card(children: [
+                  _PrefTile(
+                    icon: Icons.phone_locked_outlined,
+                    iconColor: const Color(0xFFE53935),
+                    title: 'Never Share Your Phone Number',
+                    subtitle:
+                        'AI will not give customers your personal number',
+                    value: _neverShareOwnerPhone,
+                    onChanged: (v) =>
+                        setState(() => _neverShareOwnerPhone = v),
+                  ),
+                  const Divider(height: 1, indent: 64),
+                  _PrefTile(
+                    icon: Icons.home_work_outlined,
+                    iconColor: const Color(0xFFE53935),
+                    title: 'Never Share Your Home Address',
+                    subtitle:
+                        'AI will not reveal your personal or home address',
+                    value: _neverShareOwnerAddress,
+                    onChanged: (v) =>
+                        setState(() => _neverShareOwnerAddress = v),
+                  ),
+                  const Divider(height: 1, indent: 64),
+                  _PrefTile(
+                    icon: Icons.store_outlined,
+                    iconColor: const Color(0xFF546E7A),
+                    title: 'Never Mention Competitors',
+                    subtitle:
+                        'AI will not recommend or compare other shops',
+                    value: _neverDiscussCompetitors,
+                    onChanged: (v) =>
+                        setState(() => _neverDiscussCompetitors = v),
+                  ),
+                ]),
+                const SizedBox(height: 16),
+
+                // Custom instructions
+                _SectionLabel('Custom AI Instructions'),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Special instructions for the AI',
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF1A2E22)),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Example: "Always greet in Malayalam. If asked about fish, say we only sell vegetables."',
+                        style:
+                            TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _customInstructionsCtrl,
+                        maxLines: 4,
+                        maxLength: 500,
+                        decoration: InputDecoration(
+                          hintText: 'Type custom instructions here...',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide:
+                                BorderSide(color: AppColors.primary),
+                          ),
+                          contentPadding: const EdgeInsets.all(10),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              // ── Order Alerts ──────────────────────────────────────────
               _SectionLabel('Order Alerts'),
               _Card(children: [
                 _PrefTile(
@@ -154,14 +469,15 @@ class _WhatsappNotificationsScreenState
                   icon: Icons.timer_off_outlined,
                   iconColor: const Color(0xFFE53935),
                   title: 'Auto-Cancel Warning',
-                  subtitle: 'Alert when an order is cancelled after 45 min of no action',
+                  subtitle:
+                      'Alert when order is cancelled after 45 min of no action',
                   value: _autoCancelAlert,
                   onChanged: (v) => setState(() => _autoCancelAlert = v),
                 ),
               ]),
               const SizedBox(height: 16),
 
-              // ── Reports ────────────────────────────────────────────────────
+              // ── Reports ───────────────────────────────────────────────
               _SectionLabel('Reports'),
               _Card(children: [
                 _PrefTile(
@@ -177,14 +493,15 @@ class _WhatsappNotificationsScreenState
                   icon: Icons.calendar_month_outlined,
                   iconColor: const Color(0xFF7B1FA2),
                   title: 'Monthly Business Report',
-                  subtitle: 'Full revenue and top products — sent on the 1st of month',
+                  subtitle:
+                      'Full revenue and top products — sent on the 1st of month',
                   value: _monthlyReport,
                   onChanged: (v) => setState(() => _monthlyReport = v),
                 ),
               ]),
               const SizedBox(height: 16),
 
-              // ── Stock ──────────────────────────────────────────────────────
+              // ── Stock Alerts ──────────────────────────────────────────
               _SectionLabel('Stock Alerts'),
               _Card(children: [
                 _PrefTile(
@@ -208,19 +525,20 @@ class _WhatsappNotificationsScreenState
               ]),
               const SizedBox(height: 16),
 
-              // ── Udhar ──────────────────────────────────────────────────────
+              // ── Udhar ─────────────────────────────────────────────────
               _SectionLabel('Credit (Udhar) Alerts'),
               _Card(children: [
                 _PrefTile(
                   icon: Icons.account_balance_wallet_outlined,
                   iconColor: const Color(0xFF2D6A4F),
                   title: 'Overdue Summary',
-                  subtitle: 'Daily list of customers with overdue payments — sent at 10 AM',
+                  subtitle:
+                      'Daily list of customers with overdue payments — sent at 10 AM',
                   value: _udharOverdueSummary,
-                  onChanged: (v) => setState(() => _udharOverdueSummary = v),
+                  onChanged: (v) =>
+                      setState(() => _udharOverdueSummary = v),
                 ),
                 const Divider(height: 1, indent: 64),
-                // Reminder days field
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
                   child: Row(
@@ -235,16 +553,19 @@ class _WhatsappNotificationsScreenState
                             color: Color(0xFF2D6A4F), size: 20),
                       ),
                       const SizedBox(width: 12),
-                      Expanded(
+                      const Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Customer Reminder Gap',
-                                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                            const SizedBox(height: 2),
-                            const Text(
-                              'How many days before due date to remind the customer',
-                              style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                            Text('Customer Reminder Gap',
+                                style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500)),
+                            SizedBox(height: 2),
+                            Text(
+                              'Days before due date to remind the customer',
+                              style: TextStyle(
+                                  fontSize: 12, color: Color(0xFF6B7280)),
                             ),
                           ],
                         ),
@@ -256,17 +577,19 @@ class _WhatsappNotificationsScreenState
                           controller: _reminderDaysCtrl,
                           keyboardType: TextInputType.number,
                           textAlign: TextAlign.center,
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly
+                          ],
                           decoration: InputDecoration(
                             suffixText: 'd',
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
+                                borderRadius: BorderRadius.circular(8)),
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(8),
                               borderSide: BorderSide(color: AppColors.primary),
                             ),
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 10),
                           ),
                         ),
                       ),
@@ -276,7 +599,7 @@ class _WhatsappNotificationsScreenState
               ]),
               const SizedBox(height: 16),
 
-              // ── Promotions ─────────────────────────────────────────────────
+              // ── Promotions ────────────────────────────────────────────
               _SectionLabel('Promotions'),
               _Card(children: [
                 _PrefTile(
@@ -304,8 +627,7 @@ class _WhatsappNotificationsScreenState
                   ),
                   child: _saving
                       ? const SizedBox(
-                          width: 22,
-                          height: 22,
+                          width: 22, height: 22,
                           child: CircularProgressIndicator(
                               strokeWidth: 2, color: Colors.white))
                       : const Text('Save Preferences',
@@ -322,7 +644,77 @@ class _WhatsappNotificationsScreenState
   }
 }
 
-// ── Widgets ──────────────────────────────────────────────────────────────────
+// ── Connection Status Banner ──────────────────────────────────────────────────
+
+class _ConnectionBanner extends StatelessWidget {
+  final VoidCallback? onTest;
+  final bool testing;
+  const _ConnectionBanner({required this.onTest, required this.testing});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8F5E9),
+        borderRadius: BorderRadius.circular(12),
+        border:
+            Border.all(color: const Color(0xFF2D6A4F).withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(children: [
+            Icon(Icons.whatsapp, color: Color(0xFF25D366), size: 20),
+            SizedBox(width: 8),
+            Text(
+              'WhatsApp via Meta Cloud API',
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1A2E22)),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          const Text(
+            'Messages are sent from the weKerala business number using '
+            "Meta's official API. No third-party service. No monthly platform fee.",
+            style: TextStyle(fontSize: 12, color: Color(0xFF2D6A4F)),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                side: const BorderSide(color: Color(0xFF2D6A4F)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+              ),
+              icon: testing
+                  ? const SizedBox(
+                      width: 16, height: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Color(0xFF2D6A4F)))
+                  : const Icon(Icons.send_outlined,
+                      color: Color(0xFF2D6A4F), size: 16),
+              label: Text(
+                testing
+                    ? 'Sending...'
+                    : 'Send Test Message to My WhatsApp',
+                style: const TextStyle(
+                    fontSize: 13, color: Color(0xFF2D6A4F)),
+              ),
+              onPressed: onTest,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Shared Widgets ────────────────────────────────────────────────────────────
 
 class _PrefTile extends StatelessWidget {
   final IconData icon;
@@ -348,8 +740,7 @@ class _PrefTile extends StatelessWidget {
     return SwitchListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       secondary: Container(
-        width: 38,
-        height: 38,
+        width: 38, height: 38,
         decoration: BoxDecoration(
           color: iconColor.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(10),
@@ -379,7 +770,8 @@ class _PrefTile extends StatelessWidget {
         ],
       ]),
       subtitle: Text(subtitle,
-          style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+          style:
+              const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
       value: value,
       onChanged: onChanged,
       activeColor: AppColors.primary,
