@@ -91,6 +91,59 @@ class _CreditsBody extends ConsumerWidget {
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
+        actions: [
+          // Remind All — sends WhatsApp reminder to every open debtor
+          creditsAsync.when(
+            data: (credits) {
+              final open = credits.where((c) => c.isActive).toList();
+              if (open.isEmpty) return const SizedBox.shrink();
+              return IconButton(
+                icon: const Icon(Icons.send_outlined),
+                tooltip: 'Remind All (${open.length})',
+                onPressed: () async {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Remind All Debtors?'),
+                      content: Text(
+                          'Send a WhatsApp payment reminder to all ${open.length} customers with open Udhar?'),
+                      actions: [
+                        TextButton(
+                            onPressed: () => Navigator.pop(ctx, false),
+                            child: const Text('Cancel')),
+                        ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF25D366),
+                                foregroundColor: Colors.white),
+                            onPressed: () => Navigator.pop(ctx, true),
+                            child: const Text('Send All')),
+                      ],
+                    ),
+                  );
+                  if (confirm != true || !context.mounted) return;
+                  for (final credit in open) {
+                    final rawPhone =
+                        credit.customerPhone.replaceAll(RegExp(r'\D'), '');
+                    final phone = rawPhone.startsWith('91')
+                        ? rawPhone
+                        : '91$rawPhone';
+                    final msg = Uri.encodeComponent(
+                        'Dear ${credit.customerName}, you have an outstanding balance of '
+                        '₹${credit.outstanding.toStringAsFixed(0)} at $shopName. '
+                        'Please settle at your earliest convenience. Thank you! 🙏');
+                    final uri =
+                        Uri.parse('https://wa.me/$phone?text=$msg');
+                    await launchUrl(uri,
+                        mode: LaunchMode.externalApplication);
+                    await Future.delayed(const Duration(milliseconds: 500));
+                  }
+                },
+              );
+            },
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push('/credits/add'),
