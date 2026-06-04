@@ -284,7 +284,7 @@ class _PasteTab extends StatelessWidget {
               textAlignVertical: TextAlignVertical.top,
               style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
               decoration: InputDecoration(
-                hintText: 'Tomato\t30\tkg\t25\t0\tVegetables\nOnion\t20\tkg\t\t\t',
+                hintText: 'Name\tPrice\tUnit\tOfferPrice\tMinQty\tCategory\tSearchAlias\tDescription\tBarcode\nTomato\t30\tkg\t25\t0\tVegetables\t\t\t\nDolo 650\t245\tpiece\t\t\tMedicines\tparacetamol,fever\t\t',
                 hintStyle:
                     const TextStyle(color: AppColors.textSecondary, fontSize: 11),
                 filled: true,
