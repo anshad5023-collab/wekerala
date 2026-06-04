@@ -28,6 +28,7 @@ final allCreditsStreamProvider =
       .doc(shopId)
       .collection('credits')
       .orderBy('createdAt', descending: true)
+      .limit(300) // last 300 credit entries
       .snapshots()
       .map((s) => s.docs.map(CreditModel.fromFirestore).toList());
 });
