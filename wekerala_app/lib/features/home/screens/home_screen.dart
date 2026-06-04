@@ -16,6 +16,7 @@ import '../../../providers/shell_tab_provider.dart'; // also exports ShellTabX e
 import '../../../providers/shop_provider.dart';
 import '../../../providers/billing_provider.dart';
 import '../../../shared/widgets/shimmer_list.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Home dashboard body — no Scaffold, no navigation.
 /// Drop it directly into a shell/tab body.
@@ -211,6 +212,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: [
           if (newOrderCount > 0)
             _NewOrdersBanner(count: newOrderCount),
+
+          // ── First-use guide (shown only until dismissed) ─
+          _FirstUseTipsCard(shopId: shopId),
 
           // ── Open / Close toggle ──────────────────────────
           _OpenCloseToggle(shopId: shopId, isOpen: isOpen, onChanged: (v) {
@@ -1945,6 +1949,159 @@ class _FeatureTile extends StatelessWidget {
                 size: 14, color: Colors.grey.shade400),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─── First-Use Tips Card ──────────────────────────────────────────────────────
+
+class _FirstUseTipsCard extends StatefulWidget {
+  final String shopId;
+  const _FirstUseTipsCard({required this.shopId});
+
+  @override
+  State<_FirstUseTipsCard> createState() => _FirstUseTipsCardState();
+}
+
+class _FirstUseTipsCardState extends State<_FirstUseTipsCard> {
+  bool _visible = false;
+  bool _loaded = false;
+  static const _key = 'home_tips_dismissed';
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  Future<void> _check() async {
+    final prefs = await SharedPreferences.getInstance();
+    final dismissed = prefs.getBool(_key) ?? false;
+    if (mounted) setState(() { _visible = !dismissed; _loaded = true; });
+  }
+
+  Future<void> _dismiss() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_key, true);
+    if (mounted) setState(() => _visible = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded || !_visible) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.lightbulb_outline,
+                  color: AppColors.primary, size: 20),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('Getting started',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
+                        fontSize: 14)),
+              ),
+              GestureDetector(
+                onTap: _dismiss,
+                child: const Icon(Icons.close,
+                    size: 18, color: AppColors.textSecondary),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _TipRow(
+            number: '1',
+            title: 'Add your products',
+            subtitle: 'Tap Products tab → + button',
+            onTap: () => context.push('/products/add'),
+          ),
+          const SizedBox(height: 8),
+          _TipRow(
+            number: '2',
+            title: 'Bill a customer',
+            subtitle: 'Search product → Add to cart → Cash / UPI',
+            onTap: () => context.push('/billing'),
+          ),
+          const SizedBox(height: 8),
+          _TipRow(
+            number: '3',
+            title: 'Track Udhar (credit)',
+            subtitle: 'Billing → payment: Udhar → enter customer name',
+            onTap: () => context.push('/credits'),
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _dismiss,
+              child: const Text('Got it, hide this',
+                  style: TextStyle(fontSize: 12)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TipRow extends StatelessWidget {
+  final String number;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _TipRow({
+    required this.number,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 12,
+            backgroundColor: AppColors.primary,
+            child: Text(number,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 13)),
+                Text(subtitle,
+                    style: const TextStyle(
+                        color: AppColors.textSecondary, fontSize: 11)),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right,
+              size: 16, color: AppColors.textSecondary),
+        ],
       ),
     );
   }
