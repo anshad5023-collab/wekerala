@@ -78,11 +78,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     final authState = ref.read(authProvider);
     final isAuthenticated = authState.status == AuthStatus.authenticated;
 
-    // Navigate immediately — don't wait for optional update dialog
     if (!isAuthenticated) {
       context.go('/login');
     } else {
-      context.go('/home');
+      final hasShop = await ref.read(authProvider.notifier).hasShops();
+      if (!mounted) return;
+      context.go(hasShop ? '/home' : '/onboard/type');
     }
 
     // Show optional update notification after navigation (non-blocking)

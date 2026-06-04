@@ -81,7 +81,9 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     if (!mounted) return;
 
     if (success) {
-      context.go('/home');
+      final hasShop = await ref.read(authProvider.notifier).hasShops();
+      if (!mounted) return;
+      context.go(hasShop ? '/home' : '/onboard/type');
     } else {
       final state = ref.read(authProvider);
       final errorKey = state.errorMessage ?? 'error_generic';

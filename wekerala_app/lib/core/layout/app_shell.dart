@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../constants/app_colors.dart';
@@ -63,6 +64,14 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget build(BuildContext context) {
     final shopAsync = ref.watch(activeShopIdProvider);
     final shopId = shopAsync.valueOrNull ?? '';
+
+    // Safety: no shop configured yet — send to onboarding
+    if (shopAsync.hasValue && shopId.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.go('/onboard/type');
+      });
+      return const Scaffold(body: SizedBox.shrink());
+    }
 
     // Live new-orders count for badge
     final newOrderCount = shopId.isNotEmpty
