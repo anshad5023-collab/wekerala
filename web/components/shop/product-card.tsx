@@ -67,7 +67,26 @@ export function ProductCard({ product, language, onProductClick }: ProductCardPr
             sizes="(max-width: 768px) 50vw, 25vw"
           />
         ) : (
-          <div className="flex h-full items-center justify-center text-4xl">🛒</div>
+          <div className="flex h-full items-center justify-center text-4xl bg-muted/60">
+            {(() => {
+              const c = (product.category ?? '').toLowerCase();
+              if (c.includes('grocery') || c.includes('staple')) return '🌾';
+              if (c.includes('chicken') || c.includes('poultry')) return '🍗';
+              if (c.includes('fish') || c.includes('seafood')) return '🐟';
+              if (c.includes('beef') || c.includes('mutton')) return '🥩';
+              if (c.includes('dairy') || c.includes('egg')) return '🥛';
+              if (c.includes('vegetable') || c.includes('vegs')) return '🥦';
+              if (c.includes('fruit')) return '🍎';
+              if (c.includes('beverage') || c.includes('drink')) return '🥤';
+              if (c.includes('snack') || c.includes('biscuit')) return '🍪';
+              if (c.includes('bread') || c.includes('bakery')) return '🥐';
+              if (c.includes('medicine') || c.includes('pharma')) return '💊';
+              if (c.includes('cleaning') || c.includes('detergent')) return '🧹';
+              if (c.includes('personal') || c.includes('beauty')) return '🧴';
+              if (c.includes('baby')) return '🍼';
+              return '📦';
+            })()}
+          </div>
         )}
       </div>
 
