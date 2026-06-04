@@ -47,5 +47,12 @@ web/tsconfig.tsbuildinfo
 # Claude Code internal files
 .claude/
 
-# Waste / scratch folder
+# Research, archive, pitch, and local-only folders — not needed by AI or CI
 waste/
+pitch-deck/
+docs/
+design/
+apk-download/
+*.md
+!wekerala_app/CLAUDE.md
+!wekerala_MASTER_DOC.md

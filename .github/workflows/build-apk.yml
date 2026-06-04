@@ -57,6 +57,18 @@ jobs:
           path: wekerala_app/build/app/outputs/flutter-apk/app-release.apk
           retention-days: 30
 
+      - name: Create GitHub Release
+        if: success()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: "Oratas v1.0.${{ github.run_number }}"
+          body: "Automatic release from build #${{ github.run_number }}"
+          files: wekerala_app/build/app/outputs/flutter-apk/app-release.apk
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Upload to Firebase Storage
         if: success()
         working-directory: wekerala_app
