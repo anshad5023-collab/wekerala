@@ -543,7 +543,7 @@ final dailySalesSummaryProvider =
   return bills.when(
     data: (list) {
       double total = 0, cash = 0, upi = 0, udhar = 0;
-      for (final b in list) {
+      for (final b in list.where((b) => !b.isVoided)) {
         total += b.finalAmount;
         if (b.paymentMethod == 'split') {
           cash += b.cashAmount ?? 0;
@@ -556,9 +556,10 @@ final dailySalesSummaryProvider =
           udhar += b.finalAmount;
         }
       }
+      final nonVoidedCount = list.where((b) => !b.isVoided).length;
       return {
         'totalSales': total,
-        'billCount': list.length.toDouble(),
+        'billCount': nonVoidedCount.toDouble(),
         'cashTotal': cash,
         'upiTotal': upi,
         'udharTotal': udhar,
