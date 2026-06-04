@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/bill_model.dart';
+import '../models/variant_model.dart';
 import '../models/customer_model.dart';
 import '../models/product_model.dart';
 
@@ -101,12 +102,21 @@ class BillingNotifier extends Notifier<BillingState> {
   BillingState build() => const BillingState();
 
   /// Add one unit of [product] to the cart. If already present, increment qty.
-  void addItem(ProductModel product) {
+  void addItem(ProductModel product, {VariantModel? variant}) {
     final items = List<BillItemModel>.from(state.cartItems);
-    final idx = items.indexWhere((i) => i.productId == product.productId);
+    // Use variant-specific ID so each variant is a separate cart line
+    final cartId = variant != null
+        ? '\_\'
+        : product.productId;
+    final idx = items.indexWhere((i) => i.productId == cartId);
 
-    final effectivePrice =
-        product.offerPrice > 0 ? product.offerPrice : product.price;
+    final effectivePrice = variant != null
+        ? (variant.offerPrice > 0 ? variant.offerPrice : variant.price)
+        : (product.offerPrice > 0 ? product.offerPrice : product.price);
+
+    final displayName = variant != null
+        ? '\ (\)'
+        : product.nameEn;
 
     if (idx >= 0) {
       final existing = items[idx];
@@ -117,8 +127,8 @@ class BillingNotifier extends Notifier<BillingState> {
       );
     } else {
       items.add(BillItemModel(
-        productId: product.productId,
-        productName: product.nameEn,
+        productId: cartId,
+        productName: displayName,
         qty: 1,
         unit: product.unit,
         price: effectivePrice,

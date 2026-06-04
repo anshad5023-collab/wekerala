@@ -17,6 +17,7 @@ import '../../../core/services/print_service.dart';
 import '../../../models/bill_model.dart';
 import '../../../models/customer_model.dart';
 import '../../../models/product_model.dart';
+import '../../../models/variant_model.dart';
 import '../../../models/shop_model.dart';
 import '../../../providers/billing_provider.dart';
 import '../../../providers/customers_provider.dart';
@@ -89,6 +90,44 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
 
   // ── payment flow ──────────────────────────────────────────────────────────
 
+
+  Future<VariantModel?> _showVariantPicker(
+      BuildContext context, ProductModel product) {
+    return showModalBottomSheet<VariantModel>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+              child: Text(
+                'Select ${product.nameEn} variant',
+                style: const TextStyle(
+                    fontWeight: FontWeight.w700, fontSize: 16),
+              ),
+            ),
+            const Divider(height: 1),
+            ...product.variants.map((v) => ListTile(
+                  title: Text(v.name),
+                  trailing: Text(
+                    '₹${(v.offerPrice > 0 ? v.offerPrice : v.price).toStringAsFixed(0)}',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
+                        fontSize: 16),
+                  ),
+                  onTap: () => Navigator.pop(ctx, v),
+                )),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
   Future<void> _onPaymentTap(String method, {double? cashAmt, double? upiAmt}) async {
     if (method == 'split') {
       setState(() { _splitCashAmount = cashAmt; _splitUpiAmount = upiAmt; });
@@ -1352,8 +1391,17 @@ class _ProductPanel extends ConsumerWidget {
                   return _ProductButton(
                     product: product,
                     inCart: inCart,
-                    onTap: () =>
-                        ref.read(billingProvider.notifier).addItem(product),
+                    onTap: () async {
+                      if (product.hasVariants && product.variants.isNotEmpty) {
+                        final variant = await _showVariantPicker(context, product);
+                        if (variant != null && context.mounted) {
+                          ref.read(billingProvider.notifier)
+                              .addItem(product, variant: variant);
+                        }
+                      } else {
+                        ref.read(billingProvider.notifier).addItem(product);
+                      }
+                    },
                   );
                 },
               );
