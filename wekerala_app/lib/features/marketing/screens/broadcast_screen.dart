@@ -333,55 +333,56 @@ class _BodyState extends ConsumerState<_Body> {
                     'Could not load customers: $e',
                     style: const TextStyle(color: AppColors.error, fontSize: 13),
                   ),
-                  data: (phones) => Row(
+                  data: (phones) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: _kGreen.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '${phones.length} customers found',
-                          style: const TextStyle(
-                            color: _kGreen,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
+                      Row(children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _kGreen.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '${phones.length} customers found',
+                            style: const TextStyle(
+                              color: _kGreen,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '(last 90 days)',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
+                        const SizedBox(width: 6),
+                        Text(
+                          '(last 90 days)',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
-                      ),
+                      ]),
+                      if (phones.isNotEmpty)
+                        TextButton.icon(
+                          icon: const Icon(Icons.copy, size: 15),
+                          label: const Text('Copy Numbers (WhatsApp manual broadcast)',
+                              style: TextStyle(fontSize: 12)),
+                          style: TextButton.styleFrom(
+                              foregroundColor: AppColors.textSecondary,
+                              padding: EdgeInsets.zero),
+                          onPressed: () {
+                            Clipboard.setData(ClipboardData(text: phones.join(', ')));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Phone numbers copied! Create a WhatsApp broadcast list.'),
+                                duration: Duration(seconds: 3),
+                              ),
+                            );
+                          },
+                        ),
                     ],
                   ),
                 ),
-              if (phones.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                TextButton.icon(
-                  icon: const Icon(Icons.copy, size: 15),
-                  label: const Text('Copy Numbers (for WhatsApp manual broadcast)',
-                      style: TextStyle(fontSize: 12)),
-                  style: TextButton.styleFrom(
-                      foregroundColor: AppColors.textSecondary,
-                      padding: EdgeInsets.zero),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: phones.join(', ')));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Phone numbers copied! Create a WhatsApp broadcast list.'),
-                        duration: Duration(seconds: 3),
-                      ),
-                    );
-                  },
-                ),
-              ],
               const SizedBox(height: 8),
               CheckboxListTile(
                 value: widget.includeAll,
