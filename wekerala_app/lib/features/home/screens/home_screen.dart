@@ -1770,6 +1770,7 @@ class _ExpiryAlertsCard extends ConsumerWidget {
     final isMeat       = type.contains('meat') || type.contains('fish');
     final isBakery     = type.contains('bakery');
     final isFancy      = type.contains('fancy') || type.contains('gift') || type.contains('stationery');
+    final isTextile    = type.contains('textile') || type.contains('fabric') || type.contains('clothing');
 
     if (isRestaurant) {
       return [
@@ -1845,6 +1846,32 @@ class _ExpiryAlertsCard extends ConsumerWidget {
           subtitle: 'Announce new arrivals',
           color: const Color(0xFF1565C0),
           onTap: () => GoRouter.of(context).push('/marketing/broadcast'),
+        ),
+      ];
+    }
+
+    if (isTextile) {
+      return [
+        _FeatureCard(
+          icon: Icons.grid_view_outlined,
+          title: 'Variants',
+          subtitle: 'Manage colors & sizes',
+          color: const Color(0xFF4A148C),
+          onTap: () => GoRouter.of(context).push('/products'),
+        ),
+        _FeatureCard(
+          icon: Icons.bolt_outlined,
+          title: 'Flash Sale',
+          subtitle: 'Season-end clearance discounts',
+          color: const Color(0xFFE91E63),
+          onTap: () => GoRouter.of(context).push('/marketing/flash-sale'),
+        ),
+        _FeatureCard(
+          icon: Icons.people_outlined,
+          title: 'Customers',
+          subtitle: 'Loyal buyer history',
+          color: const Color(0xFF388E3C),
+          onTap: () => GoRouter.of(context).push('/customers'),
         ),
       ];
     }
