@@ -1771,6 +1771,7 @@ class _ExpiryAlertsCard extends ConsumerWidget {
     final isBakery     = type.contains('bakery');
     final isFancy      = type.contains('fancy') || type.contains('gift') || type.contains('stationery');
     final isTextile    = type.contains('textile') || type.contains('fabric') || type.contains('clothing');
+    final isElectronics = type.contains('electronic') || type.contains('hardware') || type.contains('mobile');
 
     if (isRestaurant) {
       return [
@@ -1872,6 +1873,32 @@ class _ExpiryAlertsCard extends ConsumerWidget {
           subtitle: 'Loyal buyer history',
           color: const Color(0xFF388E3C),
           onTap: () => GoRouter.of(context).push('/customers'),
+        ),
+      ];
+    }
+
+    if (isElectronics) {
+      return [
+        _FeatureCard(
+          icon: Icons.warning_amber_outlined,
+          title: 'Stock Alerts',
+          subtitle: 'Low-stock high-value items',
+          color: const Color(0xFFF57F17),
+          onTap: () => GoRouter.of(context).push('/stock-alerts'),
+        ),
+        _FeatureCard(
+          icon: Icons.people_outlined,
+          title: 'Suppliers',
+          subtitle: 'Manage component suppliers',
+          color: const Color(0xFF1565C0),
+          onTap: () => GoRouter.of(context).push('/suppliers'),
+        ),
+        _FeatureCard(
+          icon: Icons.analytics_outlined,
+          title: 'Analytics',
+          subtitle: 'Revenue & top products',
+          color: const Color(0xFF388E3C),
+          onTap: () => GoRouter.of(context).push('/analytics'),
         ),
       ];
     }
