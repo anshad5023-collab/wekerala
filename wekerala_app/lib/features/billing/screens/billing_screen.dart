@@ -1235,7 +1235,7 @@ class _QtyButton extends StatelessWidget {
 // Product panel
 // ---------------------------------------------------------------------------
 
-class _ProductPanel extends ConsumerWidget {
+class _ProductPanel extends ConsumerStatefulWidget {
   final String shopId;
   final TextEditingController searchCtrl;
   final FocusNode searchFocus;
@@ -1253,8 +1253,19 @@ class _ProductPanel extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ProductPanel> createState() => _ProductPanelState();
+}
+
+class _ProductPanelState extends ConsumerState<_ProductPanel> {
+  String _selectedCategory = 'All';
+
+  @override
+  Widget build(BuildContext context) {
+    final shopId = widget.shopId;
+    final searchQuery = widget.searchQuery;
     final productsAsync = ref.watch(productsStreamProvider(shopId));
+    final shopAsync = ref.watch(shopStreamProvider(shopId));
+    final categories = ['All', ...?shopAsync.value?.categories];
     final cartItems = ref.watch(billingProvider).cartItems;
     final inCartIds = {for (final i in cartItems) i.productId};
 
@@ -1281,9 +1292,9 @@ class _ProductPanel extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
           child: TextField(
-            controller: searchCtrl,
-            focusNode: searchFocus,
-            onChanged: onSearchChanged,
+            controller: widget.searchCtrl,
+            focusNode: widget.searchFocus,
+            onChanged: widget.onSearchChanged,
             decoration: InputDecoration(
               hintText: 'Search products...',
               prefixIcon:
@@ -1296,7 +1307,7 @@ class _ProductPanel extends ConsumerWidget {
                       icon: const Icon(Icons.clear,
                           color: AppColors.textSecondary),
                       onPressed: () {
-                        searchCtrl.clear();
+                        widget.searchCtrl.clear();
                         onSearchChanged('');
                       },
                     ),
@@ -1374,6 +1385,51 @@ class _ProductPanel extends ConsumerWidget {
           ),
         ),
 
+        // Category filter chips
+        if (categories.length > 2)
+          SizedBox(
+            height: 36,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              itemCount: categories.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              itemBuilder: (_, i) {
+                final cat = categories[i];
+                final sel = cat == _selectedCategory;
+                return GestureDetector(
+                  onTap: () => setState(() => _selectedCategory = cat),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: sel
+                          ? AppColors.primary
+                          : AppColors.surface,
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: sel
+                            ? AppColors.primary
+                            : Colors.grey.shade300,
+                      ),
+                    ),
+                    child: Text(cat,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: sel
+                              ? FontWeight.w700
+                              : FontWeight.normal,
+                          color: sel
+                              ? Colors.white
+                              : AppColors.textSecondary,
+                        )),
+                  ),
+                );
+              },
+            ),
+          ),
+        if (categories.length > 2) const SizedBox(height: 6),
+
         // Product list
         Expanded(
           child: productsAsync.when(
@@ -1383,6 +1439,7 @@ class _ProductPanel extends ConsumerWidget {
                   .where((p) =>
                       !p.isHidden &&
                       !p.isOutOfStock &&
+                      (_selectedCategory == 'All' || p.category == _selectedCategory) &&
                       (searchQuery.isEmpty ||
                           p.nameEn.toLowerCase().contains(sq) ||
                           p.nameMl.toLowerCase().contains(sq) ||
