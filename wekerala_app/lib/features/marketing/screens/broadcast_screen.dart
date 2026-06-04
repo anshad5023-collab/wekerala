@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../providers/shop_provider.dart';
@@ -361,6 +362,26 @@ class _BodyState extends ConsumerState<_Body> {
                     ],
                   ),
                 ),
+              if (phones.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                TextButton.icon(
+                  icon: const Icon(Icons.copy, size: 15),
+                  label: const Text('Copy Numbers (for WhatsApp manual broadcast)',
+                      style: TextStyle(fontSize: 12)),
+                  style: TextButton.styleFrom(
+                      foregroundColor: AppColors.textSecondary,
+                      padding: EdgeInsets.zero),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: phones.join(', ')));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Phone numbers copied! Create a WhatsApp broadcast list.'),
+                        duration: Duration(seconds: 3),
+                      ),
+                    );
+                  },
+                ),
+              ],
               const SizedBox(height: 8),
               CheckboxListTile(
                 value: widget.includeAll,
