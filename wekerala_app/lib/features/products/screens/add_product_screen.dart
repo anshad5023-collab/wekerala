@@ -6,12 +6,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../../../core/services/product_lookup_service.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/layout/breakpoints.dart';
 import '../../../providers/language_provider.dart'; // translationsProvider
@@ -148,117 +148,35 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     });
   }
 
-  // Fetch product data — tries India DB first, then world DB
-  Future<Map<String, dynamic>?> _fetchOpenFoodFacts(String barcode) async {
-    for (final host in ['in.openfoodfacts.org', 'world.openfoodfacts.org']) {
-      try {
-        final resp = await http.get(
-          Uri.parse('https://$host/api/v2/product/$barcode.json'),
-          headers: {'User-Agent': 'Oratas/1.0 (oratas4ai@gmail.com)'},
-        ).timeout(const Duration(seconds: 8));
-        if (resp.statusCode == 200) {
-          final data = jsonDecode(resp.body) as Map<String, dynamic>;
-          if (data['status'] == 1) return data['product'] as Map<String, dynamic>;
-        }
-      } catch (_) {}
-    }
-    return null;
+  List<String> _getCategories() {
+    final shopId = ref.read(activeShopIdProvider).valueOrNull ?? '';
+    return ref.read(shopStreamProvider(shopId)).valueOrNull?.categories ?? [];
   }
 
-  // Map Open Food Facts category tags to the shop's own category list
-  String _guessCategory(Map<String, dynamic> p, List<String> available) {
-    final tags = ((p['categories_tags'] as List?)?.cast<String>() ?? [])
-        .map((t) => t.split(':').last.toLowerCase())
-        .toList();
-    const mapping = {
-      'beverages': ['Beverages', 'Drinks'],
-      'drinks': ['Beverages', 'Drinks'],
-      'dairy': ['Dairy & Eggs'],
-      'milk': ['Dairy & Eggs'],
-      'eggs': ['Dairy & Eggs'],
-      'snacks': ['Snacks'],
-      'chips': ['Snacks'],
-      'biscuits': ['Biscuits & Cookies', 'Snacks'],
-      'cookies': ['Biscuits & Cookies', 'Snacks'],
-      'chocolates': ['Snacks'],
-      'vegetables': ['Vegetables'],
-      'fruits': ['Fruits'],
-      'cereals': ['Grocery Staples'],
-      'rice': ['Grocery Staples'],
-      'flour': ['Grocery Staples'],
-      'oils': ['Grocery Staples'],
-      'spices': ['Grocery Staples'],
-      'condiments': ['Grocery Staples'],
-      'cleaning': ['Cleaning'],
-      'breads': ['Breads'],
-      'cakes': ['Cakes & Pastries'],
-      'medicines': ['Medicines'],
-      'chicken': ['Chicken'],
-      'beef': ['Beef'],
-      'mutton': ['Mutton'],
-      'fish': ['Fish'],
-      'seafood': ['Prawns & Seafood'],
-    };
-    for (final tag in tags) {
-      for (final entry in mapping.entries) {
-        if (tag.contains(entry.key)) {
-          for (final cat in entry.value) {
-            if (available.contains(cat)) return cat;
-          }
-        }
-      }
-    }
-    return '';
-  }
-
-  // Parse "500 g" / "1 kg" / "250 ml" to app unit string
-  String _guessUnit(Map<String, dynamic> p) {
-    final qty = (p['quantity'] as String? ?? '').toLowerCase();
-    if (qty.contains('kg') || qty.contains('kilogram')) return 'kg';
-    if (qty.contains(' g') || qty.contains('gram')) return 'gram';
-    if (qty.contains('ml') || qty.contains('millilitre')) return 'ml';
-    if (qty.contains('litre') || qty.contains('liter') || qty.contains(' l')) return 'litre';
-    return 'piece';
-  }
-
-  void _applyProductData(Map<String, dynamic> p, List<String> availableCategories) {
-    final name = ((p['product_name_en'] ?? p['product_name_in'] ?? p['product_name']) as String? ?? '').trim();
-    final brand = (p['brands'] as String? ?? '').trim().split(',').first.trim();
-    final imageUrl = ((p['image_front_url'] ?? p['image_url']) as String? ?? '').trim();
-    final category = _guessCategory(p, availableCategories);
-    final unit = _guessUnit(p);
-
+  void _applyLookup(ProductData data) {
     setState(() {
-      if (name.isNotEmpty) {
-        final fullName = (brand.isNotEmpty && !name.toLowerCase().contains(brand.toLowerCase()))
-            ? '$brand $name'
-            : name;
-        _nameEnCtrl.text = fullName;
-      }
-      if (imageUrl.isNotEmpty) {
-        _imageUrl = imageUrl;
+      if (data.nameEn.isNotEmpty) _nameEnCtrl.text = data.nameEn;
+      if (data.imageUrl.isNotEmpty) {
+        _imageUrl = data.imageUrl;
         _imageSource = 'barcode';
         _imageFile = null;
       }
-      if (category.isNotEmpty) _category = category;
-      _unit = unit;
+      if (data.category.isNotEmpty) _category = data.category;
+      _unit = data.unit;
       _loadingImage = false;
     });
-
-    if (name.isEmpty && mounted) {
-      _showError('Barcode found but no product name available. Enter name manually.');
+    if (data.nameEn.isEmpty && mounted) {
+      _showError('Product found but no name available. Enter name manually.');
     }
   }
 
   Future<void> _lookupBarcode(String barcode) async {
     if (barcode.isEmpty) return;
-    final shopId = ref.read(activeShopIdProvider).valueOrNull ?? '';
-    final categories = ref.read(shopStreamProvider(shopId)).valueOrNull?.categories ?? [];
     setState(() => _loadingImage = true);
-    final p = await _fetchOpenFoodFacts(barcode);
+    final data = await ProductLookupService.lookupBarcode(barcode, _getCategories());
     if (!mounted) return;
-    if (p != null) {
-      _applyProductData(p, categories);
+    if (data != null) {
+      _applyLookup(data);
     } else {
       setState(() => _loadingImage = false);
       _showError('Barcode not found. Enter details manually.');
@@ -270,7 +188,6 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       _showError('Barcode scanning is available on Android only.');
       return;
     }
-    // Request camera permission before opening scanner
     final status = await Permission.camera.request();
     if (!mounted) return;
     if (!status.isGranted) {
@@ -278,23 +195,53 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       if (status.isPermanentlyDenied) openAppSettings();
       return;
     }
-
     final barcode = await Navigator.push<String>(
       context,
       MaterialPageRoute(builder: (_) => const _BarcodeScannerPage()),
     );
     if (barcode == null || !mounted) return;
-
-    final shopId = ref.read(activeShopIdProvider).valueOrNull ?? '';
-    final categories = ref.read(shopStreamProvider(shopId)).valueOrNull?.categories ?? [];
     setState(() => _loadingImage = true);
-    final p = await _fetchOpenFoodFacts(barcode);
+    final data = await ProductLookupService.lookupBarcode(barcode, _getCategories());
     if (!mounted) return;
-    if (p != null) {
-      _applyProductData(p, categories);
+    if (data != null) {
+      _applyLookup(data);
     } else {
       setState(() => _loadingImage = false);
       _showError('Product not found in database. Enter details manually.');
+    }
+  }
+
+  // Scan product photo with AI — identifies product and auto-fills all fields
+  Future<void> _scanPhoto() async {
+    if (kIsWeb) {
+      _showError('Photo scan is available on Android only.');
+      return;
+    }
+    final status = await Permission.camera.request();
+    if (!mounted) return;
+    if (!status.isGranted) {
+      _showError('Camera permission required.');
+      if (status.isPermanentlyDenied) openAppSettings();
+      return;
+    }
+    final picker = ImagePicker();
+    final file = await picker.pickImage(
+      source: ImageSource.camera,
+      maxWidth: 800,
+      imageQuality: 80,
+    );
+    if (file == null || !mounted) return;
+
+    setState(() => _loadingImage = true);
+    final bytes = await file.readAsBytes();
+    final base64Image = base64Encode(bytes);
+    final data = await ProductLookupService.lookupByPhoto(base64Image, _getCategories());
+    if (!mounted) return;
+    if (data != null && data.hasData) {
+      _applyLookup(data);
+    } else {
+      setState(() => _loadingImage = false);
+      _showError('Could not identify product. Try scanning the barcode instead.');
     }
   }
 
@@ -525,6 +472,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   onGallery: () => _pickImage(ImageSource.gallery),
                   onAuto: _autoMatch,
                   onScan: _scanBarcode,
+                  onScanPhoto: _scanPhoto,
                   onBarcodeChanged: _lookupBarcode,
                 ),
                 const SizedBox(height: 16),
@@ -910,6 +858,7 @@ class _ImageSection extends StatelessWidget {
   final VoidCallback onGallery;
   final VoidCallback onAuto;
   final VoidCallback onScan;
+  final VoidCallback onScanPhoto;
   final ValueChanged<String> onBarcodeChanged;
 
   const _ImageSection({
@@ -920,6 +869,7 @@ class _ImageSection extends StatelessWidget {
     required this.onGallery,
     required this.onAuto,
     required this.onScan,
+    required this.onScanPhoto,
     required this.onBarcodeChanged,
   });
 
@@ -955,7 +905,7 @@ class _ImageSection extends StatelessWidget {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (!kIsWeb && Platform.isAndroid)
+            if (!kIsWeb && Platform.isAndroid) ...[
               OutlinedButton.icon(
                 onPressed: loading ? null : onScan,
                 icon: loading
@@ -969,8 +919,19 @@ class _ImageSection extends StatelessWidget {
                   foregroundColor: AppColors.accent,
                   side: BorderSide(color: AppColors.accent),
                 ),
-              )
-            else
+              ),
+              const SizedBox(height: 6),
+              OutlinedButton.icon(
+                onPressed: loading ? null : onScanPhoto,
+                icon: const Icon(Icons.camera_enhance, size: 16),
+                label: const Text('Scan Photo (AI)'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(130, 36),
+                  foregroundColor: Colors.deepPurple,
+                  side: const BorderSide(color: Colors.deepPurple),
+                ),
+              ),
+            ] else
               SizedBox(
                 width: 160,
                 child: TextField(

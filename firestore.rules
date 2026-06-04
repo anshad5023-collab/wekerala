@@ -99,6 +99,13 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Community product catalog — shared Kerala product database
+    // Any authenticated shop owner can read and contribute
+    match /product_catalog/{barcode} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
     // ── Business listing collections ─────────────────────────────────────────
     match /services/{docId}   { allow read: if true; allow create: if request.auth != null; allow update: if request.auth != null && (request.auth.uid == resource.data.ownerId || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isActive'])); allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId; }
     match /theaters/{docId}   { allow read: if true; allow create: if request.auth != null; allow update: if request.auth != null && (request.auth.uid == resource.data.ownerId || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isActive'])); allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId; }
