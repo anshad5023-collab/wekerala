@@ -375,7 +375,7 @@ class BillingNotifier extends Notifier<BillingState> {
           orderAmount: bill.finalAmount,
         ));
 
-        // For udhar sales, also track the outstanding balance on the customer record
+        // For udhar sales, track balance on customer AND create a credit document
         if (bill.isUdhar) {
           unawaited(FirebaseFirestore.instance
               .collection('shops')
@@ -386,6 +386,24 @@ class BillingNotifier extends Notifier<BillingState> {
             'udharBalance': FieldValue.increment(bill.finalAmount),
             'lastUdharDate': Timestamp.fromDate(bill.createdAt),
           }, SetOptions(merge: true)));
+          // Create credit record so it appears in Credits screen and home Outstanding
+          unawaited(FirebaseFirestore.instance
+              .collection('shops')
+              .doc(shopId)
+              .collection('credits')
+              .add({
+            'shopId': shopId,
+            'customerName': bill.customerName,
+            'customerPhone': bill.customerPhone,
+            'amount': bill.finalAmount,
+            'paidAmount': 0.0,
+            'status': 'open',
+            'billId': bill.billId,
+            'invoiceNumber': bill.invoiceNumber,
+            'notes': bill.billNote ?? '',
+            'createdAt': Timestamp.fromDate(bill.createdAt),
+            'updatedAt': Timestamp.fromDate(bill.createdAt),
+          }));
         }
 
         // Award loyalty points (fire-and-forget, non-fatal)
