@@ -37,6 +37,7 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
   String _searchQuery = '';
+  bool _showTodayOnly = false;
 
   @override
   void initState() {
@@ -67,6 +68,8 @@ class _OrdersListScreenState extends ConsumerState<OrdersListScreen>
           t: t,
           searchQuery: _searchQuery,
           onSearchChanged: (v) => setState(() => _searchQuery = v),
+          showTodayOnly: _showTodayOnly,
+          onTodayToggled: (v) => setState(() => _showTodayOnly = v),
         );
       },
     );
@@ -81,6 +84,8 @@ class _OrdersBody extends ConsumerWidget {
   final String Function(String) t;
   final String searchQuery;
   final ValueChanged<String> onSearchChanged;
+  final bool showTodayOnly;
+  final ValueChanged<bool> onTodayToggled;
 
   const _OrdersBody({
     required this.shopId,
@@ -88,6 +93,8 @@ class _OrdersBody extends ConsumerWidget {
     required this.t,
     required this.searchQuery,
     required this.onSearchChanged,
+    required this.showTodayOnly,
+    required this.onTodayToggled,
   });
 
   @override
@@ -174,6 +181,39 @@ class _OrdersBody extends ConsumerWidget {
             ),
           ),
           // ── Tab content ─────────────────────────────────────────────────────
+          // Today / All filter
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(
+              children: [
+                FilterChip(
+                  label: const Text('Today'),
+                  selected: showTodayOnly,
+                  onSelected: onTodayToggled,
+                  selectedColor: AppColors.primary.withValues(alpha: 0.15),
+                  checkmarkColor: AppColors.primary,
+                  labelStyle: TextStyle(
+                    color: showTodayOnly ? AppColors.primary : AppColors.textSecondary,
+                    fontWeight: showTodayOnly ? FontWeight.w700 : FontWeight.normal,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilterChip(
+                  label: const Text('All Orders'),
+                  selected: !showTodayOnly,
+                  onSelected: (v) => onTodayToggled(!v),
+                  selectedColor: AppColors.primary.withValues(alpha: 0.15),
+                  checkmarkColor: AppColors.primary,
+                  labelStyle: TextStyle(
+                    color: !showTodayOnly ? AppColors.primary : AppColors.textSecondary,
+                    fontWeight: !showTodayOnly ? FontWeight.w700 : FontWeight.normal,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
           Expanded(
             child: ordersAsync.when(
               loading: () => const ShimmerList(),
@@ -182,10 +222,17 @@ class _OrdersBody extends ConsumerWidget {
               data: (orders) => TabBarView(
                 controller: tabs,
                 children: _kStatuses.map((s) {
+                  // Today filter
+                  final todayStart = DateTime.now();
+                  final startOfDay = DateTime(todayStart.year, todayStart.month, todayStart.day);
+                  final dateFiltered = showTodayOnly
+                      ? orders.where((o) => o.createdAt.isAfter(startOfDay)).toList()
+                      : orders;
+
                   // Status filter
                   final statusFiltered = s == 'all'
-                      ? orders
-                      : orders.where((o) => o.status == s).toList();
+                      ? dateFiltered
+                      : dateFiltered.where((o) => o.status == s).toList();
 
                   // Search filter (by customer name OR order number)
                   final q = searchQuery.trim().toLowerCase();

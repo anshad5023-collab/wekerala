@@ -108,6 +108,7 @@ class _ProductsBody extends ConsumerWidget {
         data: (products) {
           // KPI computations
           final total = products.length;
+          final atLimit = total >= 300;
           final lowStockCount = products.where((p) => p.isLowStock).length;
           final totalValue = products.fold<double>(0, (acc, p) {
             final qty = (p.stockQty ?? 0).clamp(0, 999999);
@@ -318,10 +319,33 @@ class _ProductsBody extends ConsumerWidget {
                                 child: ListView.builder(
                                   padding:
                                       const EdgeInsets.only(bottom: 80),
-                                  itemCount: filtered.length,
-                                  itemBuilder: (_, i) => _ProductTile(
-                                      shopId: shopId,
-                                      product: filtered[i]),
+                                  itemCount: filtered.length + (atLimit ? 1 : 0),
+                                  itemBuilder: (_, i) {
+                                    if (i == filtered.length) {
+                                      // Load More footer
+                                      return Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 16, horizontal: 24),
+                                        child: OutlinedButton.icon(
+                                          icon: const Icon(Icons.expand_more),
+                                          label: Text(
+                                              'Showing \ products — Load more'),
+                                          onPressed: () {
+                                            final notifier = ref.read(
+                                                _productLimitProvider(shopId).notifier);
+                                            notifier.state += 200;
+                                          },
+                                          style: OutlinedButton.styleFrom(
+                                            minimumSize:
+                                                const Size.fromHeight(48),
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                    return _ProductTile(
+                                        shopId: shopId,
+                                        product: filtered[i]);
+                                  },
                                 ),
                               ),
                             ),
