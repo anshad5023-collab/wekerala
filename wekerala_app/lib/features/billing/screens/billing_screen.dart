@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1650,11 +1651,13 @@ class _PaymentBarState extends ConsumerState<_PaymentBar> {
   bool _splitMode = false;
   final _cashSplitCtrl = TextEditingController();
   final _upiSplitCtrl = TextEditingController();
+  final _tenderedCtrl = TextEditingController(); // cash change calculator
 
   @override
   void dispose() {
     _cashSplitCtrl.dispose();
     _upiSplitCtrl.dispose();
+    _tenderedCtrl.dispose();
     super.dispose();
   }
 
@@ -1665,7 +1668,7 @@ class _PaymentBarState extends ConsumerState<_PaymentBar> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-              'Cash (₹) + UPI (₹) must equal ₹'),
+              'Cash (₹${cash.toStringAsFixed(0)}) + UPI (₹${upi.toStringAsFixed(0)}) must equal ₹${total.toStringAsFixed(0)}'),
           backgroundColor: Colors.red,
         ),
       );
@@ -1798,6 +1801,63 @@ class _PaymentBarState extends ConsumerState<_PaymentBar> {
               ],
             ),
           ],
+          // Cash change calculator — shows when Cash is selected
+          if (_selectedMethod == 'cash') ...[
+            const SizedBox(height: 10),
+            StatefulBuilder(
+              builder: (ctx, setS) {
+                final tendered = double.tryParse(_tenderedCtrl.text) ?? 0;
+                final change = tendered - billingState.total;
+                return Column(
+                  children: [
+                    TextField(
+                      controller: _tenderedCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      onChanged: (_) => setS(() {}),
+                      decoration: InputDecoration(
+                        labelText: 'Customer gave',
+                        isDense: true,
+                        prefixText: '₹ ',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.payments_outlined,
+                            color: AppColors.success, size: 18),
+                      ),
+                    ),
+                    if (tendered > 0 && change >= 0) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(children: [
+                          const Icon(Icons.check_circle_outline, color: AppColors.success, size: 20),
+                          const SizedBox(width: 8),
+                          Text('Change: ${change.toStringAsFixed(0)}',
+                              style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.w800, fontSize: 18)),
+                        ]),
+                      ),
+                    ],
+                    if (tendered > 0 && change < 0) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.error.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text('Short by ${(-change).toStringAsFixed(0)}',
+                            style: const TextStyle(color: AppColors.error, fontWeight: FontWeight.w700, fontSize: 16)),
+                      ),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ],
           // Show UPI QR card when UPI is selected
           if (_selectedMethod == 'upi')
             shopIdAsync.when(
@@ -1927,13 +1987,30 @@ class _ReceiptSheetState extends State<_ReceiptSheet> {
   void initState() {
     super.initState();
     if (widget.autoSendWhatsapp) {
-      // Wait for the sheet animation to complete, then share
       Future.delayed(const Duration(milliseconds: 600), () {
-        if (mounted) {
-          Share.share(_buildReceiptText());
-        }
+        if (mounted) _openWhatsApp();
       });
     }
+  }
+
+  /// Opens WhatsApp directly with the bill receipt pre-filled.
+  /// Falls back to the generic share sheet if the customer has no phone.
+  Future<void> _openWhatsApp() async {
+    final phone = widget.bill.customerPhone.replaceAll(RegExp(r'\D'), '');
+    final text = _buildReceiptText();
+    if (phone.length >= 10) {
+      final e164 = phone.startsWith('91') && phone.length == 12
+          ? phone
+          : '91${phone.substring(phone.length - 10)}';
+      final uri = Uri.parse(
+        'https://wa.me/$e164?text=${Uri.encodeComponent(text)}',
+      );
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        return;
+      }
+    }
+    Share.share(text);
   }
 
   String _buildReceiptText() {
@@ -2187,9 +2264,7 @@ class _ReceiptSheetState extends State<_ReceiptSheet> {
                 style: TextStyle(
                     fontWeight: FontWeight.bold, fontSize: 15),
               ),
-              onPressed: () async {
-                await Share.share(receiptText);
-              },
+              onPressed: () async => _openWhatsApp(),
             ),
           ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.2),
 
