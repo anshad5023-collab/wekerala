@@ -11,6 +11,7 @@ final customersStreamProvider =
       .doc(shopId)
       .collection('customers')
       .orderBy('lastOrderDate', descending: true)
+      .limit(500) // top 500 most-recent customers
       .snapshots()
       .map((snap) => snap.docs.map(CustomerModel.fromFirestore).toList());
 });

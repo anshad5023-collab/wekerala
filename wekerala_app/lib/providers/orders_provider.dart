@@ -6,10 +6,14 @@ import '../models/customer_model.dart';
 
 final ordersStreamProvider =
     StreamProvider.family<List<OrderModel>, String>((ref, shopId) {
+  // Limit to last 90 days to prevent loading thousands of old orders
+  final since = Timestamp.fromDate(
+      DateTime.now().subtract(const Duration(days: 90)));
   return FirebaseFirestore.instance
       .collection('shops')
       .doc(shopId)
       .collection('orders')
+      .where('createdAt', isGreaterThanOrEqualTo: since)
       .orderBy('createdAt', descending: true)
       .snapshots()
       .map((s) => s.docs.map(OrderModel.fromFirestore).toList());
