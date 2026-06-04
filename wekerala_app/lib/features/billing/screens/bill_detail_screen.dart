@@ -550,6 +550,9 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
           : item.qty.toStringAsFixed(2);
       buffer.writeln(
           '• ${item.productName} x$qty ${item.unit} — ₹${item.subtotal.toStringAsFixed(2)}');
+      if (item.batchNumber != null && item.batchNumber!.isNotEmpty) {
+        buffer.writeln('  Batch: ${item.batchNumber}');
+      }
     }
     buffer.writeln();
 
