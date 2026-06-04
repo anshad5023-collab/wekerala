@@ -54,11 +54,20 @@ class CreditsRepository {
     final snap = await ref.get();
     if (!snap.exists) return;
     final current = CreditModel.fromFirestore(snap);
+    final remaining = current.outstanding;
     await ref.update({
       'status': 'paid',
       'paidAmount': current.amount,
       'updatedAt': FieldValue.serverTimestamp(),
     });
+    // Also decrement udharBalance on customer document
+    if (current.customerPhone.isNotEmpty && remaining > 0) {
+      FirebaseFirestore.instance
+          .collection('shops').doc(shopId)
+          .collection('customers').doc(current.customerPhone)
+          .set({'udharBalance': FieldValue.increment(-remaining)},
+              SetOptions(merge: true));
+    }
   }
 
   /// Record a partial payment. Automatically promotes to 'paid' if fully settled.
@@ -80,6 +89,14 @@ class CreditsRepository {
       'status': fullyPaid ? 'paid' : 'partial',
       'updatedAt': FieldValue.serverTimestamp(),
     });
+    // Also decrement udharBalance on customer document
+    if (current.customerPhone.isNotEmpty && paymentAmount > 0) {
+      FirebaseFirestore.instance
+          .collection('shops').doc(shopId)
+          .collection('customers').doc(current.customerPhone)
+          .set({'udharBalance': FieldValue.increment(-paymentAmount)},
+              SetOptions(merge: true));
+    }
   }
 
   /// Permanently delete a credit entry.
