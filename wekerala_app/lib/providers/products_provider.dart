@@ -95,3 +95,23 @@ class ProductRepository {
     await batch.commit();
   }
 }
+
+// Returns products with an expiry date within the next 7 days (including already expired)
+final expiringProductsProvider =
+    Provider.family<List<ProductModel>, String>((ref, shopId) {
+  final products = ref.watch(productsStreamProvider(shopId));
+  final now = DateTime.now();
+  final cutoff = now.add(const Duration(days: 7));
+  return products
+          .whenData((list) {
+            final expiring = list
+                .where((p) =>
+                    p.expiryDate != null && p.expiryDate!.isBefore(cutoff))
+                .toList()
+              ..sort((a, b) =>
+                  (a.expiryDate ?? now).compareTo(b.expiryDate ?? now));
+            return expiring;
+          })
+          .value ??
+      [];
+});

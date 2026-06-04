@@ -60,11 +60,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       final shopId = shopDoc.id;
       final biz = {...shopDoc.data(), '_id': shopId, '_collection': 'shops'};
 
-      // Query ALL orders so we can compute revenue from delivered ones too.
+      // Query only the last 2 days of orders for revenue stats — no need to load all history.
+      final twoDaysAgo = Timestamp.fromDate(
+          DateTime.now().subtract(const Duration(days: 2)));
       final ordersSnap = await FirebaseFirestore.instance
           .collection('shops')
           .doc(shopId)
           .collection('orders')
+          .where('createdAt', isGreaterThanOrEqualTo: twoDaysAgo)
+          .orderBy('createdAt', descending: true)
           .get();
 
       final creditsSnap = await FirebaseFirestore.instance
@@ -256,7 +260,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ).animate().fadeIn(duration: 400.ms, delay: 220.ms),
           const SizedBox(height: 12),
 
-          // Row 3b — Share your store banner
+          // Row 3b — Expiry alerts (shows only if any products expiring within 7 days)
+          _ExpiryAlertsCard(shopId: shopId)
+              .animate().fadeIn(duration: 400.ms, delay: 240.ms),
+
+          // Row 3c — Share your store banner
           _ShareStoreBanner(
             shopId: shopId,
             shopSlug: biz['shopSlug'] as String? ?? '',
@@ -1503,7 +1511,98 @@ class _NewOrdersBannerState extends State<_NewOrdersBanner>
 
 // ─── Shop-type Feature Cards ──────────────────────────────────────────────────
 
-class _ShopTypeFeatures extends StatelessWidget {
+
+// ─── Expiry Alerts Card ───────────────────────────────────────────────────────
+
+class _ExpiryAlertsCard extends ConsumerWidget {
+  final String shopId;
+  const _ExpiryAlertsCard({required this.shopId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final expiring = ref.watch(expiringProductsProvider(shopId));
+    if (expiring.isEmpty) return const SizedBox.shrink();
+
+    final now = DateTime.now();
+    final expired = expiring.where((p) => p.expiryDate!.isBefore(now)).toList();
+    final soonCount = expiring.length - expired.length;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: expired.isNotEmpty
+            ? const Color(0xFFFFEBEE)
+            : const Color(0xFFFFF8E1),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: expired.isNotEmpty
+              ? const Color(0xFFEF9A9A)
+              : const Color(0xFFFFCC02),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.warning_amber_rounded,
+            color: expired.isNotEmpty ? Colors.red.shade700 : Colors.orange.shade700,
+            size: 22,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  expired.isNotEmpty
+                      ? '${expired.length} product${expired.length > 1 ? "s" : ""} expired!'
+                      : '$soonCount product${soonCount > 1 ? "s" : ""} expiring within 7 days',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    color: expired.isNotEmpty
+                        ? Colors.red.shade800
+                        : Colors.orange.shade800,
+                  ),
+                ),
+                Text(
+                  expiring.take(3).map((p) => p.nameEn).join(', ') +
+                      (expiring.length > 3 ? ' +${expiring.length - 3} more' : ''),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: expired.isNotEmpty
+                        ? Colors.red.shade700
+                        : Colors.orange.shade700,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () => GoRouter.of(context).push('/products'),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(
+              'View',
+              style: TextStyle(
+                fontSize: 12,
+                color: expired.isNotEmpty
+                    ? Colors.red.shade700
+                    : Colors.orange.shade700,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}class _ShopTypeFeatures extends StatelessWidget {
   final String shopType;
   const _ShopTypeFeatures({required this.shopType});
 
