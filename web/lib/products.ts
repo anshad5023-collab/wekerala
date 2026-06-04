@@ -16,6 +16,8 @@ export interface Product {
   description?: string; // optional long description for product detail sheet
   searchAlias?: string; // generic/alternate name for search (e.g. 'paracetamol' for 'Dolo 650')
   orderCount?: number; // times this product was billed — used for popularity sort
+  hasVariants?: boolean;
+  variants?: Array<{ variantId: string; name: string; price: number; offerPrice?: number; stockQty?: number }>;
 }
 
 export interface AiSettings {
@@ -100,6 +102,8 @@ export function firestoreToProduct(data: Record<string, any>, id: string): Produ
     description: data['description'] as string | undefined,
     searchAlias: data['searchAlias'] as string | undefined,
     orderCount: (data['orderCount'] as number | undefined) ?? 0,
+    hasVariants: data['hasVariants'] as boolean | undefined,
+    variants: Array.isArray(data['variants']) ? data['variants'] as Product['variants'] : undefined,
   };
 }
 

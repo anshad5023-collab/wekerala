@@ -98,6 +98,26 @@ export function ProductDetailSheet({ product, language, onClose }: ProductDetail
             </div>
           )}
 
+          {/* Variants — for textile/clothing shops with color/size options */}
+          {product.hasVariants && product.variants && product.variants.length > 0 && (
+            <div className="mt-3">
+              <p className="text-xs font-semibold text-gray-500 mb-2">SELECT OPTION</p>
+              <div className="flex flex-wrap gap-2">
+                {product.variants
+                  .filter((v) => (v.stockQty === undefined || v.stockQty > 0))
+                  .map((v) => (
+                    <button
+                      key={v.variantId}
+                      onClick={() => addItem({ ...product, id: `${product.id}_${v.variantId}`, name: { en: `${product.name.en} (${v.name})`, ml: product.name.ml }, price: v.price, offerPrice: v.offerPrice ?? 0 })}
+                      className="rounded-lg border border-primary/40 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10"
+                    >
+                      {v.name} — ₹{v.price}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+
           {product.isOutOfStock && (
             <div className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-600">
               This item is currently out of stock
