@@ -166,7 +166,7 @@ class _StockAlertsBody extends ConsumerWidget {
                             ),
                           ]),
                         ),
-                        ...zeroStockProducts.map((p) => _StockAlertTile(product: p)),
+                        ...zeroStockProducts.map((p) => _StockAlertTile(shopId: shopId, product: p)),
                         const Divider(height: 1),
                       ],
 
