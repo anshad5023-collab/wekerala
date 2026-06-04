@@ -69,6 +69,9 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
   bool _saving = false;
   bool _uploadingPhoto = false;
   bool _autoSendWhatsapp = false;
+  String _shopType = '';
+  List<String> _categories = [];
+  final _newCategoryCtrl = TextEditingController();
   // Open/close control
   bool _isOpen = true;
   bool _useSchedule = false;
@@ -106,6 +109,7 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
     _externalUrl.dispose();
     _gstin.dispose();
     _gstBusinessName.dispose();
+    _newCategoryCtrl.dispose();
     super.dispose();
   }
 
@@ -161,6 +165,8 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
             _gstin.text = shop.gstin ?? '';
             _gstBusinessName.text = shop.gstBusinessName ?? '';
             _autoSendWhatsapp = shop.autoSendWhatsappReceipt;
+            _shopType = shop.shopType;
+            _categories = List<String>.from(shop.categories);
             _photos = List.from(shop.photos);
             _loaded = true;
           }
