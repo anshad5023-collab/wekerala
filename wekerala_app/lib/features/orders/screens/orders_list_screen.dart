@@ -1,10 +1,13 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/layout/adaptive_layout.dart';
+import '../../../models/product_model.dart';
 import '../../../providers/language_provider.dart';
+import '../../../providers/products_provider.dart';
 import '../../../providers/shop_provider.dart';
 import '../../../providers/orders_provider.dart';
 import '../../../models/order_model.dart';
@@ -145,11 +148,26 @@ class _OrdersBody extends ConsumerWidget {
           }).toList(),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/voice-order'),
-        backgroundColor: AppColors.primary,
-        icon: const Icon(Icons.mic, color: Colors.white),
-        label: const Text('Voice Order', style: TextStyle(color: Colors.white)),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'voice_order',
+            onPressed: () => context.push('/voice-order'),
+            backgroundColor: Colors.deepPurple,
+            tooltip: 'Voice Order',
+            child: const Icon(Icons.mic, color: Colors.white, size: 20),
+          ),
+          const SizedBox(height: 8),
+          FloatingActionButton.extended(
+            heroTag: 'create_order',
+            onPressed: () => _showCreateOrderSheet(context, shopId, ref),
+            backgroundColor: AppColors.primary,
+            icon: const Icon(Icons.add, color: Colors.white),
+            label: const Text('Create Order', style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -758,4 +776,313 @@ class CancelReasonDialogState extends State<CancelReasonDialog> {
       ],
     );
   }
+}
+
+// ─── Create Manual Order Sheet ────────────────────────────────────────────────
+
+void _showCreateOrderSheet(BuildContext context, String shopId, WidgetRef ref) {
+  final nameCtrl = TextEditingController();
+  final phoneCtrl = TextEditingController();
+  final noteCtrl = TextEditingController();
+  DateTime? scheduledFor;
+  String deliveryType = 'pickup';
+  final Map<String, int> selectedQty = {}; // productId → qty
+  List<ProductModel> products = ref.read(productsStreamProvider(shopId)).valueOrNull ?? [];
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.white,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setS) {
+        final total = products
+            .where((p) => (selectedQty[p.productId] ?? 0) > 0)
+            .fold(0.0, (s, p) => s + p.price * (selectedQty[p.productId] ?? 0));
+
+        return DraggableScrollableSheet(
+          initialChildSize: 0.9,
+          maxChildSize: 0.95,
+          minChildSize: 0.5,
+          expand: false,
+          builder: (ctx2, scroll) => Column(
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(top: 12, bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    Icon(Icons.add_shopping_cart_outlined,
+                        color: AppColors.primary),
+                    SizedBox(width: 8),
+                    Text('Create Manual Order',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: ListView(
+                  controller: scroll,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                    // Customer details
+                    TextField(
+                      controller: nameCtrl,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: const InputDecoration(
+                        labelText: 'Customer Name',
+                        prefixIcon: Icon(Icons.person_outline),
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: phoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(
+                        labelText: 'Phone Number',
+                        prefixIcon: Icon(Icons.phone_outlined),
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Delivery type
+                    Row(
+                      children: [
+                        const Text('Type: ',
+                            style: TextStyle(fontWeight: FontWeight.w600)),
+                        ChoiceChip(
+                          label: const Text('Pickup'),
+                          selected: deliveryType == 'pickup',
+                          onSelected: (_) => setS(() => deliveryType = 'pickup'),
+                          selectedColor: AppColors.primary.withValues(alpha: 0.15),
+                        ),
+                        const SizedBox(width: 8),
+                        ChoiceChip(
+                          label: const Text('Delivery'),
+                          selected: deliveryType == 'delivery',
+                          onSelected: (_) => setS(() => deliveryType = 'delivery'),
+                          selectedColor: AppColors.primary.withValues(alpha: 0.15),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    // Scheduled for
+                    OutlinedButton.icon(
+                      icon: Icon(
+                        Icons.schedule_outlined,
+                        color: scheduledFor != null
+                            ? Colors.deepPurple
+                            : AppColors.textSecondary,
+                      ),
+                      label: Text(
+                        scheduledFor != null
+                            ? 'Due: ${DateFormat('d MMM, hh:mm a').format(scheduledFor!)}'
+                            : 'Set delivery date/time (optional)',
+                        style: TextStyle(
+                          color: scheduledFor != null
+                              ? Colors.deepPurple
+                              : AppColors.textSecondary,
+                        ),
+                      ),
+                      onPressed: () async {
+                        final d = await showDatePicker(
+                          context: ctx,
+                          initialDate:
+                              DateTime.now().add(const Duration(hours: 2)),
+                          firstDate: DateTime.now(),
+                          lastDate:
+                              DateTime.now().add(const Duration(days: 30)),
+                        );
+                        if (d == null || !ctx.mounted) return;
+                        final t = await showTimePicker(
+                          context: ctx,
+                          initialTime: TimeOfDay.now(),
+                        );
+                        if (t != null) {
+                          setS(() => scheduledFor = DateTime(
+                              d.year, d.month, d.day, t.hour, t.minute));
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    // Products
+                    const Text('Add Products',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 14)),
+                    const SizedBox(height: 6),
+                    ...products.map((p) {
+                      final qty = selectedQty[p.productId] ?? 0;
+                      return ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(p.nameEn,
+                            style: const TextStyle(fontSize: 13)),
+                        subtitle: Text(
+                            '₹${p.price.toStringAsFixed(0)} / ${p.unit}',
+                            style: const TextStyle(fontSize: 11)),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (qty > 0)
+                              IconButton(
+                                icon: const Icon(Icons.remove_circle_outline,
+                                    size: 20),
+                                color: AppColors.error,
+                                onPressed: () => setS(() {
+                                  if (qty > 1) {
+                                    selectedQty[p.productId] = qty - 1;
+                                  } else {
+                                    selectedQty.remove(p.productId);
+                                  }
+                                }),
+                              ),
+                            if (qty > 0)
+                              Text('$qty',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14)),
+                            IconButton(
+                              icon: const Icon(Icons.add_circle_outline,
+                                  size: 20),
+                              color: AppColors.primary,
+                              onPressed: () => setS(() =>
+                                  selectedQty[p.productId] = qty + 1),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: noteCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Order note (optional)',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
+              // Bottom: total + save
+              Container(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.06),
+                        blurRadius: 8,
+                        offset: const Offset(0, -2))
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Total',
+                            style: TextStyle(
+                                color: AppColors.textSecondary, fontSize: 12)),
+                        Text('₹${total.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                                color: AppColors.primary)),
+                      ],
+                    ),
+                    const Spacer(),
+                    ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 24, vertical: 14),
+                      ),
+                      onPressed: selectedQty.isEmpty
+                          ? null
+                          : () async {
+                              final items = selectedQty.entries
+                                  .map((e) {
+                                    final p = products.firstWhere(
+                                        (p) => p.productId == e.key);
+                                    final q = e.value.toDouble();
+                                    return OrderItemModel(
+                                      productId: p.productId,
+                                      productName: p.nameEn,
+                                      qty: q,
+                                      price: p.price,
+                                      unit: p.unit,
+                                      subtotal: p.price * q,
+                                    );
+                                  })
+                                  .toList();
+
+                              final orderNumber =
+                                  DateTime.now().millisecondsSinceEpoch % 100000;
+                              final now = DateTime.now();
+
+                              final data = <String, dynamic>{
+                                'shopId': shopId,
+                                'orderNumber': orderNumber,
+                                'status': 'confirmed',
+                                'customerName': nameCtrl.text.trim(),
+                                'customerPhone': phoneCtrl.text.trim(),
+                                'customerLocation': '',
+                                'deliveryType': deliveryType,
+                                'orderNote': noteCtrl.text.trim(),
+                                'items': items.map((i) => i.toMap()).toList(),
+                                'totalAmount': total,
+                                'paymentMethod': 'cash',
+                                'paymentStatus': 'pending',
+                                'cancelReason': '',
+                                'createdAt': Timestamp.fromDate(now),
+                                'updatedAt': Timestamp.fromDate(now),
+                                if (scheduledFor != null)
+                                  'scheduledFor':
+                                      Timestamp.fromDate(scheduledFor!),
+                              };
+
+                              await FirebaseFirestore.instance
+                                  .collection('shops')
+                                  .doc(shopId)
+                                  .collection('orders')
+                                  .add(data);
+
+                              if (ctx.mounted) Navigator.pop(ctx);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Order created! ✅'),
+                                    backgroundColor: AppColors.success,
+                                  ),
+                                );
+                              }
+                            },
+                      child: const Text('Create Order'),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
 }
