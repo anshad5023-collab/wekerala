@@ -27,6 +27,7 @@ export interface CustomerDetails {
   discountPercent?: number;
   deliveryCharge?: number;
   paymentMethod?: 'cash' | 'upi';
+  preferredDelivery?: string; // ISO datetime string for pre-orders
 }
 
 interface SavedAddress { id: string; label: string; address: string; isDefault: boolean; }
@@ -235,6 +236,22 @@ export function CheckoutPage({ language, onBack, onConfirm, onLanguageToggle, sh
               rows={2}
               className="w-full resize-none rounded-lg border border-border bg-card px-4 py-3 italic text-card-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20"
             />
+          </div>
+
+          {/* Preferred Delivery Date/Time — for pre-orders and bakeries */}
+          <div className="space-y-1.5">
+            <label htmlFor="preferred-delivery" className="text-sm font-medium italic text-foreground">
+              Preferred Delivery Date &amp; Time <span className="text-muted-foreground font-normal">(optional)</span>
+            </label>
+            <input
+              id="preferred-delivery"
+              type="datetime-local"
+              min={new Date().toISOString().slice(0, 16)}
+              value={formData.preferredDelivery ?? ''}
+              onChange={(e) => setFormData({ ...formData, preferredDelivery: e.target.value || undefined })}
+              className="w-full rounded-lg border border-border bg-card px-4 py-3 text-card-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20"
+            />
+            <p className="text-xs text-muted-foreground italic">For bakery orders, cake deliveries, scheduled home delivery etc.</p>
           </div>
 
           {/* Payment Method */}

@@ -164,7 +164,14 @@ export async function POST(req: NextRequest) {
 
   try {
     const data = await req.json() as Record<string, unknown>;
-    const fields = Object.fromEntries(Object.entries(data).map(([k, v]) => [k, toFVal(v)]));
+    // Convert timestamp fields (ISO strings → Firestore timestampValue)
+    const timestampFields = ['createdAt', 'updatedAt', 'scheduledFor'];
+    const fields = Object.fromEntries(Object.entries(data).map(([k, v]) => {
+      if (timestampFields.includes(k) && typeof v === 'string' && v) {
+        return [k, { timestampValue: v }];
+      }
+      return [k, toFVal(v)];
+    }));
 
     const res = await fetch(`${BASE}/shops/${shopId}/orders?key=${API_KEY}`, {
       method: 'POST',

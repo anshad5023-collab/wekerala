@@ -142,6 +142,7 @@ export function ShopViewById({ shopId }: { shopId: string }) {
           paymentMethod: details.paymentMethod ?? 'cash',
           paymentStatus: details.paymentMethod === 'upi' ? 'pending_verification' : 'pending',
           createdAt: now, updatedAt: now,
+          ...(details.preferredDelivery ? { scheduledFor: new Date(details.preferredDelivery).toISOString() } : {}),
         }),
       });
       const data = await response.json();
