@@ -23,6 +23,17 @@ jobs:
       - run: npm install
         working-directory: web
 
+      - name: Sync GEMINI_API_KEY to Vercel environment
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          curl -s -X POST "https://api.vercel.com/v10/projects/prj_3xjIoJ0AmD0m1ZxUmi3Ph6HfxdoR/env" \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"key\":\"GEMINI_API_KEY\",\"value\":\"$GEMINI_API_KEY\",\"type\":\"encrypted\",\"target\":[\"production\",\"preview\"]}" \
+            | grep -q '"key"' && echo "GEMINI_API_KEY synced to Vercel" || echo "Already exists or no change"
+
       - name: Deploy to Vercel production
         working-directory: web
         env:
