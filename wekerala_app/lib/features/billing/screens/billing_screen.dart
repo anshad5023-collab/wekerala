@@ -1347,7 +1347,13 @@ class _ProductPanelState extends ConsumerState<_ProductPanel> {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(
-                                      'No product found for barcode: $barcode'),
+                                      'Barcode $barcode not in catalog'),
+                                  action: SnackBarAction(
+                                    label: 'Add Product',
+                                    onPressed: () => context.push(
+                                        '/products/add'),
+                                  ),
+                                  duration: const Duration(seconds: 6),
                                 ),
                               );
                             }
@@ -1365,6 +1371,11 @@ class _ProductPanelState extends ConsumerState<_ProductPanel> {
                       onNotFound: (barcode) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
+                            action: SnackBarAction(
+                              label: 'Add Product',
+                              onPressed: () => context.push('/products/add'),
+                            ),
+                            duration: const Duration(seconds: 6),
                             content: Text(
                                 'No product found for barcode: $barcode'),
                           ),
