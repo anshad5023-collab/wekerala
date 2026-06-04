@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../models/supplier_model.dart';
 import '../../../providers/shop_provider.dart';
@@ -243,6 +244,16 @@ class _SupplierCard extends StatelessWidget {
                   ],
                 ),
               ),
+              if (supplier.phone.isNotEmpty)
+                IconButton(
+                  icon: const Icon(Icons.chat_outlined, size: 20, color: Color(0xFF25D366)),
+                  tooltip: 'WhatsApp supplier',
+                  onPressed: () {
+                    final phone = supplier.phone.replaceAll(RegExp(r'\D'), '');
+                    final intl = phone.startsWith('91') ? phone : '91${phone.substring(phone.length > 10 ? phone.length - 10 : 0)}';
+                    launchUrl(Uri.parse('https://wa.me/$intl'), mode: LaunchMode.externalApplication);
+                  },
+                ),
               const Icon(Icons.chevron_right, color: AppColors.textSecondary),
             ],
           ),
