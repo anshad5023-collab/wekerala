@@ -49,7 +49,10 @@ class _ShareBody extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text(e.toString())),
         data: (shop) {
-          final url = '${AppConfig.storefrontBaseUrl}?shopId=$shopId';
+          // Use pretty slug URL if available (e.g. wekerala.vercel.app/shops/rajan-store)
+          final url = shop.shopSlug.isNotEmpty
+              ? 'https://wekerala.vercel.app/shops/${shop.shopSlug}'
+              : '${AppConfig.storefrontBaseUrl}?shopId=$shopId';
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
