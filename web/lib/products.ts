@@ -52,6 +52,8 @@ export interface Shop {
   aiSettings?: AiSettings;
   upiId?: string;
   paymentMethods?: string[];
+  address?: string; // physical shop address shown on website
+  googleMapsLink?: string; // Google Maps URL for directions
 }
 
 export interface ShopData extends Shop {
@@ -127,6 +129,8 @@ function firestoreToShop(raw: Record<string, any>, shopId: string): ShopData {
     isApproved: raw['isApproved'] ?? raw['linkActive'] ?? true,
     upiId: raw['upiId'],
     paymentMethods: Array.isArray(raw['paymentMethods']) ? raw['paymentMethods'] : undefined,
+    address: raw['address'],
+    googleMapsLink: raw['googleMapsLink'] ?? raw['mapsLink'],
   };
 }
 
