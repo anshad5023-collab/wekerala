@@ -571,7 +571,7 @@ function BuilderContent() {
                   <h3 className="font-semibold text-sm text-gray-700">Site Info</h3>
                   <div>
                     <label className="text-xs text-gray-500">Site Name</label>
-                    <input value={config.siteName} onChange={e => setC({ siteName: e.target.value })}
+                    <input value={config.siteName} onChange={e => { setC({ siteName: e.target.value }); setPublishError(''); }}
                       className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
                       placeholder="My Shop" />
                   </div>
