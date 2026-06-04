@@ -344,6 +344,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 color: const Color(0xFF558B2F),
                 onTap: () => context.push('/cash-counter'),
               ),
+              _QuickAccessItem(
+                icon: Icons.campaign_outlined,
+                label: 'Marketing',
+                color: const Color(0xFFAD1457),
+                onTap: () => context.push('/marketing/broadcast'),
+              ),
+              _QuickAccessItem(
+                icon: Icons.mic_outlined,
+                label: 'Voice Order',
+                color: const Color(0xFF6A1B9A),
+                onTap: () => context.push('/voice-order'),
+              ),
             ],
           ).animate().fadeIn(duration: 400.ms, delay: 300.ms),
 

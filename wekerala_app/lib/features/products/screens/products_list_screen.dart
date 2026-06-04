@@ -86,6 +86,11 @@ class _ProductsBody extends ConsumerWidget {
         foregroundColor: Colors.white,
         actions: [
           IconButton(
+            icon: const Icon(Icons.add_box_outlined),
+            tooltip: 'Receive Stock',
+            onPressed: () => context.push('/stock-receive'),
+          ),
+          IconButton(
             icon: const Icon(Icons.warning_amber_rounded),
             tooltip: 'Stock Alerts',
             onPressed: () => context.push('/stock-alerts'),
