@@ -24,6 +24,7 @@ class _BillHistoryScreenState extends ConsumerState<BillHistoryScreen> {
       DateTime.now().year, DateTime.now().month, DateTime.now().day, 23, 59, 59);
   String _searchQuery = '';
   String _selectedPeriod = 'Today';
+  String _paymentFilter = 'all'; // 'all' | 'cash' | 'upi' | 'udhar'
 
   final _searchController = TextEditingController();
 
@@ -80,12 +81,18 @@ class _BillHistoryScreenState extends ConsumerState<BillHistoryScreen> {
   }
 
   List<BillModel> _filterBills(List<BillModel> bills) {
-    if (_searchQuery.isEmpty) return bills;
-    final q = _searchQuery.toLowerCase();
-    return bills.where((b) {
-      return b.customerName.toLowerCase().contains(q) ||
-          b.customerPhone.toLowerCase().contains(q);
-    }).toList();
+    var result = bills;
+    if (_paymentFilter != 'all') {
+      result = result.where((b) => b.paymentMethod == _paymentFilter).toList();
+    }
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      result = result.where((b) {
+        return b.customerName.toLowerCase().contains(q) ||
+            b.customerPhone.toLowerCase().contains(q);
+      }).toList();
+    }
+    return result;
   }
 
   // Export filtered bills as CSV — for accountant monthly reconciliation
@@ -153,6 +160,8 @@ class _BillHistoryScreenState extends ConsumerState<BillHistoryScreen> {
           onSearchChanged: (q) => setState(() => _searchQuery = q),
           filterBills: _filterBills,
           onExportCsv: _exportCsv,
+          paymentFilter: _paymentFilter,
+          onPaymentFilterChanged: (v) => setState(() => _paymentFilter = v),
         );
       },
     );
@@ -171,6 +180,8 @@ class _BillHistoryBody extends ConsumerWidget {
   final void Function(String) onSearchChanged;
   final List<BillModel> Function(List<BillModel>) filterBills;
   final void Function(BuildContext) onExportCsv;
+  final String paymentFilter;
+  final void Function(String) onPaymentFilterChanged;
 
   const _BillHistoryBody({
     required this.shopId,
@@ -184,6 +195,8 @@ class _BillHistoryBody extends ConsumerWidget {
     required this.onSearchChanged,
     required this.filterBills,
     required this.onExportCsv,
+    required this.paymentFilter,
+    required this.onPaymentFilterChanged,
   });
 
   @override
@@ -279,6 +292,42 @@ class _BillHistoryBody extends ConsumerWidget {
                 ),
                 filled: true,
                 fillColor: Colors.white,
+              ),
+            ),
+          ),
+
+          // Payment method filter chips
+          Container(
+            color: Colors.white,
+            padding: const EdgeInsets.only(left: 12, right: 12, bottom: 8),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final entry in [
+                    ('all', 'All'),
+                    ('cash', 'Cash'),
+                    ('upi', 'UPI'),
+                    ('udhar', 'Udhar'),
+                  ]) ...[
+                    FilterChip(
+                      label: Text(entry.$2,
+                          style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w600)),
+                      selected: paymentFilter == entry.$1,
+                      onSelected: (_) => onPaymentFilterChanged(entry.$1),
+                      selectedColor: AppColors.primary.withValues(alpha: 0.15),
+                      checkmarkColor: AppColors.primary,
+                      side: BorderSide(
+                        color: paymentFilter == entry.$1
+                            ? AppColors.primary
+                            : Colors.grey.shade300,
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                ],
               ),
             ),
           ),
