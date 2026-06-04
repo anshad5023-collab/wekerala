@@ -16,5 +16,6 @@ export async function GET(req: NextRequest) {
     customerName: (doc.data.customerName as string) || '',
     items: (doc.data.items as unknown[]) || [],
     createdAt: (doc.data.createdAt as string) || '',
+    scheduledFor: (doc.data.scheduledFor as string | undefined) || undefined,
   });
 }
