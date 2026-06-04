@@ -435,10 +435,32 @@ class _BillTile extends StatelessWidget {
           style:
               const TextStyle(color: AppColors.textSecondary, fontSize: 12),
         ),
-        trailing: Text(
-          '₹${bill.finalAmount.toStringAsFixed(2)}',
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-        ),
+        trailing: bill.isVoided
+            ? Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('₹${bill.finalAmount.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          decoration: TextDecoration.lineThrough,
+                          color: AppColors.textSecondary)),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                        color: Colors.red.shade100,
+                        borderRadius: BorderRadius.circular(4)),
+                    child: const Text('VOID',
+                        style: TextStyle(
+                            fontSize: 9,
+                            color: Colors.red,
+                            fontWeight: FontWeight.w700)),
+                  ),
+                ],
+              )
+            : Text('₹${bill.finalAmount.toStringAsFixed(2)}',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
         onTap: () => context.push('/bills/${bill.billId}', extra: bill),
       ),
     );
