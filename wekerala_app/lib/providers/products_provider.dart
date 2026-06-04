@@ -115,3 +115,16 @@ final expiringProductsProvider =
           .value ??
       [];
 });
+// Returns products where stock tracking is enabled and qty == 0
+final zeroStockProductsProvider =
+    Provider.family<List<ProductModel>, String>((ref, shopId) {
+  final products = ref.watch(productsStreamProvider(shopId));
+  return products
+          .whenData((list) => list
+              .where((p) =>
+                  p.stockQty != null &&
+                  p.stockQty == 0)
+              .toList())
+          .value ??
+      [];
+});

@@ -561,6 +561,7 @@ class _InfoTile extends StatelessWidget {
   final String value;
   final String label;
   final bool highlight;
+  final Color? highlightColor;
   final VoidCallback onTap;
 
   const _InfoTile({
@@ -568,12 +569,14 @@ class _InfoTile extends StatelessWidget {
     required this.value,
     required this.label,
     this.highlight = false,
+    this.highlightColor,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = highlight ? AppColors.error : AppColors.primary;
+    final errorColor = highlightColor ?? AppColors.error;
+    final borderColor = highlight ? errorColor : AppColors.primary;
     return GestureDetector(
       onTap: onTap,
       child: Container(
