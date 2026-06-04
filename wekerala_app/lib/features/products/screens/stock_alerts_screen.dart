@@ -468,9 +468,18 @@ class _ExpiryTile extends StatelessWidget {
       ),
       title: Text(product.nameEn,
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-      subtitle: Text(_daysUntilExpiry(),
-          style: TextStyle(
-              color: color, fontSize: 12, fontWeight: FontWeight.w500)),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(_daysUntilExpiry(),
+              style: TextStyle(
+                  color: color, fontSize: 12, fontWeight: FontWeight.w500)),
+          if (product.batchNumber != null && product.batchNumber!.isNotEmpty)
+            Text('Batch: ${product.batchNumber}',
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 11)),
+        ],
+      ),
       trailing: Text(
         '${product.stockQty ?? '–'} ${product.unit}',
         style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
