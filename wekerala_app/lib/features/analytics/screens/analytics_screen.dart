@@ -222,7 +222,8 @@ class _CombinedAnalytics extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final billsAsync = ref.watch(weeklyBillsProvider(shopId));
+    // Use 30-day provider so analytics covers both weekly and monthly views
+    final billsAsync = ref.watch(monthlyBillsProvider(shopId));
 
     return ordersAsync.when(
       loading: () => const ShimmerList(itemCount: 3, itemHeight: 80),

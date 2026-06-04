@@ -604,12 +604,26 @@ final activeFlashSaleProvider =
 });
 
 // ---------------------------------------------------------------------------
-// Weekly POS Bills Provider — for analytics (last 7 days)
+// Weekly/Monthly POS Bills Providers — for analytics
 // ---------------------------------------------------------------------------
 
 final weeklyBillsProvider =
     StreamProvider.family<List<BillModel>, String>((ref, shopId) {
   final start = DateTime.now().subtract(const Duration(days: 7));
+  return FirebaseFirestore.instance
+      .collection('shops')
+      .doc(shopId)
+      .collection('bills')
+      .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+      .orderBy('createdAt', descending: true)
+      .snapshots()
+      .map((s) => s.docs.map(BillModel.fromFirestore).toList());
+});
+
+// 30-day bills for analytics "This Month" view
+final monthlyBillsProvider =
+    StreamProvider.family<List<BillModel>, String>((ref, shopId) {
+  final start = DateTime.now().subtract(const Duration(days: 30));
   return FirebaseFirestore.instance
       .collection('shops')
       .doc(shopId)
