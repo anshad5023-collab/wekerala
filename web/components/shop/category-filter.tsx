@@ -46,6 +46,9 @@ export function CategoryFilter({
   selectedCategory,
   onSelectCategory,
 }: CategoryFilterProps) {
+  // Hide category filter when there's only 'all' — no real filtering possible
+  if (categories.length <= 1) return null;
+
   return (
     <div className="bg-white px-4 py-3 shadow-sm">
       <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
