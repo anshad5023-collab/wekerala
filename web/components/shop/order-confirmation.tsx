@@ -19,12 +19,14 @@ interface OrderConfirmationProps {
 
 export function OrderConfirmation({ language, customerDetails, onBackToShop, whatsappNumber, orderId }: OrderConfirmationProps) {
   const t = translations[language];
-  const { items, getTotal, clearCart } = useCartStore();
+  const { items: currentItems, getTotal, clearCart } = useCartStore();
   const { uid } = useAuthStore();
   const total = getTotal();
   const shopId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('shopId') : '';
   const [addressSaved, setAddressSaved] = useState(false);
   const [pushState, setPushState] = useState<'idle' | 'loading' | 'subscribed' | 'denied'>('idle');
+  // Snapshot items before cart is cleared — needed for copy/WhatsApp functions
+  const [items] = useState(currentItems);
 
   const saveAddress = async () => {
     if (!uid || !customerDetails.address) return;
