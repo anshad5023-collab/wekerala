@@ -237,6 +237,20 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
               ),
             ),
             const SizedBox(height: 10),
+            OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: const Color(0xFF1565C0),
+                side: const BorderSide(color: Color(0xFF1565C0)),
+                minimumSize: const Size.fromHeight(48),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              icon: const Icon(Icons.email_outlined),
+              label: const Text('Send via Email',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              onPressed: () => _sendEmail(_bill),
+            ),
+            const SizedBox(height: 10),
             // PDF Invoice share
             shopAsync.when(
               data: (shop) => OutlinedButton.icon(
@@ -478,6 +492,20 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
     return AppColors.textPrimary;
   }
 
+
+  void _sendEmail(BillModel bill) {
+    final invoiceId = bill.invoiceNumber != null
+        ? '#${bill.invoiceNumber}'
+        : '#${bill.billId.substring(0, 8).toUpperCase()}';
+    final dateStr = DateFormat('d MMM yyyy, hh:mm a').format(bill.createdAt);
+    final subject = Uri.encodeComponent('Receipt $invoiceId – $dateStr');
+    final body = Uri.encodeComponent(_formatBillText(bill).replaceAll('*', ''));
+    final email = bill.customerPhone.isNotEmpty ? '' : '';
+    launchUrl(
+      Uri.parse('mailto:$email?subject=$subject&body=$body'),
+      mode: LaunchMode.externalApplication,
+    );
+  }
   void _shareOnWhatsApp(BillModel bill) {
     final text = Uri.encodeComponent(_formatBillText(bill));
     launchUrl(

@@ -15,5 +15,11 @@ service firebase.storage {
       allow read: if true;
       allow write: if false; // Only uploaded via Firebase CLI / GitHub Actions
     }
+
+    // Release binaries (Windows installer etc) — public download only
+    match /releases/{fileName} {
+      allow read: if true;
+      allow write: if false; // Only uploaded via GitHub Actions
+    }
   }
 }

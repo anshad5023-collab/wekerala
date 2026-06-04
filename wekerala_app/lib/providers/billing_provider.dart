@@ -188,6 +188,8 @@ class BillingNotifier extends Notifier<BillingState> {
     String customerName = '',
     String customerPhone = '',
     String? gstinSnapshot,
+    double? cashAmount,
+    double? upiAmount,
   }) async {
     state = state.copyWith(isLoading: true);
     try {
@@ -220,6 +222,8 @@ class BillingNotifier extends Notifier<BillingState> {
         gstinSnapshot: (gstinSnapshot != null && gstinSnapshot.isNotEmpty)
             ? gstinSnapshot
             : null,
+        cashAmount: cashAmount,
+        upiAmount: upiAmount,
       );
 
       // Generate sequential invoice number using a Firestore transaction counter
@@ -249,6 +253,8 @@ class BillingNotifier extends Notifier<BillingState> {
         totalTax: bill.totalTax,
         gstinSnapshot: bill.gstinSnapshot,
         invoiceNumber: invoiceNum,
+        cashAmount: bill.cashAmount,
+        upiAmount: bill.upiAmount,
       );
       await ref.set(billWithInvoice.toFirestore());
 
@@ -402,7 +408,10 @@ final dailySalesSummaryProvider =
       double total = 0, cash = 0, upi = 0, udhar = 0;
       for (final b in list) {
         total += b.finalAmount;
-        if (b.paymentMethod == 'cash') {
+        if (b.paymentMethod == 'split') {
+          cash += b.cashAmount ?? 0;
+          upi += b.upiAmount ?? 0;
+        } else if (b.paymentMethod == 'cash') {
           cash += b.finalAmount;
         } else if (b.paymentMethod == 'upi') {
           upi += b.finalAmount;

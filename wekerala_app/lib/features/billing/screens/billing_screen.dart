@@ -41,6 +41,8 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
   final FocusNode _searchFocus = FocusNode();
   String _searchQuery = '';
   bool _saving = false;
+  double? _splitCashAmount;
+  double? _splitUpiAmount;
 
   @override
   void initState() {
@@ -87,7 +89,10 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
 
   // ── payment flow ──────────────────────────────────────────────────────────
 
-  Future<void> _onPaymentTap(String method) async {
+  Future<void> _onPaymentTap(String method, {double? cashAmt, double? upiAmt}) async {
+    if (method == 'split') {
+      setState(() { _splitCashAmount = cashAmt; _splitUpiAmount = upiAmt; });
+    }
     if (_saving) return;
     final billingState = ref.read(billingProvider);
     if (billingState.cartItems.isEmpty) {
@@ -167,6 +172,8 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
             customerName: customerName,
             customerPhone: customerPhone,
             gstinSnapshot: gstin,
+            cashAmount: method == 'split' ? _splitCashAmount : null,
+            upiAmount: method == 'split' ? _splitUpiAmount : null,
           );
 
       if (!mounted) return;
@@ -714,6 +721,16 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.receipt_long_outlined),
+            tooltip: 'Bill History',
+            onPressed: () => context.push('/bill-history'),
+          ),
+          IconButton(
+            icon: const Icon(Icons.calculate_outlined),
+            tooltip: 'Cash Counter',
+            onPressed: () => context.push('/cash-counter'),
+          ),
           if (billingState.cartItems.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.delete_sweep_outlined),
@@ -1592,7 +1609,7 @@ class _PaymentBarState extends ConsumerState<_PaymentBar> {
       return;
     }
     setState(() { _splitMode = false; _selectedMethod = 'split'; });
-    widget.onTap('split');
+    widget.onTap('split', cashAmt: cash, upiAmt: upi);
   }
 
   @override

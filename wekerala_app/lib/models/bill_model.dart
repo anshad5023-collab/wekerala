@@ -95,6 +95,8 @@ class BillModel {
   final bool isVoided;
   final DateTime? voidedAt;
   final String? invoiceNumber;
+  final double? cashAmount;   // only for paymentMethod == 'split'
+  final double? upiAmount;    // only for paymentMethod == 'split'
 
   const BillModel({
     required this.billId,
@@ -114,6 +116,8 @@ class BillModel {
     this.isVoided = false,
     this.voidedAt,
     this.invoiceNumber,
+    this.cashAmount,
+    this.upiAmount,
   });
 
   factory BillModel.fromFirestore(DocumentSnapshot doc) {
@@ -145,6 +149,8 @@ class BillModel {
           ? (d['voidedAt'] as Timestamp).toDate()
           : null,
       invoiceNumber: d['invoiceNumber'] as String?,
+      cashAmount: (d['cashAmount'] as num?)?.toDouble(),
+      upiAmount: (d['upiAmount'] as num?)?.toDouble(),
     );
   }
 
@@ -168,6 +174,8 @@ class BillModel {
     if (gstinSnapshot != null) m['gstinSnapshot'] = gstinSnapshot;
     if (voidedAt != null) m['voidedAt'] = Timestamp.fromDate(voidedAt!);
     if (invoiceNumber != null) m['invoiceNumber'] = invoiceNumber;
+    if (cashAmount != null) m['cashAmount'] = cashAmount;
+    if (upiAmount != null) m['upiAmount'] = upiAmount;
     return m;
   }
 }

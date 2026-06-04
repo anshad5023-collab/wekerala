@@ -320,6 +320,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 color: const Color(0xFFE53935),
                 onTap: () => context.push('/festival'),
               ),
+              _QuickAccessItem(
+                icon: Icons.receipt_long_outlined,
+                label: 'Bill History',
+                color: const Color(0xFF00897B),
+                onTap: () => context.push('/bill-history'),
+              ),
+              _QuickAccessItem(
+                icon: Icons.local_shipping_outlined,
+                label: 'Suppliers',
+                color: const Color(0xFF6D4C41),
+                onTap: () => context.push('/suppliers'),
+              ),
+              _QuickAccessItem(
+                icon: Icons.bar_chart_outlined,
+                label: 'Analytics',
+                color: const Color(0xFF1565C0),
+                onTap: () => context.push('/analytics'),
+              ),
+              _QuickAccessItem(
+                icon: Icons.calculate_outlined,
+                label: 'Cash Counter',
+                color: const Color(0xFF558B2F),
+                onTap: () => context.push('/cash-counter'),
+              ),
             ],
           ).animate().fadeIn(duration: 400.ms, delay: 300.ms),
 
