@@ -76,7 +76,11 @@ export function ShopViewById({ shopId }: { shopId: string }) {
     // Sort by orderCount desc so most-popular products appear first
     let filtered = products
       .filter((p) => p.price > 0)
-      .sort((a, b) => (b.orderCount ?? 0) - (a.orderCount ?? 0));
+      .sort((a, b) => {
+        // In-stock items first, then sort by popularity (orderCount desc)
+        if (a.isOutOfStock !== b.isOutOfStock) return a.isOutOfStock ? 1 : -1;
+        return (b.orderCount ?? 0) - (a.orderCount ?? 0);
+      });
     if (selectedCategory && selectedCategory !== 'all') filtered = filtered.filter((p) => p.category === selectedCategory);
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
