@@ -134,6 +134,12 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
                       onPressed: () => _callPhone(context, _bill.customerPhone),
                     ),
                   ),
+                if (_bill.billNote != null && _bill.billNote!.isNotEmpty)
+                  _InfoRow(label: 'Note', value: _bill.billNote!),
+                if (_bill.billedByName != null && _bill.billedByName!.isNotEmpty)
+                  _InfoRow(
+                      label: 'Billed by',
+                      value: _bill.billedByName!),
               ],
             ),
           ),
@@ -530,6 +536,10 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
       if (bill.customerPhone.isNotEmpty) {
         buffer.writeln('📞 ${bill.customerPhone}');
       }
+      buffer.writeln();
+    }
+    if (bill.billNote != null && bill.billNote!.isNotEmpty) {
+      buffer.writeln('📝 *Note:* ${bill.billNote}');
       buffer.writeln();
     }
 

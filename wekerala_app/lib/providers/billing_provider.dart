@@ -396,14 +396,23 @@ class BillingNotifier extends Notifier<BillingState> {
       'voidedAt': Timestamp.fromDate(DateTime.now()),
     });
 
-    // Reverse stock decrements
+    // Reverse stock decrements — same variant-aware logic as saveBill
     for (final item in bill.items) {
-      if (item.productId.isNotEmpty) {
-        final productRef = db
-            .collection('shops')
-            .doc(bill.shopId)
-            .collection('products')
-            .doc(item.productId);
+      if (item.productId.isEmpty) continue;
+      final parts = item.productId.split('_');
+      final realProductId = parts.first;
+      final isVariant = parts.length > 1;
+      final productRef = db
+          .collection('shops')
+          .doc(bill.shopId)
+          .collection('products')
+          .doc(realProductId);
+      if (isVariant) {
+        final variantId = parts.sublist(1).join('_');
+        batch.update(productRef, {
+          'variantStock.$variantId': FieldValue.increment(item.qty.toInt()),
+        });
+      } else {
         batch.update(productRef, {
           'stockQty': FieldValue.increment(item.qty),
         });
