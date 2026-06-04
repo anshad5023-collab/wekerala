@@ -1465,9 +1465,32 @@ class _ProductPanelState extends ConsumerState<_ProductPanel> {
                 ..sort((a, b) => b.orderCount.compareTo(a.orderCount));
 
               if (visible.isEmpty) {
-                return const Center(
-                  child: Text('No products found.',
-                      style: TextStyle(color: AppColors.textSecondary)),
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.inventory_2_outlined,
+                          size: 48, color: AppColors.textSecondary),
+                      const SizedBox(height: 12),
+                      Text(
+                        products.isEmpty
+                            ? 'No products in catalog yet'
+                            : 'No products found.',
+                        style: const TextStyle(color: AppColors.textSecondary),
+                      ),
+                      if (products.isEmpty) ...[
+                        const SizedBox(height: 12),
+                        ElevatedButton.icon(
+                          onPressed: () => context.push('/products/add'),
+                          icon: const Icon(Icons.add, size: 18),
+                          label: const Text('Add First Product'),
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              foregroundColor: Colors.white),
+                        ),
+                      ],
+                    ],
+                  ),
                 );
               }
 
