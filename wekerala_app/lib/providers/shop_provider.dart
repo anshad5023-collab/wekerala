@@ -17,6 +17,7 @@ const Map<String, List<String>> kShopCategories = {
   'Electronics': ['Mobile Accessories', 'Cables & Chargers', 'Headphones', 'Smart Devices'],
   'Hotel / Restaurant': ['Meals', 'Snacks', 'Beverages', 'Desserts', 'Special Items'],
   'General Store': ['Grocery', 'Stationery', 'Household', 'Personal Care', 'Miscellaneous'],
+  'Fancy Store': ['Cosmetics', 'Hair Accessories', 'Artificial Jewelry', 'Toys & Games', 'Gift Items', 'Party Supplies', 'Personal Care'],
 };
 
 class OnboardingState {

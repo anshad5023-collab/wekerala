@@ -560,6 +560,97 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
     );
   }
 
+
+  void _addCategory() {
+    final val = _newCategoryCtrl.text.trim();
+    if (val.isEmpty) return;
+    if (_categories.contains(val)) return;
+    setState(() { _categories.add(val); });
+    _newCategoryCtrl.clear();
+  }
+
+  Future<void> _changeShopType(BuildContext context) async {
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Change Shop Type'),
+        contentPadding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        content: SizedBox(
+          width: 340,
+          child: GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+            childAspectRatio: 2.2,
+            children: kShopCategories.keys.map((type) {
+              final isCurrent = type == _shopType;
+              return GestureDetector(
+                onTap: () => Navigator.pop(ctx, type),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isCurrent
+                        ? AppColors.primary.withValues(alpha: 0.15)
+                        : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isCurrent ? AppColors.primary : Colors.transparent,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    type,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w400,
+                      color: isCurrent ? AppColors.primary : AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (picked == null || picked == _shopType || !mounted) return;
+    final defaults = kShopCategories[picked] ?? [];
+    final reset = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Changed to $picked'),
+        content: Text(
+          'Do you want to reset your product categories to the defaults for "$picked"?\n\n'
+          'Your existing products will not be affected — only the category filter list changes.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep my categories'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Reset to defaults',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    setState(() {
+      _shopType = picked;
+      if (reset == true) _categories = List<String>.from(defaults);
+    });
+  }
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final user = FirebaseAuth.instance.currentUser;
@@ -598,6 +689,8 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
         'gstBusinessName': _gstBusinessName.text.trim(),
         'autoSendWhatsappReceipt': _autoSendWhatsapp,
         'photos': _photos,
+        'shopType': _shopType,
+        'categories': _categories,
         // Bridge to storefront website config
         'website.isPublished': true,
         'website.siteName': _nameEn.text.trim(),

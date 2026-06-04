@@ -18,6 +18,7 @@ const _shopTypes = [
   'Electronics',
   'Hotel / Restaurant',
   'General Store',
+  'Fancy Store',
 ];
 
 const _shopTypeKeys = [
@@ -31,6 +32,7 @@ const _shopTypeKeys = [
   'shop_type_electronics',
   'shop_type_restaurant',
   'shop_type_general',
+  'shop_type_fancy',
 ];
 
 const _shopTypeIcons = [
@@ -44,6 +46,7 @@ const _shopTypeIcons = [
   Icons.devices,
   Icons.restaurant,
   Icons.store,
+  Icons.diamond_outlined,
 ];
 
 // Maps pre-login keys (SharedPreferences) to post-login ShopType labels
@@ -58,6 +61,7 @@ const _preLoginKeyToType = {
   'electronics': 'Electronics',
   'restaurant': 'Hotel / Restaurant',
   'general': 'General Store',
+  'fancy': 'Fancy Store',
 };
 
 class ShopTypeScreen extends ConsumerStatefulWidget {
