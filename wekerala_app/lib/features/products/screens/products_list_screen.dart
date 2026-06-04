@@ -332,7 +332,7 @@ class _ProductsBody extends ConsumerWidget {
                                               'Showing \ products — Load more'),
                                           onPressed: () {
                                             final notifier = ref.read(
-                                                _productLimitProvider(shopId).notifier);
+                                                productLimitProvider(shopId).notifier);
                                             notifier.state += 200;
                                           },
                                           style: OutlinedButton.styleFrom(

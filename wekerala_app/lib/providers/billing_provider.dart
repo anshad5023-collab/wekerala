@@ -106,7 +106,7 @@ class BillingNotifier extends Notifier<BillingState> {
     final items = List<BillItemModel>.from(state.cartItems);
     // Use variant-specific ID so each variant is a separate cart line
     final cartId = variant != null
-        ? '\_\'
+        ? '${product.productId}_${variant.variantId}'
         : product.productId;
     final idx = items.indexWhere((i) => i.productId == cartId);
 
@@ -115,7 +115,7 @@ class BillingNotifier extends Notifier<BillingState> {
         : (product.offerPrice > 0 ? product.offerPrice : product.price);
 
     final displayName = variant != null
-        ? '\ (\)'
+        ? '${product.nameEn} (${variant.name})'
         : product.nameEn;
 
     if (idx >= 0) {

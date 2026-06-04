@@ -21,9 +21,49 @@ import '../../../models/variant_model.dart';
 import '../../../models/shop_model.dart';
 import '../../../providers/billing_provider.dart';
 import '../../../providers/customers_provider.dart';
+import '../../../providers/credits_provider.dart';
+import '../../../models/credit_model.dart';
 import '../../../providers/products_provider.dart';
 import '../../../providers/shop_provider.dart';
 import '../../../shared/widgets/shimmer_list.dart';
+
+// Top-level helper — accessible from both _BillingScreenState and _ProductPanel
+Future<VariantModel?> _showVariantPicker(
+    BuildContext context, ProductModel product) {
+  return showModalBottomSheet<VariantModel>(
+    context: context,
+    shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+    builder: (ctx) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+            child: Text(
+              'Select ${product.nameEn} variant',
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+            ),
+          ),
+          const Divider(height: 1),
+          ...product.variants.map((v) => ListTile(
+                title: Text(v.name),
+                trailing: Text(
+                  '₹${(v.offerPrice > 0 ? v.offerPrice : v.price).toStringAsFixed(0)}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.primary,
+                      fontSize: 16),
+                ),
+                onTap: () => Navigator.pop(ctx, v),
+              )),
+          const SizedBox(height: 8),
+        ],
+      ),
+    ),
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Main screen
@@ -90,44 +130,6 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
 
   // ── payment flow ──────────────────────────────────────────────────────────
 
-
-  Future<VariantModel?> _showVariantPicker(
-      BuildContext context, ProductModel product) {
-    return showModalBottomSheet<VariantModel>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-              child: Text(
-                'Select ${product.nameEn} variant',
-                style: const TextStyle(
-                    fontWeight: FontWeight.w700, fontSize: 16),
-              ),
-            ),
-            const Divider(height: 1),
-            ...product.variants.map((v) => ListTile(
-                  title: Text(v.name),
-                  trailing: Text(
-                    '₹${(v.offerPrice > 0 ? v.offerPrice : v.price).toStringAsFixed(0)}',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.primary,
-                        fontSize: 16),
-                  ),
-                  onTap: () => Navigator.pop(ctx, v),
-                )),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
   Future<void> _onPaymentTap(String method, {double? cashAmt, double? upiAmt}) async {
     if (method == 'split') {
       setState(() { _splitCashAmount = cashAmt; _splitUpiAmount = upiAmt; });
@@ -1622,7 +1624,7 @@ class _UdharButton extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _PaymentBar extends ConsumerStatefulWidget {
-  final void Function(String method) onTap;
+  final void Function(String method, {double? cashAmt, double? upiAmt}) onTap;
 
   const _PaymentBar({required this.onTap});
 
