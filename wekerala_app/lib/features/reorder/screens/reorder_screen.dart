@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/gemini_service.dart';
 import '../../../models/product_model.dart';
@@ -187,10 +188,16 @@ class _ReorderBodyState extends ConsumerState<_ReorderBody> {
                           }
                           buf.writeln('─────────────────');
                           buf.writeln('Please arrange ASAP. Thank you!');
-                          Clipboard.setData(ClipboardData(text: buf.toString().trim()));
+                          final text = buf.toString().trim();
+                          Clipboard.setData(ClipboardData(text: text));
+                          launchUrl(
+                            Uri.parse(
+                                'https://wa.me/?text=${Uri.encodeComponent(text)}'),
+                            mode: LaunchMode.externalApplication,
+                          );
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Reorder list copied!'),
+                              content: Text('Opening WhatsApp with reorder list...'),
                               duration: Duration(seconds: 2),
                             ),
                           );
