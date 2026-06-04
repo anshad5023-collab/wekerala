@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/bill_model.dart';
 import '../models/variant_model.dart';
@@ -115,8 +117,39 @@ class BillingState {
 // ---------------------------------------------------------------------------
 
 class BillingNotifier extends Notifier<BillingState> {
+  static const _cartKey = 'billing_cart_draft';
+
   @override
-  BillingState build() => const BillingState();
+  BillingState build() {
+    // Restore cart from SharedPreferences on first build
+    _restoreCart();
+    return const BillingState();
+  }
+
+  Future<void> _restoreCart() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final json = prefs.getString(_cartKey);
+      if (json == null) return;
+      final list = (jsonDecode(json) as List).cast<Map<String, dynamic>>();
+      final items = list.map(BillItemModel.fromMap).toList();
+      if (items.isNotEmpty) {
+        state = state.copyWith(cartItems: items);
+      }
+    } catch (_) {
+      // Non-fatal — fresh cart on error
+    }
+  }
+
+  void _persistCart(List<BillItemModel> items) {
+    SharedPreferences.getInstance().then((prefs) {
+      if (items.isEmpty) {
+        prefs.remove(_cartKey);
+      } else {
+        prefs.setString(_cartKey, jsonEncode(items.map((i) => i.toMap()).toList()));
+      }
+    });
+  }
 
   /// Add one unit of [product] to the cart. If already present, increment qty.
   void addItem(ProductModel product, {VariantModel? variant}) {
@@ -159,15 +192,14 @@ class BillingNotifier extends Notifier<BillingState> {
     }
 
     state = state.copyWith(cartItems: items);
+    _persistCart(items);
   }
 
   /// Remove an item from the cart by [productId].
   void removeItem(String productId) {
-    state = state.copyWith(
-      cartItems: state.cartItems
-          .where((i) => i.productId != productId)
-          .toList(),
-    );
+    final items = state.cartItems.where((i) => i.productId != productId).toList();
+    state = state.copyWith(cartItems: items);
+    _persistCart(items);
   }
 
   /// Update the quantity of a cart item. Removes it if [qty] <= 0.
@@ -188,6 +220,7 @@ class BillingNotifier extends Notifier<BillingState> {
     );
 
     state = state.copyWith(cartItems: items);
+    _persistCart(items);
   }
 
   /// Set a flat discount amount on the current cart.
@@ -212,6 +245,7 @@ class BillingNotifier extends Notifier<BillingState> {
   /// Reset the cart to empty.
   void clearCart() {
     state = const BillingState();
+    _persistCart([]);
   }
 
   /// Set a pre-filled note (e.g. 'Table: 4' from KOT conversion).
