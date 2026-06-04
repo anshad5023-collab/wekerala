@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/layout/adaptive_layout.dart';
@@ -249,6 +251,21 @@ class _CustomersBodyState extends ConsumerState<_CustomersBody> {
         automaticallyImplyLeading: false,
         elevation: 0,
         actions: [
+          // Export customer list for owner records
+          IconButton(
+            icon: const Icon(Icons.ios_share, color: Colors.white),
+            tooltip: 'Export Customer List',
+            onPressed: () {
+              final data = customersAsync.valueOrNull ?? [];
+              if (data.isEmpty) return;
+              final buf = StringBuffer();
+              buf.writeln('Customer Name,Phone,Total Orders,Total Spent');
+              for (final c in data) {
+                buf.writeln('${c.name},${c.phone},${c.totalOrders},${c.totalSpent.toStringAsFixed(0)}');
+              }
+              Share.share(buf.toString(), subject: 'Customer List Export');
+            },
+          ),
           PopupMenuButton<_SortOption>(
             icon: const Icon(Icons.sort, color: Colors.white),
             tooltip: 'Sort',
