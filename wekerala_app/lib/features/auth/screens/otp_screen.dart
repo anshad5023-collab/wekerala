@@ -81,7 +81,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen> {
     if (!mounted) return;
 
     if (success) {
-      context.go('/business/home');
+      context.go('/home');
     } else {
       final state = ref.read(authProvider);
       final errorKey = state.errorMessage ?? 'error_generic';

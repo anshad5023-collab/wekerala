@@ -290,7 +290,7 @@ class _HubBody extends ConsumerWidget {
             trailing: const SizedBox.shrink(),
             onTap: () async {
               await FirebaseAuth.instance.signOut();
-              if (context.mounted) context.go('/google-signin');
+              if (context.mounted) context.go('/login');
             },
           ),
         ]),

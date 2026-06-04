@@ -6,15 +6,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../features/auth/screens/splash_screen.dart';
 import '../../features/auth/screens/language_screen.dart';
 import '../../features/auth/screens/login_screen.dart';
-import '../../features/auth/screens/google_signin_screen.dart';
 import '../../features/auth/screens/otp_screen.dart';
-import '../../features/auth/screens/business_type_screen.dart';
-import '../../features/business/screens/listing_form_screen.dart';
 import '../../features/website_builder/screens/website_builder_screen.dart';
 import '../layout/app_shell.dart';
 import '../../features/onboarding/screens/shop_type_screen.dart';
-import '../../features/onboarding/screens/pre_login_shop_type_screen.dart';
-import '../../features/onboarding/screens/state_selection_screen.dart';
 import '../../features/onboarding/screens/shop_details_screen.dart';
 import '../../features/onboarding/screens/banner_upload_screen.dart';
 import '../../features/onboarding/screens/delivery_setup_screen.dart';
@@ -65,10 +60,7 @@ import '../../providers/auth_provider.dart';
 
 // Routes that do NOT require Firebase auth
 const _publicRoutes = {
-  '/splash', '/language', '/google-signin',
-  '/pre-onboard/type', '/pre-onboard/state',
-  '/business/type', '/business/listing-form',
-  '/business/home', '/website-builder',
+  '/splash', '/language', '/website-builder',
 };
 
 // Routes that require phone OTP auth
@@ -109,20 +101,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
       GoRoute(path: '/language', builder: (_, __) => const LanguageScreen()),
-      GoRoute(path: '/pre-onboard/type', builder: (_, __) => const PreLoginShopTypeScreen()),
-      GoRoute(path: '/pre-onboard/state', builder: (_, __) => const StateSelectionScreen()),
 
-      // --- Phone OTP auth (for shop dashboard) ---
+      // --- Phone OTP auth ---
       GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
-      GoRoute(path: '/google-signin', builder: (_, __) => const GoogleSignInScreen()),
       GoRoute(
         path: '/verify',
         builder: (_, state) => OtpScreen(phoneNumber: state.extra as String? ?? ''),
       ),
 
-      GoRoute(path: '/business/type', builder: (_, __) => const BusinessTypeScreen()),
-      GoRoute(path: '/business/listing-form', builder: (_, __) => const ListingFormScreen()),
-      GoRoute(path: '/business/home', builder: (_, __) => const AppShell()),
+      // --- Main app shell ---
+      GoRoute(path: '/home', builder: (_, __) => const AppShell()),
 
       // --- Shop owner dashboard (requires phone auth) ---
       GoRoute(path: '/onboard/type', builder: (_, __) => const ShopTypeScreen()),

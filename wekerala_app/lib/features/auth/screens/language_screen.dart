@@ -83,7 +83,7 @@ class _LanguageScreenState extends ConsumerState<LanguageScreen> {
   Future<void> _onContinue() async {
     await ref.read(languageProvider.notifier).setLanguage(_selected);
     if (!mounted) return;
-    context.go('/google-signin');
+    context.go('/login');
   }
 }
 

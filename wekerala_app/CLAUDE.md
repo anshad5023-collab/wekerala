@@ -13,6 +13,24 @@ writing any code.
 
 ---
 
+## ❌ PERMANENTLY REMOVED FEATURES — DO NOT ADD BACK
+
+These features were deliberately removed by the product owner. **Never recreate them.**
+
+| Feature | What was removed | Reason |
+|---|---|---|
+| B2B Business Listing | `google_signin_screen.dart`, `business_home_screen.dart`, `listing_form_screen.dart`, `business_type_screen.dart`, `google_auth_provider.dart` | Not needed — app is only for shop owners (grocery, fancy, etc.) |
+| Google Sign-In auth | `google_sign_in` package, `GoogleAuthProvider`, `/google-signin` route | Phone OTP is the only login method |
+| Pre-login onboarding | `pre_login_shop_type_screen.dart`, `state_selection_screen.dart`, `/pre-onboard/*` routes | Removed — users go straight to phone login |
+
+**Correct auth flow:**
+`/splash` → `/language` (first time only) → `/login` (phone number) → `/verify` (OTP) → `/home` (AppShell)
+
+**Sign out goes to:** `/login` (NOT `/google-signin`)
+**After OTP success:** `/home` (NOT `/business/home`)
+
+---
+
 ## TOKEN EFFICIENCY — MOST IMPORTANT RULE
 
 **You must minimize token usage at all times. Follow this priority order:**

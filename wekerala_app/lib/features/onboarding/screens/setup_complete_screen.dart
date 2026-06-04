@@ -120,7 +120,7 @@ class SetupCompleteScreen extends ConsumerWidget {
               AppButton(
                 label: t['setup_done_go_dashboard'] ?? 'Go to Dashboard',
                 variant: AppButtonVariant.outline,
-                onPressed: () => context.go('/business/home'),
+                onPressed: () => context.go('/home'),
               ),
               const SizedBox(height: 16),
             ],

@@ -40,7 +40,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
 
   Future<void> _signOut() async {
     await FirebaseAuth.instance.signOut();
-    if (mounted) context.go('/google-signin');
+    if (mounted) context.go('/login');
   }
 
   @override
