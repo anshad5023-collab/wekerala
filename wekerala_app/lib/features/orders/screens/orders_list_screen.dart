@@ -605,6 +605,23 @@ class _OrderTile extends StatelessWidget {
                                 color: AppColors.textSecondary, fontSize: 11)),
                       ],
                     ),
+                    if (order.scheduledFor != null) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          const Icon(Icons.schedule_outlined,
+                              size: 12, color: Colors.deepPurple),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Due: ${DateFormat('d MMM, hh:mm a').format(order.scheduledFor!)}',
+                            style: const TextStyle(
+                                color: Colors.deepPurple,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ],
                     if (order.cancelReason.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),

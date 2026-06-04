@@ -69,6 +69,7 @@ class OrderModel {
   final String cancelReason;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final DateTime? scheduledFor; // pre-order delivery date/time
 
   const OrderModel({
     required this.orderId,
@@ -87,6 +88,7 @@ class OrderModel {
     this.cancelReason = '',
     required this.createdAt,
     required this.updatedAt,
+    this.scheduledFor,
   });
 
   static Color statusColor(String status) {
@@ -149,6 +151,9 @@ class OrderModel {
       cancelReason: m['cancelReason'] as String? ?? '',
       createdAt: _parseDate(m['createdAt'], DateTime.now()),
       updatedAt: _parseDate(m['updatedAt'], DateTime.now()),
+      scheduledFor: m['scheduledFor'] != null
+          ? _parseDate(m['scheduledFor'], DateTime.now())
+          : null,
     );
   }
 
@@ -167,6 +172,7 @@ class OrderModel {
         'paymentStatus': paymentStatus,
         'createdAt': Timestamp.fromDate(createdAt),
         'updatedAt': Timestamp.fromDate(updatedAt),
+        if (scheduledFor != null) 'scheduledFor': Timestamp.fromDate(scheduledFor!),
       };
 
   OrderModel copyWith({String? status, String? paymentStatus, String? cancelReason}) => OrderModel(
