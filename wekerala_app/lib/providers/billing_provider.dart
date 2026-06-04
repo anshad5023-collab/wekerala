@@ -154,6 +154,7 @@ class BillingNotifier extends Notifier<BillingState> {
         gstRate: product.gstRate,
         hsnCode: product.hsnCode,
         priceIncludesGst: product.priceIncludesGst,
+        batchNumber: product.batchNumber,
       ));
     }
 

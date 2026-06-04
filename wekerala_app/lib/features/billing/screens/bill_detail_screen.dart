@@ -595,6 +595,10 @@ class _BillItemRow extends StatelessWidget {
               children: [
                 Text(item.productName,
                     style: const TextStyle(fontWeight: FontWeight.w500)),
+                if (item.batchNumber != null && item.batchNumber!.isNotEmpty)
+                  Text('Batch: ${item.batchNumber}',
+                      style: const TextStyle(
+                          color: AppColors.textSecondary, fontSize: 11)),
                 Row(
                   children: [
                     if (item.hsnCode != null && item.hsnCode!.isNotEmpty) ...[

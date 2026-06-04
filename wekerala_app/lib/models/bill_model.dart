@@ -11,6 +11,7 @@ class BillItemModel {
   final int gstRate;
   final String? hsnCode;
   final bool priceIncludesGst;
+  final String? batchNumber; // pharmacy dispensing record
 
   const BillItemModel({
     required this.productId,
@@ -23,6 +24,7 @@ class BillItemModel {
     this.gstRate = 0,
     this.hsnCode,
     this.priceIncludesGst = true,
+    this.batchNumber,
   });
 
   BillItemModel copyWith({
@@ -36,6 +38,7 @@ class BillItemModel {
     int? gstRate,
     Object? hsnCode = _billSentinel,
     bool? priceIncludesGst,
+    Object? batchNumber = _billSentinel,
   }) {
     return BillItemModel(
       productId: productId ?? this.productId,
@@ -48,6 +51,7 @@ class BillItemModel {
       gstRate: gstRate ?? this.gstRate,
       hsnCode: hsnCode == _billSentinel ? this.hsnCode : hsnCode as String?,
       priceIncludesGst: priceIncludesGst ?? this.priceIncludesGst,
+      batchNumber: batchNumber == _billSentinel ? this.batchNumber : batchNumber as String?,
     );
   }
 
@@ -63,6 +67,7 @@ class BillItemModel {
       gstRate: (map['gstRate'] as num?)?.toInt() ?? 0,
       hsnCode: map['hsnCode'] as String?,
       priceIncludesGst: (map['priceIncludesGst'] as bool?) ?? true,
+      batchNumber: map['batchNumber'] as String?,
     );
   }
 
@@ -79,6 +84,7 @@ class BillItemModel {
       'priceIncludesGst': priceIncludesGst,
     };
     if (hsnCode != null) m['hsnCode'] = hsnCode;
+    if (batchNumber != null && batchNumber!.isNotEmpty) m['batchNumber'] = batchNumber;
     return m;
   }
 }
