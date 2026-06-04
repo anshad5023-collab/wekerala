@@ -76,8 +76,11 @@ export function ShopViewById({ shopId }: { shopId: string }) {
     let filtered = products.filter((p) => p.price > 0);
     if (selectedCategory && selectedCategory !== 'all') filtered = filtered.filter((p) => p.category === selectedCategory);
     if (searchQuery) {
+      const q = searchQuery.toLowerCase();
       filtered = filtered.filter(
-        (p) => p.name.en.toLowerCase().includes(searchQuery.toLowerCase()) || p.name.ml.toLowerCase().includes(searchQuery.toLowerCase())
+        (p) => p.name.en.toLowerCase().includes(q) ||
+          p.name.ml.toLowerCase().includes(q) ||
+          (p.searchAlias ?? '').toLowerCase().includes(q)
       );
     }
     return filtered;

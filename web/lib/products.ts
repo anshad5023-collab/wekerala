@@ -14,6 +14,7 @@ export interface Product {
   image: string;
   isOutOfStock: boolean;
   description?: string; // optional long description for product detail sheet
+  searchAlias?: string; // generic/alternate name for search (e.g. 'paracetamol' for 'Dolo 650')
 }
 
 export interface AiSettings {
@@ -94,6 +95,7 @@ export function firestoreToProduct(data: Record<string, any>, id: string): Produ
     image: data['imageUrl'] ?? '',
     isOutOfStock: data['isOutOfStock'] ?? false,
     description: data['description'] as string | undefined,
+    searchAlias: data['searchAlias'] as string | undefined,
   };
 }
 
