@@ -56,6 +56,47 @@ class _KotScreenState extends ConsumerState<KotScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadFromFirestore());
+  }
+
+  Future<void> _loadFromFirestore() async {
+    final shopId = ref.read(activeShopIdProvider).valueOrNull ?? '';
+    if (shopId.isEmpty) return;
+    try {
+      final today = DateTime.now();
+      final startOfDay = DateTime(today.year, today.month, today.day);
+      final snap = await FirebaseFirestore.instance
+          .collection('shops')
+          .doc(shopId)
+          .collection('kots')
+          .where('status', whereNotIn: ['served'])
+          .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+          .get();
+      if (!mounted) return;
+      setState(() {
+        for (final doc in snap.docs) {
+          final d = doc.data();
+          final id = d['id'] as String? ?? doc.id;
+          if (_orders.any((o) => o.id == id)) continue;
+          final rawItems = (d['items'] as List?)?.cast<Map>() ?? [];
+          final items = rawItems.map((i) {
+            final item = _KotItem(name: i['name'] as String? ?? '');
+            item.qty = (i['qty'] as int?) ?? 1;
+            return item;
+          }).toList();
+          final order = _KotOrder(
+            id: id,
+            table: d['table'] as String? ?? '',
+            items: items,
+            createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+          );
+          order.status = d['status'] as String? ?? 'pending';
+          _orders.add(order);
+        }
+      });
+    } catch (_) {
+      // Non-fatal — KOT still works with empty list
+    }
   }
 
   @override
