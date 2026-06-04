@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import type { Product } from './products';
 
 export interface CartItem {
@@ -18,9 +19,11 @@ interface CartStore {
   getItemQuantity: (productId: string) => number;
 }
 
-export const useCartStore = create<CartStore>((set, get) => ({
+export const useCartStore = create<CartStore>()(
+  persist(
+    (set, get) => ({
   items: [],
-  
+
   addItem: (product: Product) => {
     set((state) => {
       const existingItem = state.items.find((item) => item.product.id === product.id);
@@ -72,4 +75,7 @@ export const useCartStore = create<CartStore>((set, get) => ({
     const item = get().items.find((item) => item.product.id === productId);
     return item?.quantity ?? 0;
   },
-}));
+    }),
+    { name: 'wekerala-cart' } // key in localStorage
+  )
+);
