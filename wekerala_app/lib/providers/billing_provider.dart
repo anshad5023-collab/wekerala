@@ -481,6 +481,24 @@ class BillingNotifier extends Notifier<BillingState> {
       }
     }
     await batch.commit();
+
+    // If this was an udhar bill, reverse the customer balance and cancel the credit
+    if (bill.isUdhar && bill.customerPhone.isNotEmpty) {
+      final db2 = FirebaseFirestore.instance;
+      // Decrement udharBalance on customer
+      unawaited(db2.collection('shops').doc(bill.shopId)
+          .collection('customers').doc(bill.customerPhone)
+          .set({'udharBalance': FieldValue.increment(-bill.finalAmount)},
+              SetOptions(merge: true)));
+      // Mark the linked credit as cancelled
+      final creditsSnap = await db2.collection('shops').doc(bill.shopId)
+          .collection('credits')
+          .where('billId', isEqualTo: bill.billId)
+          .limit(1).get();
+      for (final doc in creditsSnap.docs) {
+        unawaited(doc.reference.update({'status': 'paid', 'paidAmount': bill.finalAmount}));
+      }
+    }
   }
 }
 
