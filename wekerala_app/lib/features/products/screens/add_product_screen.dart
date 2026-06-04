@@ -11,6 +11,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/layout/breakpoints.dart';
 import '../../../providers/language_provider.dart'; // translationsProvider
@@ -147,91 +148,153 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     });
   }
 
-  Future<void> _lookupBarcode(String barcode) async {
-    if (barcode.isEmpty) return;
-    setState(() => _loadingImage = true);
-    try {
-      final resp = await http.get(
-        Uri.parse('https://world.openfoodfacts.org/api/v2/product/$barcode'),
-        headers: {'User-Agent': 'oratas/1.0 (oratas4ai@gmail.com)'},
-      ).timeout(const Duration(seconds: 10));
-      if (resp.statusCode == 200) {
-        final data = jsonDecode(resp.body) as Map<String, dynamic>;
-        if (data['status'] == 1) {
-          final p = data['product'] as Map<String, dynamic>;
-          final name = ((p['product_name_en'] ?? p['product_name']) as String? ?? '').trim();
-          final imageUrl = ((p['image_front_url'] ?? p['image_url']) as String? ?? '').trim();
-          if (mounted) {
-            setState(() {
-              if (name.isNotEmpty) _nameEnCtrl.text = name;
-              if (imageUrl.isNotEmpty) { _imageUrl = imageUrl; _imageSource = 'barcode'; _imageFile = null; }
-              _loadingImage = false;
-            });
+  // Fetch product data — tries India DB first, then world DB
+  Future<Map<String, dynamic>?> _fetchOpenFoodFacts(String barcode) async {
+    for (final host in ['in.openfoodfacts.org', 'world.openfoodfacts.org']) {
+      try {
+        final resp = await http.get(
+          Uri.parse('https://$host/api/v2/product/$barcode.json'),
+          headers: {'User-Agent': 'Oratas/1.0 (oratas4ai@gmail.com)'},
+        ).timeout(const Duration(seconds: 8));
+        if (resp.statusCode == 200) {
+          final data = jsonDecode(resp.body) as Map<String, dynamic>;
+          if (data['status'] == 1) return data['product'] as Map<String, dynamic>;
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  // Map Open Food Facts category tags to the shop's own category list
+  String _guessCategory(Map<String, dynamic> p, List<String> available) {
+    final tags = ((p['categories_tags'] as List?)?.cast<String>() ?? [])
+        .map((t) => t.split(':').last.toLowerCase())
+        .toList();
+    const mapping = {
+      'beverages': ['Beverages', 'Drinks'],
+      'drinks': ['Beverages', 'Drinks'],
+      'dairy': ['Dairy & Eggs'],
+      'milk': ['Dairy & Eggs'],
+      'eggs': ['Dairy & Eggs'],
+      'snacks': ['Snacks'],
+      'chips': ['Snacks'],
+      'biscuits': ['Biscuits & Cookies', 'Snacks'],
+      'cookies': ['Biscuits & Cookies', 'Snacks'],
+      'chocolates': ['Snacks'],
+      'vegetables': ['Vegetables'],
+      'fruits': ['Fruits'],
+      'cereals': ['Grocery Staples'],
+      'rice': ['Grocery Staples'],
+      'flour': ['Grocery Staples'],
+      'oils': ['Grocery Staples'],
+      'spices': ['Grocery Staples'],
+      'condiments': ['Grocery Staples'],
+      'cleaning': ['Cleaning'],
+      'breads': ['Breads'],
+      'cakes': ['Cakes & Pastries'],
+      'medicines': ['Medicines'],
+      'chicken': ['Chicken'],
+      'beef': ['Beef'],
+      'mutton': ['Mutton'],
+      'fish': ['Fish'],
+      'seafood': ['Prawns & Seafood'],
+    };
+    for (final tag in tags) {
+      for (final entry in mapping.entries) {
+        if (tag.contains(entry.key)) {
+          for (final cat in entry.value) {
+            if (available.contains(cat)) return cat;
           }
-          if (mounted && name.isEmpty) _showError('Barcode found but no product name in database.');
-        } else {
-          if (mounted) { setState(() => _loadingImage = false); _showError('Barcode not found in database.'); }
         }
       }
-    } catch (_) {
-      if (mounted) setState(() => _loadingImage = false);
+    }
+    return '';
+  }
+
+  // Parse "500 g" / "1 kg" / "250 ml" to app unit string
+  String _guessUnit(Map<String, dynamic> p) {
+    final qty = (p['quantity'] as String? ?? '').toLowerCase();
+    if (qty.contains('kg') || qty.contains('kilogram')) return 'kg';
+    if (qty.contains(' g') || qty.contains('gram')) return 'gram';
+    if (qty.contains('ml') || qty.contains('millilitre')) return 'ml';
+    if (qty.contains('litre') || qty.contains('liter') || qty.contains(' l')) return 'litre';
+    return 'piece';
+  }
+
+  void _applyProductData(Map<String, dynamic> p, List<String> availableCategories) {
+    final name = ((p['product_name_en'] ?? p['product_name_in'] ?? p['product_name']) as String? ?? '').trim();
+    final brand = (p['brands'] as String? ?? '').trim().split(',').first.trim();
+    final imageUrl = ((p['image_front_url'] ?? p['image_url']) as String? ?? '').trim();
+    final category = _guessCategory(p, availableCategories);
+    final unit = _guessUnit(p);
+
+    setState(() {
+      if (name.isNotEmpty) {
+        final fullName = (brand.isNotEmpty && !name.toLowerCase().contains(brand.toLowerCase()))
+            ? '$brand $name'
+            : name;
+        _nameEnCtrl.text = fullName;
+      }
+      if (imageUrl.isNotEmpty) {
+        _imageUrl = imageUrl;
+        _imageSource = 'barcode';
+        _imageFile = null;
+      }
+      if (category.isNotEmpty) _category = category;
+      _unit = unit;
+      _loadingImage = false;
+    });
+
+    if (name.isEmpty && mounted) {
+      _showError('Barcode found but no product name available. Enter name manually.');
+    }
+  }
+
+  Future<void> _lookupBarcode(String barcode) async {
+    if (barcode.isEmpty) return;
+    final shopId = ref.read(activeShopIdProvider).valueOrNull ?? '';
+    final categories = ref.read(shopStreamProvider(shopId)).valueOrNull?.categories ?? [];
+    setState(() => _loadingImage = true);
+    final p = await _fetchOpenFoodFacts(barcode);
+    if (!mounted) return;
+    if (p != null) {
+      _applyProductData(p, categories);
+    } else {
+      setState(() => _loadingImage = false);
+      _showError('Barcode not found. Enter details manually.');
     }
   }
 
   Future<void> _scanBarcode() async {
     if (kIsWeb || !Platform.isAndroid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Barcode scanning is available on Android only.')),
-      );
+      _showError('Barcode scanning is available on Android only.');
       return;
     }
+    // Request camera permission before opening scanner
+    final status = await Permission.camera.request();
+    if (!mounted) return;
+    if (!status.isGranted) {
+      _showError('Camera permission required to scan barcodes.');
+      if (status.isPermanentlyDenied) openAppSettings();
+      return;
+    }
+
     final barcode = await Navigator.push<String>(
       context,
       MaterialPageRoute(builder: (_) => const _BarcodeScannerPage()),
     );
     if (barcode == null || !mounted) return;
 
+    final shopId = ref.read(activeShopIdProvider).valueOrNull ?? '';
+    final categories = ref.read(shopStreamProvider(shopId)).valueOrNull?.categories ?? [];
     setState(() => _loadingImage = true);
-    try {
-      final resp = await http.get(
-        Uri.parse('https://world.openfoodfacts.org/api/v2/product/$barcode'),
-        headers: {'User-Agent': 'oratas/1.0 (ortas4ai@gmail.com)'},
-      ).timeout(const Duration(seconds: 10));
-
-      if (resp.statusCode == 200) {
-        final data = jsonDecode(resp.body) as Map<String, dynamic>;
-        if (data['status'] == 1) {
-          final p = data['product'] as Map<String, dynamic>;
-          final name = ((p['product_name_en'] ?? p['product_name']) as String? ?? '').trim();
-          final imageUrl = ((p['image_front_url'] ?? p['image_url']) as String? ?? '').trim();
-          if (mounted) {
-            setState(() {
-              if (name.isNotEmpty) _nameEnCtrl.text = name;
-              if (imageUrl.isNotEmpty) {
-                _imageUrl = imageUrl;
-                _imageSource = 'barcode';
-                _imageFile = null;
-              }
-              _loadingImage = false;
-            });
-          }
-          if (mounted && name.isEmpty) {
-            _showError('Barcode found but no product name in database. Enter name manually.');
-          }
-        } else {
-          if (mounted) {
-            setState(() => _loadingImage = false);
-            _showError('Product not found. Enter details manually.');
-          }
-        }
-      } else {
-        if (mounted) setState(() => _loadingImage = false);
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _loadingImage = false);
-        _showError('Scan lookup failed. Enter details manually.');
-      }
+    final p = await _fetchOpenFoodFacts(barcode);
+    if (!mounted) return;
+    if (p != null) {
+      _applyProductData(p, categories);
+    } else {
+      setState(() => _loadingImage = false);
+      _showError('Product not found in database. Enter details manually.');
     }
   }
 
