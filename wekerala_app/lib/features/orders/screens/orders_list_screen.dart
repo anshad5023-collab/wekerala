@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/layout/adaptive_layout.dart';
 import '../../../models/product_model.dart';
@@ -367,6 +368,22 @@ class _OrdersBody extends ConsumerWidget {
                               await updateOrderStatus(
                                   shopId, order.orderId, 'cancelled',
                                   cancelReason: reason);
+                              // Offer to notify customer via WhatsApp
+                              final phone = order.customerPhone
+                                  .replaceAll(RegExp(r'\D'), '');
+                              if (ctx.mounted && phone.length >= 10) {
+                                final intlPhone = phone.startsWith('91')
+                                    ? phone : '91${phone.substring(phone.length - 10)}';
+                                final msg = Uri.encodeComponent(
+                                    'Hi ${order.customerName.isNotEmpty ? order.customerName : "Customer"}, '
+                                    'your order #${order.orderNumber} has been cancelled. '
+                                    '${reason.isNotEmpty ? "Reason: $reason." : ""} '
+                                    'Sorry for the inconvenience.');
+                                await launchUrl(
+                                  Uri.parse('https://wa.me/$intlPhone?text=$msg'),
+                                  mode: LaunchMode.externalApplication,
+                                );
+                              }
                             }
                             return false;
                           }
