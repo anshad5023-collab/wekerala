@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../models/product_model.dart';
 import '../../../providers/products_provider.dart';
@@ -370,21 +372,49 @@ class _StockAlertTile extends StatelessWidget {
                 ],
               ),
             ),
-            // Update stock button
-            TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8)),
-              ),
-              onPressed: () => _showUpdateDialog(context),
-              child: const Text(
-                'Update\nStock',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-              ),
+            // Action buttons column
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () => _showUpdateDialog(context),
+                  child: const Text(
+                    'Update\nStock',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                  ),
+                ),
+                TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF25D366),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onPressed: () async {
+                    final msg = Uri.encodeComponent(
+                        'Hi, please send ${product.nameEn} urgently. '
+                        'Current stock: $stock ${product.unit}.');
+                    await launchUrl(
+                      Uri.parse('https://wa.me/?text=$msg'),
+                      mode: LaunchMode.externalApplication,
+                    );
+                  },
+                  child: const Text(
+                    'Reorder\nWhatsApp',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
