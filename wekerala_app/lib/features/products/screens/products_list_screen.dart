@@ -504,6 +504,8 @@ Future<void> _showQuickStockUpdate(
   final currentQty = product.stockQty ?? 0;
   int newQty = currentQty;
   final ctrl = TextEditingController(text: currentQty.toString());
+  final priceCtrl = TextEditingController(
+      text: product.price > 0 ? product.price.toStringAsFixed(0) : '');
 
   await showModalBottomSheet(
     context: context,
@@ -581,6 +583,19 @@ Future<void> _showQuickStockUpdate(
               ],
             ),
             const SizedBox(height: 16),
+            // Quick price update — for meat/fish shops with daily price changes
+            TextField(
+              controller: priceCtrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: 'Price per ${product.unit} (₹)',
+                hintText: 'Leave blank to keep current ₹${product.price.toStringAsFixed(0)}',
+                border: const OutlineInputBorder(),
+                isDense: true,
+                prefixText: '₹ ',
+              ),
+            ),
+            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -599,12 +614,19 @@ Future<void> _showQuickStockUpdate(
                         .doc(shopId)
                         .collection('products')
                         .doc(product.productId)
-                        .update({'stockQty': newQty});
+                        .update({
+                          'stockQty': newQty,
+                          if (priceCtrl.text.trim().isNotEmpty &&
+                              double.tryParse(priceCtrl.text.trim()) != null &&
+                              double.parse(priceCtrl.text.trim()) != product.price)
+                            'price': double.parse(priceCtrl.text.trim()),
+                          'updatedAt': Timestamp.now(),
+                        });
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text(
-                              'Stock updated: ${product.nameEn} → $newQty'),
+                              'Updated: ${product.nameEn} → $newQty ${product.unit}'),
                           backgroundColor: AppColors.success,
                           behavior: SnackBarBehavior.floating,
                         ),
