@@ -59,6 +59,8 @@ class ShopModel {
   final Map<String, dynamic> whatsappSettings;
   // Loyalty program configuration
   final Map<String, dynamic> loyaltySettings;
+  // Google Maps link for pickup customers
+  final String? googleMapsLink;
 
   const ShopModel({
     required this.shopId,
@@ -111,6 +113,7 @@ class ShopModel {
     this.whatsappPhoneNumberId = '',
     this.whatsappSettings = const {},
     this.loyaltySettings = const {},
+    this.googleMapsLink,
   });
 
   static DateTime _parseDate(dynamic v, DateTime fallback) {
@@ -172,6 +175,7 @@ class ShopModel {
       whatsappPhoneNumberId: d['whatsappPhoneNumberId'] as String? ?? '',
       whatsappSettings: Map<String, dynamic>.from(d['whatsappSettings'] as Map? ?? {}),
       loyaltySettings: Map<String, dynamic>.from(d['loyaltySettings'] as Map? ?? {}),
+      googleMapsLink: d['googleMapsLink'] as String?,
     );
   }
 
@@ -228,6 +232,7 @@ class ShopModel {
       if (whatsappPhoneNumberId.isNotEmpty) 'whatsappPhoneNumberId': whatsappPhoneNumberId,
       if (whatsappSettings.isNotEmpty) 'whatsappSettings': whatsappSettings,
       'loyaltySettings': loyaltySettings,
+      if (googleMapsLink != null && googleMapsLink!.isNotEmpty) 'googleMapsLink': googleMapsLink,
     };
   }
 
@@ -259,6 +264,7 @@ class ShopModel {
     String? whatsappPhoneNumberId,
     Map<String, dynamic>? whatsappSettings,
     Map<String, dynamic>? loyaltySettings,
+    Object? googleMapsLink = _shopSentinel,
   }) {
     return ShopModel(
       shopId: shopId,
@@ -310,6 +316,7 @@ class ShopModel {
       whatsappPhoneNumberId: whatsappPhoneNumberId ?? this.whatsappPhoneNumberId,
       whatsappSettings: whatsappSettings ?? this.whatsappSettings,
       loyaltySettings: loyaltySettings ?? this.loyaltySettings,
+      googleMapsLink: googleMapsLink == _shopSentinel ? this.googleMapsLink : googleMapsLink as String?,
     );
   }
 }

@@ -52,6 +52,7 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
   final _nameMl = TextEditingController();
   final _whatsapp = TextEditingController();
   final _address = TextEditingController();
+  final _mapsLink = TextEditingController();
   // Phase 9.7 — website appearance
   final _promoBanner = TextEditingController();
   final _announcement = TextEditingController();
@@ -103,6 +104,7 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
     _nameMl.dispose();
     _whatsapp.dispose();
     _address.dispose();
+    _mapsLink.dispose();
     _promoBanner.dispose();
     _announcement.dispose();
     _deliveryTime.dispose();
@@ -134,6 +136,7 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
             _nameMl.text = shop.shopNameMl;
             _whatsapp.text = shop.ownerWhatsApp;
             _address.text = shop.address;
+            _mapsLink.text = shop.googleMapsLink ?? '';
             _district = shop.district;
             _themeColor = shop.themeColor;
             _promoBanner.text = shop.promotionalBanner ?? '';
@@ -348,6 +351,10 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
                   maxLines: 2,
                   validator: (v) => (v == null || v.trim().isEmpty)
                       ? t('shop_details_address_required') : null),
+              const SizedBox(height: 12),
+              // ── Google Maps Link ─────────────────────────────
+              _field('Google Maps Link (optional)', _mapsLink,
+                  keyboardType: TextInputType.url),
               const SizedBox(height: 24),
               // ── GST Details ──────────────────────────────────
               Align(
@@ -682,6 +689,7 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
         'ownerWhatsApp': _whatsapp.text.trim(),
         'ownerPhone': _whatsapp.text.trim(),
         'address': _address.text.trim(),
+        if (_mapsLink.text.trim().isNotEmpty) 'googleMapsLink': _mapsLink.text.trim(),
         'district': _district,
         'themeColor': color,
         'promotionalBanner': _promoBanner.text.trim(),
