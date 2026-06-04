@@ -353,14 +353,14 @@ class BillingNotifier extends Notifier<BillingState> {
             .doc(realProductId);
         if (isVariant) {
           final variantId = parts.sublist(1).join('_');
-          // Decrement per-variant stock using a map field
           batch.update(productRef, {
-            'variantStock.$variantId':
-                FieldValue.increment(-item.qty.toInt()),
+            'variantStock.$variantId': FieldValue.increment(-item.qty.toInt()),
+            'orderCount': FieldValue.increment(item.qty.toInt()),
           });
         } else {
           batch.update(productRef, {
             'stockQty': FieldValue.increment(-item.qty),
+            'orderCount': FieldValue.increment(item.qty.toInt()),
           });
         }
       }
