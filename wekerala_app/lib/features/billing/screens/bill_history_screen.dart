@@ -479,9 +479,11 @@ class _GstSummaryCard extends StatelessWidget {
     double totalTax = 0;
     double totalCgst = 0;
     double totalSgst = 0;
-    int billCount = bills.length;
+    // Exclude voided bills from summary totals (show them in list but not in totals)
+    final activeBills = bills.where((b) => !b.isVoided).toList();
+    int billCount = activeBills.length;
 
-    for (final bill in bills) {
+    for (final bill in activeBills) {
       totalRevenue += bill.finalAmount;
       totalTax += bill.totalTax;
       for (final entry in bill.gstBreakdown.entries) {
@@ -489,6 +491,8 @@ class _GstSummaryCard extends StatelessWidget {
         totalSgst += (entry.value['sgst'] ?? 0);
       }
     }
+
+    if (activeBills.isEmpty) return const SizedBox.shrink();
 
     final hasTax = totalTax > 0;
 
