@@ -75,7 +75,7 @@ class _FlashSaleScreenState extends ConsumerState<FlashSaleScreen> {
                           child: Icon(Icons.local_fire_department, color: Colors.white),
                         ),
                         title: Text(d['name'] ?? 'Sale', style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text('${d['discountPercent'] ?? 0}% OFF • ${isActive ? "LIVE 🔥" : isExpired ? "Ended" : "Scheduled"}'),
+                        subtitle: Text('${d['discountPercent'] ?? 0}% OFF${(d['applicableCategory'] as String?)?.isNotEmpty == true ? " on ${d['applicableCategory']}" : ""} • ${isActive ? "LIVE 🔥" : isExpired ? "Ended" : "Scheduled"}'),
                         trailing: isActive
                             ? TextButton(
                                 onPressed: () => sales[i].reference.update({'expired': true}),
@@ -97,11 +97,27 @@ class _FlashSaleScreenState extends ConsumerState<FlashSaleScreen> {
     );
   }
 
+  Future<List<String>> _getCategories() async {
+    if (_shopId == null) return [];
+    final snap = await FirebaseFirestore.instance
+        .collection('shops')
+        .doc(_shopId)
+        .get();
+    return List<String>.from(snap.data()?['categories'] ?? []);
+  }
+
   void _showCreateSheet(BuildContext context) {
     final nameCtrl = TextEditingController();
     double discount = 20;
     DateTime startTime = DateTime.now();
     DateTime endTime = DateTime.now().add(const Duration(hours: 24));
+    String? selectedCategory; // null = all products
+    List<String> categories = [];
+
+    // Load shop categories before showing sheet
+    _getCategories().then((cats) {
+      categories = cats;
+    });
 
     showModalBottomSheet(
       context: context,
@@ -117,7 +133,21 @@ class _FlashSaleScreenState extends ConsumerState<FlashSaleScreen> {
             children: [
               const Text('Create Flash Sale', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
-              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Sale Name', border: OutlineInputBorder())),
+              TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Sale Name (e.g. Weekend Special)', border: OutlineInputBorder())),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: selectedCategory,
+                decoration: const InputDecoration(
+                  labelText: 'Apply to',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('All Products')),
+                  ...categories.map((c) => DropdownMenuItem(value: c, child: Text(c))),
+                ],
+                onChanged: (v) => setS(() => selectedCategory = v),
+              ),
               const SizedBox(height: 16),
               Text('Discount: ${discount.round()}%', style: const TextStyle(fontWeight: FontWeight.bold)),
               Slider(value: discount, min: 5, max: 80, divisions: 15, activeColor: const Color(0xFFFC8019),
@@ -143,6 +173,7 @@ class _FlashSaleScreenState extends ConsumerState<FlashSaleScreen> {
                   await FirebaseFirestore.instance.collection('shops').doc(_shopId).collection('flashSales').add({
                     'name': nameCtrl.text.trim(),
                     'discountPercent': discount.round(),
+                    'applicableCategory': selectedCategory ?? '',
                     'startTime': Timestamp.fromDate(startTime),
                     'endTime': Timestamp.fromDate(endTime),
                     'broadcastSent': false,

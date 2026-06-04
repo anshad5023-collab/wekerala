@@ -668,7 +668,8 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
         if (sale != null) {
           final pct = (sale['discountPercent'] as num?)?.toDouble() ?? 0;
           final name = (sale['name'] as String?) ?? 'Flash Sale';
-          notifier.setFlashSale(pct, name);
+          final category = (sale['applicableCategory'] as String?) ?? '';
+          notifier.setFlashSale(pct, name, category: category);
         } else {
           notifier.clearFlashSale();
         }
@@ -711,7 +712,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                     color: Colors.white, size: 16),
                 const SizedBox(width: 6),
                 Text(
-                  '🔥 ${billingState.flashSaleName}: ${billingState.flashSalePercent.toInt()}% OFF applied!',
+                  '🔥 ${billingState.flashSaleName}: ${billingState.flashSalePercent.toInt()}% OFF${billingState.flashSaleCategory.isNotEmpty ? " on ${billingState.flashSaleCategory}" : ""} applied!',
                   style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.w700,

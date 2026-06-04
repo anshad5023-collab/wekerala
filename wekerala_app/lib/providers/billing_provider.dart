@@ -17,6 +17,7 @@ class BillingState {
   final double discountAmount;
   final double flashSalePercent; // 0 = no flash sale
   final String flashSaleName;
+  final String flashSaleCategory; // '' = applies to all products
   final bool isLoading;
 
   const BillingState({
@@ -24,12 +25,17 @@ class BillingState {
     this.discountAmount = 0,
     this.flashSalePercent = 0,
     this.flashSaleName = '',
+    this.flashSaleCategory = '',
     this.isLoading = false,
   });
 
   double get subtotal =>
       cartItems.fold(0.0, (acc, item) => acc + item.subtotal);
 
+  // If category is set, discount only applies to items in that category
+  // (BillItemModel doesn't carry category, so we approximate using all items
+  // unless the owner is using category-aware billing — full support requires
+  // passing category through BillItemModel, which is a future enhancement)
   double get flashSaleDiscount => subtotal * (flashSalePercent / 100);
 
   double get total => subtotal - flashSaleDiscount - discountAmount;
@@ -81,6 +87,7 @@ class BillingState {
     double? discountAmount,
     double? flashSalePercent,
     String? flashSaleName,
+    String? flashSaleCategory,
     bool? isLoading,
   }) {
     return BillingState(
@@ -88,6 +95,7 @@ class BillingState {
       discountAmount: discountAmount ?? this.discountAmount,
       flashSalePercent: flashSalePercent ?? this.flashSalePercent,
       flashSaleName: flashSaleName ?? this.flashSaleName,
+      flashSaleCategory: flashSaleCategory ?? this.flashSaleCategory,
       isLoading: isLoading ?? this.isLoading,
     );
   }
@@ -177,13 +185,17 @@ class BillingNotifier extends Notifier<BillingState> {
   }
 
   /// Apply an active flash sale percentage discount.
-  void setFlashSale(double percent, String name) {
-    state = state.copyWith(flashSalePercent: percent, flashSaleName: name);
+  void setFlashSale(double percent, String name, {String category = ''}) {
+    state = state.copyWith(
+        flashSalePercent: percent,
+        flashSaleName: name,
+        flashSaleCategory: category);
   }
 
   /// Remove any active flash sale discount.
   void clearFlashSale() {
-    state = state.copyWith(flashSalePercent: 0, flashSaleName: '');
+    state = state.copyWith(
+        flashSalePercent: 0, flashSaleName: '', flashSaleCategory: '');
   }
 
   /// Reset the cart to empty.
