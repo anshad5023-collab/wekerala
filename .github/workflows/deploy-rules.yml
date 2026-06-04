@@ -21,7 +21,7 @@ jobs:
 
       - run: npm install -g firebase-tools
 
-      - name: Deploy Firestore rules
+      - name: Deploy Firestore + Storage rules
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        run: firebase deploy --only firestore:rules --token=$FIREBASE_TOKEN --project=shoplink-prod
+        run: firebase deploy --only firestore:rules,storage --token=$FIREBASE_TOKEN --project=shoplink-prod

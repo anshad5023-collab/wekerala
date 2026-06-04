@@ -1,0 +1,141 @@
+name: Build Windows App
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'wekerala_app/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.32.0'
+          channel: stable
+          cache: true
+
+      - name: Enable Windows desktop
+        working-directory: wekerala_app
+        run: flutter config --enable-windows-desktop
+
+      - name: Write .env
+        working-directory: wekerala_app
+        run: |
+          cat > .env << 'EOF'
+          STOREFRONT_BASE_URL=https://wekerala.vercel.app
+          SHOPLINK_UPI_ID=${{ secrets.SHOPLINK_UPI_ID }}
+          SUPPORT_WHATSAPP=${{ secrets.SUPPORT_WHATSAPP }}
+          APP_VERSION=${{ github.run_number }}.0.0
+          APK_STORAGE_PATH=apk/wekerala-latest.apk
+          USE_FIREBASE_EMULATOR=false
+          DEBUG_MODE=false
+          GUPSHUP_API_KEY=${{ secrets.GUPSHUP_API_KEY }}
+          GUPSHUP_APP_NAME=wekerala
+          EOF
+
+      - run: flutter pub get
+        working-directory: wekerala_app
+
+      - name: Build Windows release
+        working-directory: wekerala_app
+        run: flutter build windows --release --build-number=${{ github.run_number }}
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      - name: Create installer script
+        run: |
+          BUILD_DIR="wekerala_app/build/windows/x64/runner/Release"
+          # Use forward slashes converted to backslashes for Inno Setup
+          BUILD_DIR_WIN=$(cygpath -w "$BUILD_DIR")
+          cat > installer.iss << EOF
+          [Setup]
+          AppName=Oratas
+          AppVersion=1.0.${{ github.run_number }}
+          AppVerName=Oratas 1.0.${{ github.run_number }}
+          AppPublisher=Oratas Technologies
+          AppPublisherURL=https://wekerala.vercel.app
+          DefaultDirName={autopf}\Oratas
+          DefaultGroupName=Oratas
+          OutputBaseFilename=oratas-setup
+          OutputDir=installer_output
+          Compression=lzma2
+          SolidCompression=yes
+          ArchitecturesAllowed=x64compatible
+          ArchitecturesInstallIn64BitMode=x64compatible
+          WizardStyle=modern
+          DisableDirPage=yes
+
+          [Files]
+          Source: "${BUILD_DIR_WIN}\\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+          [Icons]
+          Name: "{group}\\Oratas"; Filename: "{app}\\oratas.exe"
+          Name: "{commondesktop}\\Oratas"; Filename: "{app}\\oratas.exe"; Tasks: desktopicon
+
+          [Tasks]
+          Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional icons:"; Flags: checkedonce
+
+          [Run]
+          Filename: "{app}\\oratas.exe"; Description: "Launch Oratas"; Flags: nowait postinstall skipifsilent
+          EOF
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc installer.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: oratas-windows-${{ github.run_number }}
+          path: installer_output/oratas-setup.exe
+          retention-days: 30
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}-win
+          name: "Oratas Windows v1.0.${{ github.run_number }}"
+          body: "Windows installer — build #${{ github.run_number }}"
+          files: installer_output/oratas-setup.exe
+          make_latest: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload to Firebase Storage
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          npm install --prefix "$RUNNER_TEMP/gcs" @google-cloud/storage 2>/dev/null
+          node << 'SCRIPT'
+          const { Storage } = require(process.env.RUNNER_TEMP + '/gcs/node_modules/@google-cloud/storage');
+          const fs = require('fs');
+          const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+          const storage = new Storage({ credentials: sa });
+          const bucket = storage.bucket('shoplink-prod.firebasestorage.app');
+          const exePath = 'installer_output/oratas-setup.exe';
+          const mb = (fs.statSync(exePath).size / 1024 / 1024).toFixed(1);
+          console.log(`Installer size: ${mb} MB`);
+          bucket.upload(exePath, {
+            destination: 'releases/oratas-setup.exe',
+            metadata: { contentType: 'application/octet-stream' }
+          }).then(() => {
+            console.log('✅ Uploaded → gs://shoplink-prod.firebasestorage.app/releases/oratas-setup.exe');
+          }).catch(e => { console.error('Upload failed:', e.message); process.exit(1); });
+          SCRIPT

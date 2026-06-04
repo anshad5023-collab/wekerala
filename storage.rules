@@ -6,6 +6,12 @@ service firebase.storage {
       allow read;
       allow write: if false;
     }
+
+    // Windows installer and other release binaries — public read
+    match /releases/{allPaths=**} {
+      allow read;
+      allow write: if false;
+    }
     // Shop assets (banners, product images, photos) — public read, auth write
     match /shops/{shopId}/{allPaths=**} {
       allow read;
