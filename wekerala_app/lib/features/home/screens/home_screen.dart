@@ -174,8 +174,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final newOrderCount = ordersAsync.valueOrNull?.where((o) => o.status == 'new').length ?? 0;
     final billingSummary = ref.watch(dailySalesSummaryProvider(shopId));
     final billingRevenue = (billingSummary['totalSales'] ?? 0.0) as double;
+    final billingCount = ((billingSummary['billCount'] ?? 0.0) as double).toInt();
     // Total revenue = orders delivered today + POS bills today
     final totalTodayRevenue = _todayRevenue + billingRevenue;
+    // Completed today = delivered orders + POS bills
+    final totalCompletedToday = _completedToday + billingCount;
 
     final now = DateTime.now();
     final greeting = now.hour < 12
@@ -265,7 +268,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           // Row 3 — Low Stock + Completed Today (info tiles)
           _InfoTilesRow(
             shopId: shopId,
-            completedToday: _completedToday,
+            completedToday: totalCompletedToday,
           ).animate().fadeIn(duration: 400.ms, delay: 220.ms),
           const SizedBox(height: 12),
 
