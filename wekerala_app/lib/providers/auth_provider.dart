@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 import '../models/user_model.dart';
 
 enum AuthStatus {
@@ -77,11 +79,17 @@ class AuthNotifier extends Notifier<AuthState> {
         },
         codeAutoRetrievalTimeout: (_) {},
       );
-    } catch (e) {
-      state = state.copyWith(
-        status: AuthStatus.error,
-        errorMessage: 'Something went wrong. Please try again.',
-      );
+    } catch (e, st) {
+      debugPrint('sendOtp error: $e\n$st');
+      String msg;
+      if (e is FirebaseAuthException) {
+        msg = _mapAuthError(e.code);
+      } else if (e is PlatformException) {
+        msg = _mapAuthError(e.code);
+      } else {
+        msg = 'Auth error: ${e.toString()}';
+      }
+      state = state.copyWith(status: AuthStatus.error, errorMessage: msg);
     }
   }
 
@@ -104,10 +112,11 @@ class AuthNotifier extends Notifier<AuthState> {
         errorMessage: _mapAuthError(e.code),
       );
       return false;
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('verifyOtp error: $e\n$st');
       state = state.copyWith(
         status: AuthStatus.error,
-        errorMessage: 'Something went wrong. Please try again.',
+        errorMessage: e is PlatformException ? _mapAuthError(e.code) : 'Auth error: ${e.toString()}',
       );
       return false;
     }
