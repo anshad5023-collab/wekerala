@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   try {
     const [shopRes, productsRes] = await Promise.all([
       fetch(`${BASE}/shops/${shopId}?key=${API_KEY}`),
-      fetch(`${BASE}/shops/${shopId}/products?key=${API_KEY}`),
+      fetch(`${BASE}/shops/${shopId}/products?key=${API_KEY}&pageSize=300&orderBy=orderCount desc`),
     ]);
 
     if (!shopRes.ok) {
