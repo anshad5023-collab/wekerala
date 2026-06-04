@@ -69,7 +69,7 @@ class _Gstr1ScreenState extends ConsumerState<Gstr1Screen> {
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Center(child: Text('Error: $e')),
             data: (bills) => _GstrReport(
-              bills: bills,
+              bills: bills.where((b) => !b.isVoided).toList(),
               month: _selectedMonth,
               year: _selectedYear,
               shopName: shopName,
