@@ -402,6 +402,8 @@ class _KotCard extends ConsumerWidget {
                         // Pre-load KOT items into billing cart then navigate
                         final notifier = ref.read(billingProvider.notifier);
                         notifier.clearCart();
+                        // Set table number as pre-note on the bill
+                        notifier.setPreNote('Table: ${order.table}');
                         final products =
                             ref.read(productsStreamProvider(shopId)).valueOrNull ?? [];
                         for (final item in order.items) {

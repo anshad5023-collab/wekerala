@@ -184,13 +184,15 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
 
     String customerName = '';
     String customerPhone = '';
-    String billNote = '';
+    // Pre-fill note from KOT table reference (or any other pre-note)
+    String billNote = ref.read(billingProvider).preNote;
 
     if (!mounted) return;
     // For udhar, name + phone are required; otherwise optional.
     final confirmed = await _showCustomerDialog(
       context,
       requireFields: method == 'udhar',
+      initialNote: billNote,
       shopId: shopId,
       onSubmit: (name, phone, note) {
         customerName = name;
@@ -366,10 +368,11 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     required bool requireFields,
     required void Function(String name, String phone, String note) onSubmit,
     String? shopId,
+    String initialNote = '',
   }) async {
     final nameCtrl = TextEditingController();
     final phoneCtrl = TextEditingController();
-    final noteCtrl = TextEditingController();
+    final noteCtrl = TextEditingController(text: initialNote);
     final formKey = GlobalKey<FormState>();
 
     // Read existing customers for autocomplete suggestions (may be empty if

@@ -20,6 +20,7 @@ class BillingState {
   final String flashSaleName;
   final String flashSaleCategory; // '' = applies to all products
   final bool isLoading;
+  final String preNote; // pre-filled note (e.g. 'Table: 4' from KOT)
 
   const BillingState({
     this.cartItems = const [],
@@ -28,6 +29,7 @@ class BillingState {
     this.flashSaleName = '',
     this.flashSaleCategory = '',
     this.isLoading = false,
+    this.preNote = '',
   });
 
   double get subtotal =>
@@ -94,6 +96,7 @@ class BillingState {
     String? flashSaleName,
     String? flashSaleCategory,
     bool? isLoading,
+    String? preNote,
   }) {
     return BillingState(
       cartItems: cartItems ?? this.cartItems,
@@ -102,6 +105,7 @@ class BillingState {
       flashSaleName: flashSaleName ?? this.flashSaleName,
       flashSaleCategory: flashSaleCategory ?? this.flashSaleCategory,
       isLoading: isLoading ?? this.isLoading,
+      preNote: preNote ?? this.preNote,
     );
   }
 }
@@ -207,6 +211,11 @@ class BillingNotifier extends Notifier<BillingState> {
   /// Reset the cart to empty.
   void clearCart() {
     state = const BillingState();
+  }
+
+  /// Set a pre-filled note (e.g. 'Table: 4' from KOT conversion).
+  void setPreNote(String note) {
+    state = state.copyWith(preNote: note);
   }
 
   /// Persist the bill to Firestore and return the saved [BillModel].
