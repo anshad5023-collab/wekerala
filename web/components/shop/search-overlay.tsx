@@ -52,10 +52,12 @@ export function SearchOverlay({
       const matchesCategory = activeCategory === 'all' || product.category === activeCategory;
       
       // Search filter
+      const q = searchQuery.toLowerCase();
       const matchesSearch =
         searchQuery === '' ||
-        product.name.en.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.name.ml.includes(searchQuery);
+        product.name.en.toLowerCase().includes(q) ||
+        product.name.ml.toLowerCase().includes(q) ||
+        (product.searchAlias ?? '').toLowerCase().includes(q);
       
       // Price filter
       let matchesPrice = true;
