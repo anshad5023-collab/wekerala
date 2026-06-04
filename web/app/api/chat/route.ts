@@ -119,9 +119,10 @@ export async function POST(req: NextRequest) {
         });
         productList = products
           .filter((p: Record<string, unknown>) => !p.isHidden)
-          .map((p: Record<string, unknown>) =>
-            `- ${p.nameEn ?? p.name} ₹${p.price}${p.isOutOfStock ? ' [Out of stock]' : ' [In stock]'}`
-          )
+          .map((p: Record<string, unknown>) => {
+            const alias = p.searchAlias ? ` (also: ${p.searchAlias})` : '';
+            return `- ${p.nameEn ?? p.name}${alias} ₹${p.price}${p.isOutOfStock ? ' [Out of stock]' : ' [In stock]'}`;
+          })
           .join('\n');
       }
     }
