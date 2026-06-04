@@ -736,7 +736,9 @@ class _CustomerCard extends StatelessWidget {
     final isAtRisk = customer.isAtRisk;
     final moneyFmt = NumberFormat('#,##0.00', 'en_IN');
 
-    return Card(
+    return GestureDetector(
+      onTap: () => context.push('/customers/detail', extra: customer),
+      child: Card(
       margin: const EdgeInsets.only(bottom: 10),
       elevation: 0,
       shape: RoundedRectangleBorder(

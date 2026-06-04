@@ -39,6 +39,8 @@ import '../../features/kot/screens/kot_screen.dart';
 import '../../features/billing/screens/bill_detail_screen.dart';
 import '../../features/billing/screens/cash_counter_screen.dart';
 import '../../features/customers/screens/customers_screen.dart';
+import '../../models/customer_model.dart';
+import '../../features/customers/screens/customer_detail_screen.dart';
 import '../../features/suppliers/screens/suppliers_list_screen.dart';
 import '../../features/suppliers/screens/add_supplier_screen.dart';
 import '../../features/suppliers/screens/supplier_detail_screen.dart';
@@ -161,6 +163,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, state) => BillDetailScreen(bill: state.extra as BillModel),
       ),
       GoRoute(path: '/customers', builder: (_, __) => const CustomersScreen()),
+        GoRoute(
+          path: '/customers/detail',
+          builder: (_, state) => CustomerDetailScreen(
+            customer: state.extra! as CustomerModel,
+          ),
+        ),
       GoRoute(path: '/suppliers', builder: (_, __) => const SuppliersListScreen()),
       GoRoute(path: '/stock-receive', builder: (_, __) => const StockReceiveScreen()),
       GoRoute(
