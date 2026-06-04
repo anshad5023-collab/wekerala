@@ -19,6 +19,7 @@ interface OrderData {
   customerName: string;
   items: Array<{ productName: string; qty: number; subtotal: number }>;
   createdAt: string;
+  scheduledFor?: string; // preferred delivery date from checkout
 }
 
 function formatTime(iso: string) {
@@ -112,6 +113,19 @@ export function OrderTracking({ orderId, shopId }: { orderId: string; shopId: st
                 </>
               )}
             </div>
+
+            {/* Scheduled delivery date — for bakery/restaurant pre-orders */}
+            {order?.scheduledFor && (
+              <div className="rounded-xl bg-purple-50 border border-purple-200 p-3 flex items-center gap-2">
+                <span className="text-purple-600">📅</span>
+                <div>
+                  <p className="text-xs font-semibold text-purple-700">Scheduled Delivery</p>
+                  <p className="text-sm font-bold text-purple-800">
+                    {new Date(order.scheduledFor).toLocaleDateString('en-IN', {weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Timeline */}
             {!isCancelled && (
