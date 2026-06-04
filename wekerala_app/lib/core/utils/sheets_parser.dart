@@ -70,6 +70,9 @@ class SheetsParser {
       'offerPrice': double.tryParse(c(3)) ?? 0.0,
       'minQty': double.tryParse(c(4)) ?? 0.0,
       'category': c(5),
+      if (c(6).isNotEmpty) 'searchAlias': c(6),   // col G: search aliases (e.g. "paracetamol, fever")
+      if (c(7).isNotEmpty) 'description': c(7),   // col H: product description
+      if (c(8).isNotEmpty) 'barcode': c(8),       // col I: barcode/SKU
     };
   }
 
