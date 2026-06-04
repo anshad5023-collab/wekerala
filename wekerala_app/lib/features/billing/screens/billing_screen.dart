@@ -781,7 +781,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
         const SingleActivator(LogicalKeyboardKey.escape): () {
           _searchFocus.unfocus();
           _searchCtrl.clear();
-          setState(() => _search = '');
+          setState(() => _searchQuery = '');
         },
       },
       child: Focus(
