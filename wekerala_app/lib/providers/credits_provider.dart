@@ -46,6 +46,14 @@ class CreditsRepository {
   /// Add a new credit entry.
   static Future<void> add(String shopId, CreditModel credit) async {
     await _col(shopId).doc(credit.creditId).set(credit.toFirestore());
+    // Also update udharBalance on customer document for consistency
+    if (credit.customerPhone.isNotEmpty) {
+      FirebaseFirestore.instance
+          .collection('shops').doc(shopId)
+          .collection('customers').doc(credit.customerPhone)
+          .set({'udharBalance': FieldValue.increment(credit.amount)},
+              SetOptions(merge: true));
+    }
   }
 
   /// Mark a credit as fully paid.
