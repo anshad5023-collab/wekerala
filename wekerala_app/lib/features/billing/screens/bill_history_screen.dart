@@ -113,8 +113,8 @@ class _BillHistoryScreenState extends ConsumerState<BillHistoryScreen> {
         final customer = b.customerName.replaceAll(',', ' ');
         final phone = b.customerPhone;
         final items = b.items.length;
-        final cash = b.cashAmount.toStringAsFixed(2);
-        final upi = b.upiAmount.toStringAsFixed(2);
+        final cash = (b.cashAmount ?? 0).toStringAsFixed(2);
+        final upi = (b.upiAmount ?? 0).toStringAsFixed(2);
         final udhar = b.paymentMethod == 'udhar' ? b.finalAmount.toStringAsFixed(2) : '0.00';
         final total = b.finalAmount.toStringAsFixed(2);
         final note = (b.billNote ?? '').replaceAll(',', ' ');
@@ -152,6 +152,7 @@ class _BillHistoryScreenState extends ConsumerState<BillHistoryScreen> {
           onCustomRange: _pickCustomRange,
           onSearchChanged: (q) => setState(() => _searchQuery = q),
           filterBills: _filterBills,
+          onExportCsv: _exportCsv,
         );
       },
     );
@@ -169,6 +170,7 @@ class _BillHistoryBody extends ConsumerWidget {
   final VoidCallback onCustomRange;
   final void Function(String) onSearchChanged;
   final List<BillModel> Function(List<BillModel>) filterBills;
+  final void Function(BuildContext) onExportCsv;
 
   const _BillHistoryBody({
     required this.shopId,
@@ -181,6 +183,7 @@ class _BillHistoryBody extends ConsumerWidget {
     required this.onCustomRange,
     required this.onSearchChanged,
     required this.filterBills,
+    required this.onExportCsv,
   });
 
   @override
@@ -209,7 +212,7 @@ class _BillHistoryBody extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.download_outlined),
             tooltip: 'Export CSV for Accountant',
-            onPressed: () => _exportCsv(context),
+            onPressed: () => onExportCsv(context),
           ),
         ],
       ),
