@@ -87,6 +87,9 @@ class _ImportProductsScreenState extends ConsumerState<ImportProductsScreen>
           offerPrice: row['offerPrice'] as double? ?? 0,
           unit: row['unit'] as String? ?? 'piece',
           minQty: row['minQty'] as double? ?? 0,
+          searchAlias: row['searchAlias'] as String?,
+          description: row['description'] as String?,
+          barcode: row['barcode'] as String?,
           createdAt: now,
           updatedAt: now,
         );
