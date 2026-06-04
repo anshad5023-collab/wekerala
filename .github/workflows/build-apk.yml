@@ -7,6 +7,9 @@ on:
       - 'wekerala_app/**'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -65,30 +68,93 @@ jobs:
             echo "⚠️  No KEYSTORE_BASE64 secret — using debug signing"
           fi
 
-      - name: Print signing SHA-1 (add to Firebase Console)
-        working-directory: wekerala_app/android
-        run: |
-          if [ -f "key.properties" ] && [ -f "app/release.keystore" ]; then
-            ALIAS=$(grep keyAlias key.properties | cut -d= -f2)
-            PASS=$(grep storePassword key.properties | cut -d= -f2)
-            echo "=== RELEASE KEYSTORE SHA-1 ==="
-            keytool -list -v -alias "$ALIAS" -keystore app/release.keystore -storepass "$PASS" 2>/dev/null | grep "SHA1:"
-            echo "Add this SHA-1 to Firebase Console → Project Settings → Your Apps → Android → SHA certificate fingerprints"
-          else
-            echo "=== DEBUG KEYSTORE SHA-1 ==="
-            keytool -list -v -alias androiddebugkey \
-              -keystore ~/.android/debug.keystore \
-              -storepass android 2>/dev/null | grep "SHA1:"
-            echo "⚠️  Add this SHA-1 to Firebase Console for OTP to work with this APK"
-            echo "Firebase Console → Project Settings → Your Apps → com.wekerala.app → SHA certificate fingerprints → Add fingerprint"
-          fi
-
       - run: flutter pub get
         working-directory: wekerala_app
 
       - name: Build release APK
         working-directory: wekerala_app
         run: flutter build apk --release --build-number=${{ github.run_number }}
+
+      - name: Auto-register signing SHA-1 in Firebase Console
+        continue-on-error: true
+        working-directory: wekerala_app
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          npm install --prefix /tmp/fb-reg google-auth-library 2>/dev/null
+          node << 'SCRIPT'
+          const { GoogleAuth } = require('/tmp/fb-reg/node_modules/google-auth-library');
+          const { execSync } = require('child_process');
+
+          async function main() {
+            // Extract SHA-1 from the built APK signing certificate
+            let sha1 = '';
+            try {
+              const out = execSync(
+                'keytool -printcert -jarfile build/app/outputs/flutter-apk/app-release.apk',
+                { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }
+              );
+              const m = out.match(/SHA1[:\s]+([0-9A-Fa-f:]{59})/i);
+              if (m) sha1 = m[1].toUpperCase();
+            } catch (e) {
+              console.log('keytool error:', e.stderr || e.message);
+            }
+
+            if (!sha1) {
+              console.log('❌ Could not read SHA-1 from APK — skipping auto-register');
+              return;
+            }
+            console.log(`📱 APK signing SHA-1: ${sha1}`);
+
+            // Parse project and app IDs from google-services.json
+            const gsJson = JSON.parse(process.env.GOOGLE_SERVICES_JSON);
+            const projectId = gsJson.project_info.project_id;
+            const appId = gsJson.client[0].client_info.mobilesdk_app_id;
+            console.log(`Project: ${projectId}  App: ${appId}`);
+
+            // Get OAuth token from service account
+            const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+            const auth = new GoogleAuth({
+              credentials: sa,
+              scopes: [
+                'https://www.googleapis.com/auth/firebase',
+                'https://www.googleapis.com/auth/cloud-platform',
+              ],
+            });
+            const client = await auth.getClient();
+            const token = (await client.getAccessToken()).token;
+
+            const base = `https://firebase.googleapis.com/v1beta1/projects/${projectId}/androidApps/${appId}/sha`;
+            const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+
+            // Check if already registered
+            const listRes = await fetch(base, { headers });
+            const list = await listRes.json();
+            const existing = (list.certificates || []).map(c => c.shaHash.toUpperCase());
+            if (existing.some(h => h.replace(/:/g,'') === sha1.replace(/:/g,''))) {
+              console.log('✅ SHA-1 already registered in Firebase Console — OTP should work');
+              return;
+            }
+
+            // Register it
+            const reg = await fetch(base, {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ shaHash: sha1, certType: 'SHA_1' }),
+            });
+            const result = await reg.json();
+            if (reg.ok) {
+              console.log('✅ SHA-1 auto-registered in Firebase Console!');
+              console.log('Phone OTP will now work on this APK.');
+            } else {
+              console.log(`⚠️ API error (${reg.status}):`, JSON.stringify(result));
+              console.log(`Manual fallback: add SHA-1 ${sha1} to Firebase Console → Project Settings → Android app → SHA fingerprints`);
+            }
+          }
+
+          main().catch(e => console.error('Registration error:', e.message));
+          SCRIPT
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -98,7 +164,6 @@ jobs:
           retention-days: 30
 
       - name: Create GitHub Release
-        if: success()
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
@@ -110,7 +175,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload to Firebase Storage
-        if: success()
         working-directory: wekerala_app
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
