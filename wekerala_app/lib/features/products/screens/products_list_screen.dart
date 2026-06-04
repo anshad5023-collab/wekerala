@@ -119,8 +119,12 @@ class _ProductsBody extends ConsumerWidget {
           // Filtered list
           final filtered = products.where((p) {
             final matchCat = selectedCategory == 'All' || p.category == selectedCategory;
+            final q = search.toLowerCase();
             final matchSearch = search.isEmpty ||
-                p.nameEn.toLowerCase().contains(search.toLowerCase());
+                p.nameEn.toLowerCase().contains(q) ||
+                (p.nameMl.isNotEmpty && p.nameMl.toLowerCase().contains(q)) ||
+                (p.searchAlias != null && p.searchAlias!.toLowerCase().contains(q)) ||
+                (p.barcode != null && p.barcode!.contains(search));
             final matchLowStock = !showLowStockOnly || p.isLowStock;
             return matchCat && matchSearch && matchLowStock;
           }).toList();

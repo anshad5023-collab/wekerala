@@ -31,6 +31,7 @@ class ProductModel {
   final bool priceIncludesGst;
   final String? barcode;
   final String? batchNumber;
+  final String? searchAlias; // generic/alternate name (e.g. "Metformin" for "Glycomet Tab")
 
   const ProductModel({
     required this.productId,
@@ -58,6 +59,7 @@ class ProductModel {
     this.priceIncludesGst = true,
     this.barcode,
     this.batchNumber,
+    this.searchAlias,
   });
 
   bool get isLowStock => stockQty != null && stockQty! <= lowStockThreshold;
@@ -103,6 +105,7 @@ class ProductModel {
       priceIncludesGst: (d['priceIncludesGst'] as bool?) ?? true,
       barcode: d['barcode'] as String?,
       batchNumber: d['batchNumber'] as String?,
+      searchAlias: d['searchAlias'] as String?,
     );
   }
 
@@ -134,6 +137,7 @@ class ProductModel {
     if (hsnCode != null) m['hsnCode'] = hsnCode;
     if (barcode != null) m['barcode'] = barcode;
     if (batchNumber != null) m['batchNumber'] = batchNumber;
+    if (searchAlias != null && searchAlias!.isNotEmpty) m['searchAlias'] = searchAlias;
     return m;
   }
 
@@ -163,6 +167,7 @@ class ProductModel {
     bool? priceIncludesGst,
     Object? barcode = _sentinel,
     Object? batchNumber = _sentinel,
+    Object? searchAlias = _sentinel,
   }) {
     return ProductModel(
       productId: productId ?? this.productId,
@@ -190,6 +195,7 @@ class ProductModel {
       priceIncludesGst: priceIncludesGst ?? this.priceIncludesGst,
       barcode: barcode == _sentinel ? this.barcode : barcode as String?,
       batchNumber: batchNumber == _sentinel ? this.batchNumber : batchNumber as String?,
+      searchAlias: searchAlias == _sentinel ? this.searchAlias : searchAlias as String?,
     );
   }
 }

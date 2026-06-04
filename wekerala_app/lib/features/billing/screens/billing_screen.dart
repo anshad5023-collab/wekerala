@@ -1366,15 +1366,17 @@ class _ProductPanel extends ConsumerWidget {
         Expanded(
           child: productsAsync.when(
             data: (products) {
+              final sq = searchQuery.toLowerCase();
               final visible = products
                   .where((p) =>
                       !p.isHidden &&
                       !p.isOutOfStock &&
                       (searchQuery.isEmpty ||
-                          p.nameEn
-                              .toLowerCase()
-                              .contains(searchQuery.toLowerCase()) ||
-                          p.nameMl.contains(searchQuery)))
+                          p.nameEn.toLowerCase().contains(sq) ||
+                          p.nameMl.toLowerCase().contains(sq) ||
+                          (p.searchAlias != null &&
+                              p.searchAlias!.toLowerCase().contains(sq)) ||
+                          (p.barcode != null && p.barcode!.contains(searchQuery))))
                   .toList();
 
               if (visible.isEmpty) {

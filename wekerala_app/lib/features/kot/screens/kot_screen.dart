@@ -1,9 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../providers/billing_provider.dart';
 import '../../../providers/products_provider.dart';
 import '../../../providers/shop_provider.dart';
+import '../../../models/product_model.dart';
 
 // ─── Models ───────────────────────────────────────────────────────────────────
 
@@ -146,39 +149,46 @@ class _KotScreenState extends ConsumerState<KotScreen>
         icon: const Icon(Icons.add),
         label: const Text('New KOT'),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _OrderList(
-            orders: _activeOrders,
-            onStatusChange: _updateStatus,
-          ),
-          _OrderList(
-            orders: _servedOrders,
-            onStatusChange: _updateStatus,
-            readOnly: true,
-          ),
-        ],
-      ),
+      body: Builder(builder: (ctx) {
+        final shopId = ref.watch(activeShopIdProvider).valueOrNull ?? '';
+        return TabBarView(
+          controller: _tabController,
+          children: [
+            _OrderList(
+              orders: _activeOrders,
+              onStatusChange: _updateStatus,
+              shopId: shopId,
+            ),
+            _OrderList(
+              orders: _servedOrders,
+              onStatusChange: _updateStatus,
+              readOnly: true,
+              shopId: shopId,
+            ),
+          ],
+        );
+      }),
     );
   }
 }
 
 // ─── Order List ───────────────────────────────────────────────────────────────
 
-class _OrderList extends StatelessWidget {
+class _OrderList extends ConsumerWidget {
   final List<_KotOrder> orders;
   final void Function(_KotOrder, String) onStatusChange;
   final bool readOnly;
+  final String shopId;
 
   const _OrderList({
     required this.orders,
     required this.onStatusChange,
+    required this.shopId,
     this.readOnly = false,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (orders.isEmpty) {
       return Center(
         child: Column(
@@ -202,6 +212,7 @@ class _OrderList extends StatelessWidget {
         order: orders[i],
         onStatusChange: onStatusChange,
         readOnly: readOnly,
+        shopId: shopId,
       ),
     );
   }
@@ -209,14 +220,16 @@ class _OrderList extends StatelessWidget {
 
 // ─── KOT Card ─────────────────────────────────────────────────────────────────
 
-class _KotCard extends StatelessWidget {
+class _KotCard extends ConsumerWidget {
   final _KotOrder order;
   final void Function(_KotOrder, String) onStatusChange;
   final bool readOnly;
+  final String shopId;
 
   const _KotCard({
     required this.order,
     required this.onStatusChange,
+    required this.shopId,
     this.readOnly = false,
   });
 
@@ -247,7 +260,7 @@ class _KotCard extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final color = _statusColors[order.status] ?? Colors.grey;
     final next = _nextStatus[order.status];
     final nextLbl = _nextLabel[order.status];
@@ -349,25 +362,71 @@ class _KotCard extends StatelessWidget {
             ),
           ),
 
-          // ── Action button ────────────────────────────────────────────────────
-          if (!readOnly && next != null && nextLbl != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => onStatusChange(order, next),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: color,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
+          // ── Action buttons ───────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+            child: Column(
+              children: [
+                if (!readOnly && next != null && nextLbl != null) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => onStatusChange(order, next),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: color,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                      child: Text(nextLbl, style: const TextStyle(fontSize: 13)),
+                    ),
                   ),
-                  child: Text(nextLbl, style: const TextStyle(fontSize: 13)),
-                ),
-              ),
+                  const SizedBox(height: 6),
+                ],
+                // Bill This Table — available when ready or served
+                if (order.status == 'ready' || order.status == 'served')
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      icon: const Icon(Icons.point_of_sale_outlined, size: 16),
+                      label: Text('Bill Table ${order.table}'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.success,
+                        side: const BorderSide(color: AppColors.success),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                      onPressed: () {
+                        // Pre-load KOT items into billing cart then navigate
+                        final notifier = ref.read(billingProvider.notifier);
+                        notifier.clearCart();
+                        final products =
+                            ref.read(productsStreamProvider(shopId)).valueOrNull ?? [];
+                        for (final item in order.items) {
+                          final match = products.firstWhere(
+                            (p) => p.nameEn.toLowerCase() == item.name.toLowerCase(),
+                            orElse: () => ProductModel(
+                              productId: 'kot_${item.name}',
+                              nameEn: item.name,
+                              category: '',
+                              price: 0,
+                              createdAt: DateTime.now(),
+                              updatedAt: DateTime.now(),
+                            ),
+                          );
+                          for (var i = 0; i < item.qty; i++) {
+                            notifier.addItem(match);
+                          }
+                        }
+                        context.push('/billing');
+                      },
+                    ),
+                  ),
+              ],
             ),
+          ),
         ],
       ),
     );

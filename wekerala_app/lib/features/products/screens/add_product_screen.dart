@@ -42,6 +42,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   String _unit = 'piece';
   String _category = '';
   bool _hasVariants = false;
+  bool _quickMode = true; // Start in Quick mode for beginners
   List<VariantModel> _variants = [];
 
   String _imageUrl = '';
@@ -57,6 +58,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   final _lowStockThresholdCtrl = TextEditingController(text: '5');
   DateTime? _expiryDate;
   final _batchNumberCtrl = TextEditingController();
+  final _searchAliasCtrl = TextEditingController();
 
   // GST fields
   int _gstRate = 0;
@@ -73,6 +75,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     _stockQtyCtrl.dispose();
     _lowStockThresholdCtrl.dispose();
     _batchNumberCtrl.dispose();
+    _searchAliasCtrl.dispose();
     _hsnCode.dispose();
     super.dispose();
   }
@@ -102,6 +105,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       _lowStockThresholdCtrl.text = p.lowStockThreshold.toString();
       _expiryDate = p.expiryDate;
       _batchNumberCtrl.text = p.batchNumber ?? '';
+    _searchAliasCtrl.text = p.searchAlias ?? '';
       _gstRate = p.gstRate;
       _hsnCode.text = p.hsnCode ?? '';
       _priceIncludesGst = p.priceIncludesGst;
@@ -302,6 +306,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         hsnCode: _hsnCode.text.trim().isEmpty ? null : _hsnCode.text.trim(),
         priceIncludesGst: _priceIncludesGst,
         batchNumber: _batchNumberCtrl.text.trim().isEmpty ? null : _batchNumberCtrl.text.trim(),
+        searchAlias: _searchAliasCtrl.text.trim().isEmpty ? null : _searchAliasCtrl.text.trim(),
       );
 
       if (widget.productId != null) {
@@ -331,6 +336,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     _minQtyCtrl.clear();
     _stockQtyCtrl.clear();
     _batchNumberCtrl.clear();
+    _searchAliasCtrl.clear();
     _hsnCode.clear();
     setState(() {
       _imageUrl = '';
@@ -384,6 +390,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         hsnCode: _hsnCode.text.trim().isEmpty ? null : _hsnCode.text.trim(),
         priceIncludesGst: _priceIncludesGst,
         batchNumber: _batchNumberCtrl.text.trim().isEmpty ? null : _batchNumberCtrl.text.trim(),
+        searchAlias: _searchAliasCtrl.text.trim().isEmpty ? null : _searchAliasCtrl.text.trim(),
       );
       await ProductRepository.add(shopId, product);
       if (mounted) {
@@ -452,6 +459,20 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,
             actions: [
+              // Quick / Advanced toggle
+              if (widget.productId == null)
+                TextButton.icon(
+                  icon: Icon(
+                    _quickMode ? Icons.tune_outlined : Icons.flash_on_outlined,
+                    color: Colors.white70,
+                    size: 18,
+                  ),
+                  label: Text(
+                    _quickMode ? 'Advanced' : 'Quick',
+                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                  ),
+                  onPressed: () => setState(() => _quickMode = !_quickMode),
+                ),
               if (widget.productId != null)
                 IconButton(
                   icon: const Icon(Icons.delete_outline),
@@ -497,6 +518,18 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _searchAliasCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Search Alias / Generic Name (optional)',
+                    hintText: 'e.g. Metformin • Ulli • Cotton • Biryani',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                    helperText:
+                        'Staff can find this product by typing this alias in billing',
+                  ),
                 ),
                 const SizedBox(height: 12),
                 if (categories.isNotEmpty)
@@ -576,8 +609,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                     onChanged: (v) => setState(() => _variants = v),
                   ),
                 ],
+                if (!_quickMode) ...[
                 const SizedBox(height: 16),
-                Text('GST', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+                Text('GST & Advanced', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 // GST rate selector
                 Row(
@@ -638,6 +672,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   onExpiryDateChanged: (d) => setState(() => _expiryDate = d),
                   inputDecoration: _inputDecoration,
                 ),
+                ], // end if (!_quickMode)
                 const SizedBox(height: 24),
                 ElevatedButton(
                   onPressed: _saving ? null : () => _save(shopId, categories),
