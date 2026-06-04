@@ -59,6 +59,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   DateTime? _expiryDate;
   final _batchNumberCtrl = TextEditingController();
   final _searchAliasCtrl = TextEditingController();
+  final _descriptionCtrl = TextEditingController();
 
   // GST fields
   int _gstRate = 0;
@@ -76,6 +77,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     _lowStockThresholdCtrl.dispose();
     _batchNumberCtrl.dispose();
     _searchAliasCtrl.dispose();
+    _descriptionCtrl.dispose();
     _hsnCode.dispose();
     super.dispose();
   }
@@ -106,6 +108,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       _expiryDate = p.expiryDate;
       _batchNumberCtrl.text = p.batchNumber ?? '';
     _searchAliasCtrl.text = p.searchAlias ?? '';
+    _descriptionCtrl.text = p.description ?? '';
       _gstRate = p.gstRate;
       _hsnCode.text = p.hsnCode ?? '';
       _priceIncludesGst = p.priceIncludesGst;
@@ -307,6 +310,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         priceIncludesGst: _priceIncludesGst,
         batchNumber: _batchNumberCtrl.text.trim().isEmpty ? null : _batchNumberCtrl.text.trim(),
         searchAlias: _searchAliasCtrl.text.trim().isEmpty ? null : _searchAliasCtrl.text.trim(),
+        description: _descriptionCtrl.text.trim().isEmpty ? null : _descriptionCtrl.text.trim(),
       );
 
       if (widget.productId != null) {
@@ -337,6 +341,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     _stockQtyCtrl.clear();
     _batchNumberCtrl.clear();
     _searchAliasCtrl.clear();
+    _descriptionCtrl.clear();
     _hsnCode.clear();
     setState(() {
       _imageUrl = '';
@@ -391,6 +396,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         priceIncludesGst: _priceIncludesGst,
         batchNumber: _batchNumberCtrl.text.trim().isEmpty ? null : _batchNumberCtrl.text.trim(),
         searchAlias: _searchAliasCtrl.text.trim().isEmpty ? null : _searchAliasCtrl.text.trim(),
+        description: _descriptionCtrl.text.trim().isEmpty ? null : _descriptionCtrl.text.trim(),
       );
       await ProductRepository.add(shopId, product);
       if (mounted) {
@@ -529,6 +535,19 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                     isDense: true,
                     helperText:
                         'Staff can find this product by typing this alias in billing',
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: _descriptionCtrl,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Product Description (optional)',
+                    hintText:
+                        'Describe the product — shown to customers on your website',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                    alignLabelWithHint: true,
                   ),
                 ),
                 const SizedBox(height: 12),

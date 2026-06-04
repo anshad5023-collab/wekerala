@@ -1308,7 +1308,7 @@ class _ProductPanelState extends ConsumerState<_ProductPanel> {
                           color: AppColors.textSecondary),
                       onPressed: () {
                         widget.searchCtrl.clear();
-                        onSearchChanged('');
+                        widget.onSearchChanged('');
                       },
                     ),
                   if (!kIsWeb && Platform.isAndroid)

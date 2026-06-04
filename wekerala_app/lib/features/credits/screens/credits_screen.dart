@@ -95,7 +95,7 @@ class _CreditsBody extends ConsumerWidget {
           // Remind All — sends WhatsApp reminder to every open debtor
           creditsAsync.when(
             data: (credits) {
-              final open = credits.where((c) => c.isActive).toList();
+              final open = credits.where((c) => c.status != 'paid').toList();
               if (open.isEmpty) return const SizedBox.shrink();
               return IconButton(
                 icon: const Icon(Icons.send_outlined),

@@ -665,7 +665,7 @@ class _ConnectionBanner extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Row(children: [
-            Icon(Icons.whatsapp, color: Color(0xFF25D366), size: 20),
+            Icon(Icons.chat_outlined, color: Color(0xFF25D366), size: 20),
             SizedBox(width: 8),
             Text(
               'WhatsApp via Meta Cloud API',
