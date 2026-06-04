@@ -162,7 +162,7 @@ export function ShopViewById({ shopId }: { shopId: string }) {
   if (currentPage === 'cart') return (
     <>
       <Header shopName={shopData.shopName} shopNameMl={shopData.shopNameMl} logoUrl={shopData.logoUrl} language={language} onLanguageToggle={() => setLanguage(language === 'en' ? 'ml' : 'en')} onCartClick={() => setCurrentPage('cart')} />
-      <CartPage language={language} onBack={() => setCurrentPage('shop')} onCheckout={() => setCurrentPage('checkout')} deliveryCharge={shopData.deliveryCharge} freeDeliveryAbove={0} minOrderAmount={shopData.minOrderAmount} />
+      <CartPage language={language} onBack={() => setCurrentPage('shop')} onCheckout={() => setCurrentPage('checkout')} deliveryCharge={shopData.deliveryCharge} freeDeliveryAbove={0} minOrderAmount={shopData.minOrderAmount} isOpen={shopData.isOpen} />
     </>
   );
 

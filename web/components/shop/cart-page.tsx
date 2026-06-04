@@ -13,9 +13,10 @@ interface CartPageProps {
   deliveryCharge?: number;
   freeDeliveryAbove?: number;
   minOrderAmount?: number;
+  isOpen?: boolean;
 }
 
-export function CartPage({ language, onBack, onCheckout, deliveryCharge = 0, freeDeliveryAbove = 0, minOrderAmount = 0 }: CartPageProps) {
+export function CartPage({ language, onBack, onCheckout, deliveryCharge = 0, freeDeliveryAbove = 0, minOrderAmount = 0, isOpen = true }: CartPageProps) {
   const t = translations[language];
   const { items, updateQuantity, removeItem, getTotal } = useCartStore();
   const subtotal = getTotal();
@@ -155,12 +156,15 @@ export function CartPage({ language, onBack, onCheckout, deliveryCharge = 0, fre
               <span className="text-2xl font-bold italic text-primary">₹{total}</span>
             </div>
           </div>
+          {!isOpen && (
+            <p className="text-xs text-orange-600 mb-2 text-center font-medium">🔴 Shop is currently closed. Orders are not being accepted.</p>
+          )}
           {belowMin && (
             <p className="text-xs text-red-500 mb-2">Minimum order ₹{minOrderAmount} (add ₹{minOrderAmount - subtotal} more)</p>
           )}
           <Button
             onClick={onCheckout}
-            disabled={belowMin}
+            disabled={belowMin || !isOpen}
             className="w-full py-6 text-lg font-semibold italic disabled:opacity-50"
             size="lg"
           >
