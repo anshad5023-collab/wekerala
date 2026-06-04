@@ -34,9 +34,10 @@ class _StockAlertsBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final lowStockProducts = ref.watch(lowStockProductsProvider(shopId));
+    final zeroStockProducts = ref.watch(zeroStockProductsProvider(shopId));
     final allProductsAsync = ref.watch(productsStreamProvider(shopId));
 
-    // Sort by urgency: lowest stock relative to threshold first
+    // Sort by urgency: zero-stock first, then lowest ratio
     final sorted = [...lowStockProducts]..sort((a, b) {
         final ratioA = a.lowStockThreshold > 0
             ? (a.stockQty ?? 0) / a.lowStockThreshold
@@ -118,7 +119,7 @@ class _StockAlertsBody extends ConsumerWidget {
           ),
           // List or empty state
           Expanded(
-            child: sorted.isEmpty && expiringProducts.isEmpty
+            child: sorted.isEmpty && expiringProducts.isEmpty && zeroStockProducts.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -148,6 +149,27 @@ class _StockAlertsBody extends ConsumerWidget {
                 : ListView(
                     padding: const EdgeInsets.fromLTRB(0, 0, 0, 80),
                     children: [
+                      // OUT OF STOCK — shown first, most urgent
+                      if (zeroStockProducts.isNotEmpty) ...[
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          child: Row(children: [
+                            const Icon(Icons.block_outlined,
+                                color: AppColors.error, size: 18),
+                            const SizedBox(width: 6),
+                            Text(
+                              'OUT OF STOCK (${zeroStockProducts.length})',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 14,
+                                  color: AppColors.error),
+                            ),
+                          ]),
+                        ),
+                        ...zeroStockProducts.map((p) => _StockAlertTile(product: p)),
+                        const Divider(height: 1),
+                      ],
+
                       // Expiring Soon section
                       if (expiringProducts.isNotEmpty) ...[
                         Padding(
