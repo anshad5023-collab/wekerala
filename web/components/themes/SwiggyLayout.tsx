@@ -268,7 +268,7 @@ function MenuItemCard({
       }`}
     >
       {/* Left: info */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onProductClick?.(product)}>
         <div className="flex items-center gap-1.5 mb-1">
           <VegDot isVeg={isVeg} />
           {hasDiscount && (
