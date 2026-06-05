@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -75,12 +76,34 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       return;
     }
 
-    final authState = ref.read(authProvider);
-    final isAuthenticated = authState.status == AuthStatus.authenticated;
+    // Wait for Firebase to fully restore auth state (stream is authoritative).
+    final user = await ref.read(authStateProvider.future);
+    if (!mounted) return;
 
-    if (!isAuthenticated) {
-      context.go('/login');
+    if (user == null) {
+      // Not logged in — show language screen only on first-ever install
+      if (savedLang == null) {
+        context.go('/language');
+      } else {
+        context.go('/login');
+      }
     } else {
+      // Logged in — skip language screen even if SharedPreferences was cleared.
+      // Restore language from Firestore if missing locally.
+      if (savedLang == null) {
+        try {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+          final cloudLang = userDoc.data()?['language'] as String?;
+          final lang = (cloudLang != null && cloudLang.isNotEmpty) ? cloudLang : 'en';
+          await ref.read(languageProvider.notifier).setLanguage(lang);
+        } catch (_) {
+          await ref.read(languageProvider.notifier).setLanguage('en');
+        }
+        if (!mounted) return;
+      }
       final hasShop = await ref.read(authProvider.notifier).hasShops();
       if (!mounted) return;
       context.go(hasShop ? '/home' : '/onboard/type');

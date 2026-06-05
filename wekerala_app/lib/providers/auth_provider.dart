@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 
 enum AuthStatus {
@@ -127,6 +128,15 @@ class AuthNotifier extends Notifier<AuthState> {
     final user = userCred.user;
     if (user == null) return;
     await _upsertUserDoc(user);
+    // Persist current language to Firestore so reinstall can restore it
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final lang = prefs.getString('language') ?? 'en';
+      await _db.collection('users').doc(user.uid).set(
+        {'language': lang},
+        SetOptions(merge: true),
+      );
+    } catch (_) {}
     state = state.copyWith(status: AuthStatus.authenticated);
   }
 
@@ -134,6 +144,7 @@ class AuthNotifier extends Notifier<AuthState> {
     final ref = _db.collection('users').doc(user.uid);
     final doc = await ref.get();
     if (!doc.exists) {
+      // Fresh user — create full document
       final newUser = UserModel(
         userId: user.uid,
         phone: user.phoneNumber ?? '',
@@ -144,16 +155,47 @@ class AuthNotifier extends Notifier<AuthState> {
         activeShopId: '',
       );
       await ref.set(newUser.toFirestore());
+    } else {
+      // Existing user — ensure required fields are present (repair incomplete docs)
+      final data = doc.data() ?? {};
+      final updates = <String, dynamic>{};
+      if (!data.containsKey('shopIds')) updates['shopIds'] = [];
+      if (!data.containsKey('phone') || (data['phone'] as String).isEmpty) {
+        updates['phone'] = user.phoneNumber ?? '';
+      }
+      if (updates.isNotEmpty) {
+        await ref.set(updates, SetOptions(merge: true));
+      }
     }
   }
 
   Future<bool> hasShops() async {
     final user = _auth.currentUser;
     if (user == null) return false;
+
+    // Fast path: check users doc shopIds
     final doc = await _db.collection('users').doc(user.uid).get();
-    if (!doc.exists) return false;
-    final userModel = UserModel.fromFirestore(doc);
-    return userModel.shopIds.isNotEmpty;
+    if (doc.exists) {
+      final shopIds = (doc.data()?['shopIds'] as List?)?.cast<String>() ?? [];
+      if (shopIds.isNotEmpty) return true;
+    }
+
+    // Fallback: query shops collection directly.
+    // Handles reinstall + cases where shopIds was never written (old bug).
+    final shopsSnap = await _db
+        .collection('shops')
+        .where('ownerId', isEqualTo: user.uid)
+        .limit(1)
+        .get();
+    if (shopsSnap.docs.isEmpty) return false;
+
+    // Repair the users doc so future calls use the fast path
+    final shopId = shopsSnap.docs.first.id;
+    await _db.collection('users').doc(user.uid).set({
+      'shopIds': FieldValue.arrayUnion([shopId]),
+      'activeShopId': shopId,
+    }, SetOptions(merge: true));
+    return true;
   }
 
   Future<void> signOut() async {
