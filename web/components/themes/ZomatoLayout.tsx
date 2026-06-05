@@ -260,6 +260,7 @@ function MenuItemCard({ product, qty, onAdd, onIncrease, onDecrease, onProductCl
 export default function ZomatoLayout({ config, shop, products, shopId }: Props) {
   const [cart, setCart] = useState<CartState>({});
   const [menuSearch, setMenuSearch] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [globalSearch, setGlobalSearch] = useState('');
   const [pureVegOnly, setPureVegOnly] = useState(false);
   const [activeCategory, setActiveCategory] = useState('');
@@ -597,6 +598,7 @@ export default function ZomatoLayout({ config, shop, products, shopId }: Props) 
                     onAdd={() => addToCart(product.productId)}
                     onIncrease={() => increase(product.productId)}
                     onDecrease={() => decrease(product.productId)}
+                    onProductClick={setSelectedProduct}
                   />
                 ))}
               </div>
@@ -614,6 +616,20 @@ export default function ZomatoLayout({ config, shop, products, shopId }: Props) 
           </span>
         </p>
       </footer>
+
+      {/* ══ PRODUCT DETAIL SHEET ════════════════════════════════════════════ */}
+      {selectedProduct && (
+        <ProductDetailSheet
+          product={toAppProduct(selectedProduct)}
+          language="en"
+          onClose={() => setSelectedProduct(null)}
+          allProducts={products.map(toAppProduct)}
+          onProductClick={(p) => {
+            const orig = products.find((x) => x.productId === p.id);
+            if (orig) setSelectedProduct(orig);
+          }}
+        />
+      )}
 
       {/* ══ CART BOTTOM SHEET ═══════════════════════════════════════════════ */}
       {cartCount > 0 && (
