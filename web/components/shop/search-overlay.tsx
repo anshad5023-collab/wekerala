@@ -255,17 +255,29 @@ export function SearchOverlay({
                 className="flex flex-col overflow-hidden rounded-xl bg-white shadow-sm transition-transform hover:scale-[1.02] active:scale-[0.98]"
               >
                 <div className="relative aspect-square w-full overflow-hidden bg-gray-100">
-                  <img
-                    src={product.image}
-                    alt={product.name[language]}
-                    className="h-full w-full object-cover"
-                  />
+                  {product.image ? (
+                    <img
+                      src={product.image}
+                      alt={product.name[language]}
+                      className="h-full w-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-3xl">🛒</div>
+                  )}
+                  {product.isOutOfStock && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                      <span className="rounded-md bg-black/70 px-2 py-1 text-[10px] font-bold text-white uppercase tracking-wide">
+                        Out of Stock
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="p-2.5">
-                  <h3 className="line-clamp-1 text-left text-sm font-semibold italic text-gray-800">
+                  <h3 className={`line-clamp-1 text-left text-sm font-semibold italic ${product.isOutOfStock ? 'text-gray-400' : 'text-gray-800'}`}>
                     {product.name[language]}
                   </h3>
-                  <p className="mt-0.5 text-left text-sm italic text-[#22c55e]">
+                  <p className={`mt-0.5 text-left text-sm italic ${product.isOutOfStock ? 'text-gray-400' : 'text-[#22c55e]'}`}>
                     ₹{product.price}
                   </p>
                 </div>
