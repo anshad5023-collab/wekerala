@@ -174,6 +174,16 @@ export async function POST(req: NextRequest) {
   if (!shopId) return NextResponse.json({ error: 'Missing shopId' }, { status: 400 });
 
   try {
+    // Reject orders when shop is closed
+    try {
+      const { getAdminDb } = await import('@/lib/firebase-admin');
+      const shopDoc = await getAdminDb().collection('shops').doc(shopId).get();
+      const isOpen = shopDoc.data()?.isOpen;
+      if (isOpen === false) {
+        return NextResponse.json({ error: 'shop_closed', message: 'This shop is currently closed. Please try again later.' }, { status: 409 });
+      }
+    } catch { /* if admin check fails, allow the order through */ }
+
     const data = await req.json() as Record<string, unknown>;
     // Convert timestamp fields (ISO strings → Firestore timestampValue)
     const timestampFields = ['createdAt', 'updatedAt', 'scheduledFor'];

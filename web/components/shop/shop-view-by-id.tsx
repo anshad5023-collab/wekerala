@@ -62,6 +62,7 @@ export function ShopViewById({ shopId }: { shopId: string }) {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showSearchOverlay, setShowSearchOverlay] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [orderError, setOrderError] = useState('');
 
   useEffect(() => {
     fetchShopData(shopId).then(({ shop, products }) => {
@@ -162,8 +163,13 @@ export function ShopViewById({ shopId }: { shopId: string }) {
           ...(details.preferredDelivery ? { scheduledFor: new Date(details.preferredDelivery).toISOString() } : {}),
         }),
       });
-      const data = await response.json();
-      if (data.orderId) setNewOrderId(data.orderId);
+      const resData = await response.json();
+      if (resData.error === 'shop_closed') {
+        setOrderError('This shop is currently closed. Please try again later.');
+        setIsSubmitting(false);
+        return;
+      }
+      if (resData.orderId) setNewOrderId(resData.orderId);
     } catch (e) {
       console.error('Failed to save order', e);
     } finally {
@@ -182,7 +188,7 @@ export function ShopViewById({ shopId }: { shopId: string }) {
   );
 
   if (currentPage === 'checkout') return (
-    <CheckoutPage language={language} onBack={() => setCurrentPage('cart')} onConfirm={handleConfirmOrder} onLanguageToggle={() => setLanguage(language === 'en' ? 'ml' : 'en')} shopId={shopId} deliveryCharge={shopData.deliveryCharge} freeDeliveryAbove={0} upiId={shopData.upiId} isSubmitting={isSubmitting} />
+    <CheckoutPage language={language} onBack={() => setCurrentPage('cart')} onConfirm={handleConfirmOrder} onLanguageToggle={() => setLanguage(language === 'en' ? 'ml' : 'en')} shopId={shopId} deliveryCharge={shopData.deliveryCharge} freeDeliveryAbove={0} upiId={shopData.upiId} isSubmitting={isSubmitting} errorMessage={orderError} />
   );
 
   if (currentPage === 'confirmation') return (

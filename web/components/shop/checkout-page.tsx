@@ -17,6 +17,7 @@ interface CheckoutPageProps {
   freeDeliveryAbove?: number;
   upiId?: string;
   isSubmitting?: boolean;
+  errorMessage?: string;
 }
 
 export interface CustomerDetails {
@@ -33,7 +34,7 @@ export interface CustomerDetails {
 
 interface SavedAddress { id: string; label: string; address: string; isDefault: boolean; }
 
-export function CheckoutPage({ language, onBack, onConfirm, onLanguageToggle, shopId, deliveryCharge = 0, freeDeliveryAbove = 0, upiId, isSubmitting = false }: CheckoutPageProps) {
+export function CheckoutPage({ language, onBack, onConfirm, onLanguageToggle, shopId, deliveryCharge = 0, freeDeliveryAbove = 0, upiId, isSubmitting = false, errorMessage = '' }: CheckoutPageProps) {
   const t = translations[language];
   const subtotal = useCartStore((state) => state.getTotal());
   const cartItems = useCartStore((state) => state.items);
@@ -417,6 +418,11 @@ export function CheckoutPage({ language, onBack, onConfirm, onLanguageToggle, sh
               <span className="text-2xl font-bold italic text-primary">₹{finalTotal}</span>
             </div>
           </div>
+          {errorMessage && (
+            <p className="mb-3 rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-sm text-orange-700 text-center">
+              🔴 {errorMessage}
+            </p>
+          )}
           <Button type="submit" disabled={isSubmitting} className="w-full py-6 text-lg font-semibold italic" size="lg">
             {isSubmitting ? 'Placing Order...' : t.confirmOrder}
           </Button>
