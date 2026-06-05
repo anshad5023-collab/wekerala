@@ -521,6 +521,34 @@ class _AnalyticsContentState extends State<_AnalyticsContent> {
               )),
         const SizedBox(height: 16),
 
+        // Channel breakdown: Online orders vs POS billing
+        if (filteredRevenue > 0) ...[
+          const _SectionTitle('Revenue by Channel'),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Row(
+              children: [
+                _PaymentBreakItem(
+                    label: 'Online',
+                    value: filteredOrders.fold(0.0, (s, o) => s + o.totalAmount),
+                    color: const Color(0xFF7B1FA2)),
+                const SizedBox(width: 12),
+                _PaymentBreakItem(
+                    label: 'POS',
+                    value: filteredBills.fold(0.0, (s, b) => s + b.finalAmount),
+                    color: AppColors.primary),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+
         // Payment method breakdown
         if (cashRevenue + upiRevenue + udharRevenue > 0) ...[
           const SizedBox(height: 4),
