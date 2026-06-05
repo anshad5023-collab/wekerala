@@ -72,8 +72,8 @@ export function ProductCard({ product, language, onProductClick }: ProductCardPr
               const c = (product.category ?? '').toLowerCase();
               if (c.includes('grocery') || c.includes('staple')) return '🌾';
               if (c.includes('chicken') || c.includes('poultry')) return '🍗';
-              if (c.includes('fish') || c.includes('seafood')) return '🐟';
-              if (c.includes('beef') || c.includes('mutton')) return '🥩';
+              if (c.includes('fish') || c.includes('seafood') || c.includes('prawn')) return '🐟';
+              if (c.includes('beef') || c.includes('mutton') || c.includes('pork')) return '🥩';
               if (c.includes('dairy') || c.includes('egg')) return '🥛';
               if (c.includes('vegetable') || c.includes('vegs')) return '🥦';
               if (c.includes('fruit')) return '🍎';
