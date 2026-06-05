@@ -336,6 +336,13 @@ class _OndcSettingsScreenState extends ConsumerState<OndcSettingsScreen> {
 
   Future<void> _saveSellerId(String shopId) async {
     if (shopId.isEmpty) return;
+    final sellerId = _sellerIdController.text.trim();
+    if (sellerId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter your ONDC Seller ID'), backgroundColor: AppColors.error),
+      );
+      return;
+    }
     setState(() => _isSaving = true);
     try {
       await FirebaseFirestore.instance
