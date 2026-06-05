@@ -113,7 +113,7 @@ class _BillHistoryScreenState extends ConsumerState<BillHistoryScreen> {
 
       final fmt = DateFormat('yyyy-MM-dd HH:mm');
       final buf = StringBuffer();
-      buf.writeln('Invoice,Date,Customer,Phone,Items,Cash,UPI,Udhar,Total,Note');
+      buf.writeln('Invoice,Date,Customer,Phone,Items,Cash,UPI,Udhar,Total,Note,BilledBy');
       for (final b in filtered) {
         final inv = b.invoiceNumber?.toString() ?? b.billId.substring(0, 8).toUpperCase();
         final date = fmt.format(b.createdAt);
@@ -125,7 +125,8 @@ class _BillHistoryScreenState extends ConsumerState<BillHistoryScreen> {
         final udhar = b.paymentMethod == 'udhar' ? b.finalAmount.toStringAsFixed(2) : '0.00';
         final total = b.finalAmount.toStringAsFixed(2);
         final note = (b.billNote ?? '').replaceAll(',', ' ');
-        buf.writeln('$inv,$date,$customer,$phone,$items,$cash,$upi,$udhar,$total,$note');
+        final billedBy = (b.billedByName ?? '').replaceAll(',', ' ');
+        buf.writeln('$inv,$date,$customer,$phone,$items,$cash,$upi,$udhar,$total,$note,$billedBy');
       }
 
       final total = filtered.fold(0.0, (s, b) => s + b.finalAmount).toStringAsFixed(0);
