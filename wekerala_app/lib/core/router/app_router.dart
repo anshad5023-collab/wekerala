@@ -170,7 +170,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
         ),
       GoRoute(path: '/suppliers', builder: (_, __) => const SuppliersListScreen()),
-      GoRoute(path: '/stock-receive', builder: (_, __) => const StockReceiveScreen()),
+      GoRoute(
+        path: '/stock-receive',
+        builder: (_, state) {
+          final extra = state.extra as Map<String, String?>?;
+          return StockReceiveScreen(
+            supplierId: extra?['supplierId'],
+            supplierName: extra?['supplierName'],
+          );
+        },
+      ),
       GoRoute(
         path: '/suppliers/add',
         builder: (_, state) => AddSupplierScreen(supplier: state.extra as SupplierModel?),

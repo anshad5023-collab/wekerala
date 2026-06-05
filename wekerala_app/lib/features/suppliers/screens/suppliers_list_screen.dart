@@ -254,6 +254,14 @@ class _SupplierCard extends StatelessWidget {
                     launchUrl(Uri.parse('https://wa.me/$intl'), mode: LaunchMode.externalApplication);
                   },
                 ),
+              IconButton(
+                icon: const Icon(Icons.inventory_2_outlined, size: 20, color: AppColors.primary),
+                tooltip: 'Receive stock from ${supplier.name}',
+                onPressed: () => context.push('/stock-receive', extra: {
+                  'supplierId': supplier.supplierId,
+                  'supplierName': supplier.name,
+                }),
+              ),
               const Icon(Icons.chevron_right, color: AppColors.textSecondary),
             ],
           ),
