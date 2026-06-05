@@ -108,7 +108,10 @@ export function ProductDetailSheet({ product, language, onClose }: ProductDetail
                   .map((v) => (
                     <button
                       key={v.variantId}
-                      onClick={() => addItem({ ...product, id: `${product.id}_${v.variantId}`, name: { en: `${product.name.en} (${v.name})`, ml: product.name.ml }, price: v.price, offerPrice: v.offerPrice ?? 0 })}
+                      onClick={() => addItem(
+                        { ...product, id: `${product.id}_${v.variantId}`, name: { en: `${product.name.en} (${v.name})`, ml: product.name.ml }, price: v.price, offerPrice: v.offerPrice ?? 0 },
+                        { variantName: v.name, originalProductId: product.id }
+                      )}
                       className="rounded-lg border border-primary/40 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/10"
                     >
                       {v.name} — ₹{v.price}

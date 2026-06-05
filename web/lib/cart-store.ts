@@ -6,11 +6,13 @@ export interface CartItem {
   product: Product;
   quantity: number;
   note?: string;
+  variantName?: string;       // e.g. "XL", "Red" — set for variant cart items
+  originalProductId?: string; // base Firestore product ID (for stock decrement)
 }
 
 interface CartStore {
   items: CartItem[];
-  addItem: (product: Product) => void;
+  addItem: (product: Product, meta?: { variantName?: string; originalProductId?: string }) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
@@ -24,7 +26,7 @@ export const useCartStore = create<CartStore>()(
     (set, get) => ({
   items: [],
 
-  addItem: (product: Product) => {
+  addItem: (product: Product, meta?: { variantName?: string; originalProductId?: string }) => {
     set((state) => {
       const existingItem = state.items.find((item) => item.product.id === product.id);
       if (existingItem) {
@@ -36,7 +38,7 @@ export const useCartStore = create<CartStore>()(
           ),
         };
       }
-      return { items: [...state.items, { product, quantity: 1 }] };
+      return { items: [...state.items, { product, quantity: 1, ...meta }] };
     });
   },
   

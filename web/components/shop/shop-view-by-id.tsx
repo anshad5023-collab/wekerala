@@ -61,6 +61,7 @@ export function ShopViewById({ shopId }: { shopId: string }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showSearchOverlay, setShowSearchOverlay] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchShopData(shopId).then(({ shop, products }) => {
@@ -108,6 +109,8 @@ export function ShopViewById({ shopId }: { shopId: string }) {
   }
 
   const handleConfirmOrder = async (details: CustomerDetails) => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     setCustomerDetails(details);
 
     if (shopData?.ownerWhatsApp) {
@@ -145,9 +148,12 @@ export function ShopViewById({ shopId }: { shopId: string }) {
           discountPercent: details.discountPercent ?? 0,
           deliveryCharge: deliveryFee,
           items: cartItems.map((item) => ({
-            productId: item.product.id, productName: item.product.name.en,
-            variantName: '', qty: item.quantity, unit: item.product.unit,
-            price: item.product.price, itemNote: item.note ?? '', subtotal: item.product.price * item.quantity,
+            productId: item.originalProductId ?? item.product.id,
+            productName: item.product.name.en,
+            variantName: item.variantName ?? '',
+            qty: item.quantity, unit: item.product.unit,
+            price: item.product.price, itemNote: item.note ?? '',
+            subtotal: item.product.price * item.quantity,
           })),
           totalAmount: finalTotal,
           paymentMethod: details.paymentMethod ?? 'cash',
@@ -160,6 +166,8 @@ export function ShopViewById({ shopId }: { shopId: string }) {
       if (data.orderId) setNewOrderId(data.orderId);
     } catch (e) {
       console.error('Failed to save order', e);
+    } finally {
+      setIsSubmitting(false);
     }
     setCurrentPage('confirmation');
   };
@@ -174,7 +182,7 @@ export function ShopViewById({ shopId }: { shopId: string }) {
   );
 
   if (currentPage === 'checkout') return (
-    <CheckoutPage language={language} onBack={() => setCurrentPage('cart')} onConfirm={handleConfirmOrder} onLanguageToggle={() => setLanguage(language === 'en' ? 'ml' : 'en')} shopId={shopId} deliveryCharge={shopData.deliveryCharge} freeDeliveryAbove={0} upiId={shopData.upiId} />
+    <CheckoutPage language={language} onBack={() => setCurrentPage('cart')} onConfirm={handleConfirmOrder} onLanguageToggle={() => setLanguage(language === 'en' ? 'ml' : 'en')} shopId={shopId} deliveryCharge={shopData.deliveryCharge} freeDeliveryAbove={0} upiId={shopData.upiId} isSubmitting={isSubmitting} />
   );
 
   if (currentPage === 'confirmation') return (
