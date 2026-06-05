@@ -124,18 +124,19 @@ export function ProductDetailSheet({ product, language, onClose }: ProductDetail
             </div>
           )}
 
-          {/* Add / stepper — hidden when product has variants (use variant buttons above) */}
+          {/* Add / stepper — hidden for variant products (user picks via variant buttons) */}
           <div className="mt-5">
             {quantity === 0 ? (
-              product.hasVariants && product.variants && product.variants.length > 0 ? null : (
-              <Button
-                onClick={() => addItem(product)}
-                disabled={product.isOutOfStock}
-                className="h-12 w-full rounded-xl text-base font-semibold"
-                size="lg"
-              >
-                + {t.addButton}
-              </Button>))
+              !(product.hasVariants && product.variants && product.variants.length > 0) && (
+                <Button
+                  onClick={() => addItem(product)}
+                  disabled={product.isOutOfStock}
+                  className="h-12 w-full rounded-xl text-base font-semibold"
+                  size="lg"
+                >
+                  + {t.addButton}
+                </Button>
+              )
             ) : (
               <div className="flex h-12 items-center justify-between rounded-xl border-2 border-primary bg-primary/5">
                 <Button
