@@ -147,10 +147,10 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
   // ── payment flow ──────────────────────────────────────────────────────────
 
   Future<void> _onPaymentTap(String method, {double? cashAmt, double? upiAmt}) async {
-    if (method == 'split') {
-      setState(() { _splitCashAmount = cashAmt; _splitUpiAmount = upiAmt; });
-    }
     if (_saving) return;
+    if (method == 'split') {
+      if (mounted) setState(() { _splitCashAmount = cashAmt; _splitUpiAmount = upiAmt; });
+    }
     final billingState = ref.read(billingProvider);
     if (billingState.cartItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -2315,6 +2315,8 @@ class _ReceiptSheetState extends State<_ReceiptSheet> {
         return 'UPI';
       case 'udhar':
         return 'Udhar (Credit)';
+      case 'split':
+        return 'Split (Cash + UPI)';
       default:
         return 'Cash';
     }

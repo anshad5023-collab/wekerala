@@ -322,7 +322,7 @@ function CleanLayout({ config, shop, products, shopId }: Props) {
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                   {visible.map(pr => {
                     const hasOffer = pr.offerPrice > 0 && pr.offerPrice < pr.price;
-                    const discPct = hasOffer ? Math.round((1 - pr.price / pr.offerPrice) * 100) : 0;
+                    const discPct = hasOffer ? Math.round((pr.price - pr.offerPrice) / pr.price * 100) : 0;
                     return (
                       <div key={pr.productId} className="wk-card bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
                         <div className="relative">
@@ -587,7 +587,7 @@ function WarmLayout({ config, shop, products, shopId }: Props) {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 px-4 pt-2 pb-6">
             {visible.map(pr => {
               const hasOffer = pr.offerPrice > 0 && pr.offerPrice < pr.price;
-              const discPct = hasOffer ? Math.round((1 - pr.price / pr.offerPrice) * 100) : 0;
+              const discPct = hasOffer ? Math.round((pr.price - pr.offerPrice) / pr.price * 100) : 0;
               return (
                 <div key={pr.productId} className="wk-card rounded-xl overflow-hidden border-2 relative hover:shadow-md transition-shadow" style={{ borderColor: config.secondaryColor, backgroundColor: '#fffbf5' }}>
                   <div className="relative">
@@ -965,7 +965,7 @@ function CarouselLayout({ config, shop, products, shopId }: Props) {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 px-4 pt-2 pb-6">
               {visible.map(pr => {
                 const hasOffer = pr.offerPrice > 0 && pr.offerPrice < pr.price;
-                const discPct = hasOffer ? Math.round((1 - pr.price / pr.offerPrice) * 100) : 0;
+                const discPct = hasOffer ? Math.round((pr.price - pr.offerPrice) / pr.price * 100) : 0;
                 return (
                   <div key={pr.productId} className="wk-card bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
                     <div className="relative">
@@ -1023,8 +1023,13 @@ function LuxuryLayout({ config, shop, products, shopId }: Props) {
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
   const has = (s: string) => config.sections.includes(s);
   const [activeCat, setActiveCat] = useState('All');
+  const [search, setSearch] = useState('');
   const cats = ['All', ...Array.from(new Set(products.map(pr => pr.category).filter(Boolean)))];
-  const visible = activeCat === 'All' ? products : products.filter(pr => pr.category === activeCat);
+  const visible = products.filter(pr => {
+    const matchCat = activeCat === 'All' || pr.category === activeCat;
+    const matchSearch = !search || pr.name.toLowerCase().includes(search.toLowerCase());
+    return matchCat && matchSearch;
+  });
   return (
     <div className="min-h-screen text-white" style={{ backgroundColor: '#0d0d0d' }}>
       <div className="h-0.5 w-full" style={{ backgroundColor: p }} />
@@ -1034,6 +1039,18 @@ function LuxuryLayout({ config, shop, products, shopId }: Props) {
           {shop.logoUrl && <img src={shop.logoUrl} alt="logo" className="w-8 h-8 rounded-full object-cover border shrink-0" style={{ borderColor: p }} />}
           <p className="font-bold tracking-widest uppercase text-sm shrink-0" style={{ color: p }}>{config.siteName || shop.shopName}</p>
           <div className="flex-1" />
+          {/* Search bar — desktop */}
+          <div className="hidden md:flex items-center gap-2 border px-3 py-1.5" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+            <span className="text-xs opacity-50">🔍</span>
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search…"
+              className="text-xs outline-none bg-transparent text-white placeholder-white/30 w-32"
+            />
+            {search && <button onClick={() => setSearch('')} className="text-white/40 text-xs">✕</button>}
+          </div>
           {cats.length > 1 && (
             <div className="hidden md:flex gap-4">
               {cats.slice(0, 6).map(c => (
@@ -1043,6 +1060,20 @@ function LuxuryLayout({ config, shop, products, shopId }: Props) {
             </div>
           )}
           {waNum && <a href={`https://wa.me/${waNum}`} target="_blank" rel="noreferrer" className="text-xs tracking-widest uppercase border px-4 py-1.5 transition-colors hover:bg-white/5" style={{ borderColor: p, color: p }}>{config.primaryButtonText || 'Order'}</a>}
+        </div>
+        {/* Search bar — mobile */}
+        <div className="md:hidden px-4 pb-3">
+          <div className="flex items-center gap-2 border px-3 py-2" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+            <span className="text-xs opacity-50">🔍</span>
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search products…"
+              className="flex-1 text-sm outline-none bg-transparent text-white placeholder-white/30"
+            />
+            {search && <button onClick={() => setSearch('')} className="text-white/40 text-xs">✕</button>}
+          </div>
         </div>
       </header>
 
@@ -1075,7 +1106,7 @@ function LuxuryLayout({ config, shop, products, shopId }: Props) {
           {/* Mobile: elegant list | Desktop: grid */}
           <div className="md:hidden space-y-3">
             {visible.map(pr => (
-              <div key={pr.productId} className="flex gap-3 border overflow-hidden" style={{ borderColor: `${p}30`, backgroundColor: '#111' }}>
+              <div key={pr.productId} className="wk-card flex gap-3 border overflow-hidden" style={{ borderColor: `${p}30`, backgroundColor: '#111' }}>
                 {pr.imageUrl ? <img src={pr.imageUrl} alt={pr.name} className="w-24 h-24 object-cover shrink-0" /> : <div className="w-24 h-24 shrink-0" style={{ backgroundColor: `${p}20` }} />}
                 <div className="flex-1 p-3">
                   <p className="font-semibold text-sm line-clamp-2 text-white">{pr.name}</p>
@@ -1089,8 +1120,8 @@ function LuxuryLayout({ config, shop, products, shopId }: Props) {
           </div>
           <div className="hidden md:grid md:grid-cols-3 lg:grid-cols-4 gap-4">
             {visible.map(pr => (
-              <div key={pr.productId} className="border overflow-hidden hover:shadow-xl transition-shadow" style={{ borderColor: `${p}25`, backgroundColor: '#111' }}>
-                {pr.imageUrl ? <img src={pr.imageUrl} alt={pr.name} className="w-full h-48 object-cover opacity-80" /> : <div className="w-full h-48" style={{ backgroundColor: `${p}15` }} />}
+              <div key={pr.productId} className="wk-card border overflow-hidden hover:shadow-xl transition-shadow" style={{ borderColor: `${p}25`, backgroundColor: '#111' }}>
+                {pr.imageUrl ? <img src={pr.imageUrl} alt={pr.name} className="wk-product-img opacity-80" /> : <div className="w-full h-48" style={{ backgroundColor: `${p}15` }} />}
                 {pr.isOutOfStock && <div className="bg-red-900/50 text-red-400 text-center text-xs py-0.5 font-bold tracking-wider">Out of Stock</div>}
                 <div className="p-3">
                   <p className="font-semibold text-sm line-clamp-2 text-white tracking-wide">{pr.name}</p>
@@ -1207,7 +1238,7 @@ function FestivalLayout({ config, shop, products, shopId }: Props) {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 px-4 pt-2 pb-6">
             {visible.map(pr => {
               const hasOffer = pr.offerPrice > 0 && pr.offerPrice < pr.price;
-              const discPct = hasOffer ? Math.round((1 - pr.price / pr.offerPrice) * 100) : 0;
+              const discPct = hasOffer ? Math.round((pr.price - pr.offerPrice) / pr.price * 100) : 0;
               return (
                 <div key={pr.productId} className="wk-card bg-white rounded-xl overflow-hidden border-2 hover:shadow-md transition-shadow" style={{ borderColor: `${s}60` }}>
                   <div className="relative">

@@ -249,9 +249,14 @@ class _SupplierCard extends StatelessWidget {
                   icon: const Icon(Icons.chat_outlined, size: 20, color: Color(0xFF25D366)),
                   tooltip: 'WhatsApp supplier',
                   onPressed: () {
-                    final phone = supplier.phone.replaceAll(RegExp(r'\D'), '');
-                    final intl = phone.startsWith('91') ? phone : '91${phone.substring(phone.length > 10 ? phone.length - 10 : 0)}';
-                    launchUrl(Uri.parse('https://wa.me/$intl'), mode: LaunchMode.externalApplication);
+                    String normalizePhone(String p) {
+                      final digits = p.replaceAll(RegExp(r'\D'), '');
+                      if (digits.length == 10) return '91$digits';
+                      if (digits.length == 12 && digits.startsWith('91')) return digits;
+                      if (digits.length >= 10) return '91${digits.substring(digits.length - 10)}';
+                      return digits;
+                    }
+                    launchUrl(Uri.parse('https://wa.me/${normalizePhone(supplier.phone)}'), mode: LaunchMode.externalApplication);
                   },
                 ),
               IconButton(

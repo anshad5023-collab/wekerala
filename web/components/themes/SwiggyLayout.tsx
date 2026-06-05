@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
+import { ProductDetailSheet } from '@/components/shop/product-detail-sheet';
+import type { Product as AppProduct } from '@/lib/products';
 
 // ─── Interfaces ───────────────────────────────────────────────────────────────
 
@@ -50,6 +52,22 @@ interface Props {
   shop: ShopData;
   products: Product[];
   shopId?: string;
+}
+
+// ─── Adapter ──────────────────────────────────────────────────────────────────
+
+function toAppProduct(p: Product): AppProduct {
+  return {
+    id: p.productId,
+    name: { en: p.name, ml: p.name },
+    price: p.price,
+    offerPrice: p.offerPrice ?? 0,
+    unit: 'perPiece',
+    category: p.category,
+    image: p.imageUrl ?? '',
+    isOutOfStock: p.isOutOfStock,
+    description: p.description,
+  };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -230,12 +248,14 @@ function MenuItemCard({
   onAdd,
   onIncrease,
   onDecrease,
+  onProductClick,
 }: {
   product: Product;
   quantity: number;
   onAdd: () => void;
   onIncrease: () => void;
   onDecrease: () => void;
+  onProductClick?: (product: Product) => void;
 }) {
   const isVeg = isVegItem(product.name, product.category);
   const displayPrice = product.offerPrice > 0 ? product.offerPrice : product.price;

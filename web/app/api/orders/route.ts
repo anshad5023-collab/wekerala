@@ -1,5 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+async function requireOwnerAuth(request: NextRequest): Promise<NextResponse | null> {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const token = authHeader.slice(7);
+  try {
+    const { getAdminAuth } = await import('@/lib/firebase-admin');
+    await getAdminAuth().verifyIdToken(token);
+    return null; // auth passed
+  } catch {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+}
+
 const PROJECT_ID = (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? 'shoplink-prod').replace(/^﻿/, '');
 const API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? 'AIzaSyCFB9YZL3_bXjvRMoWaYFv8nTs_ote52GQ';
 const BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
@@ -69,6 +84,9 @@ async function sendOrderNotification(
 }
 
 export async function GET(req: NextRequest) {
+  const authError = await requireOwnerAuth(req);
+  if (authError) return authError;
+
   const shopId = req.nextUrl.searchParams.get('shopId');
   if (!shopId) return NextResponse.json({ error: 'Missing shopId' }, { status: 400 });
 
@@ -88,6 +106,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const authError = await requireOwnerAuth(req);
+  if (authError) return authError;
+
   const shopId = req.nextUrl.searchParams.get('shopId');
   const orderId = req.nextUrl.searchParams.get('orderId');
   if (!shopId || !orderId) return NextResponse.json({ error: 'Missing params' }, { status: 400 });

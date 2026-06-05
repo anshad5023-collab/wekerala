@@ -235,13 +235,22 @@ final shopStreamProvider = StreamProvider.family<ShopModel, String>((ref, shopId
       .map(ShopModel.fromFirestore);
 });
 
-final activeShopIdProvider = FutureProvider<String?>((ref) async {
-  final user = FirebaseAuth.instance.currentUser;
-  if (user == null) return null;
-  final doc = await FirebaseFirestore.instance
-      .collection('users')
-      .doc(user.uid)
-      .get();
-  final shopId = doc.data()?['activeShopId'] as String?;
-  return (shopId != null && shopId.isNotEmpty) ? shopId : null;
+final activeShopIdProvider = StreamProvider<String?>((ref) async* {
+  final authStream = FirebaseAuth.instance.authStateChanges();
+  await for (final user in authStream) {
+    if (user == null) {
+      yield null;
+      continue;
+    }
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final shopId = doc.data()?['activeShopId'] as String?;
+      yield (shopId != null && shopId.isNotEmpty) ? shopId : null;
+    } catch (_) {
+      yield null;
+    }
+  }
 });

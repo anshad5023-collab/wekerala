@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -29,6 +31,7 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   bool _notificationChecked = false;
+  StreamSubscription<RemoteMessage>? _fcmSub;
 
   @override
   void initState() {
@@ -40,8 +43,14 @@ class _AppShellState extends ConsumerState<AppShell> {
       // Local notification tap (foreground)
       WidgetsBinding.instance.addPostFrameCallback((_) => _handlePendingPayload());
       // FCM notification tap from background/terminated
-      FirebaseMessaging.onMessageOpenedApp.listen(_handleFcmOpen);
+      _fcmSub = FirebaseMessaging.onMessageOpenedApp.listen(_handleFcmOpen);
     }
+  }
+
+  @override
+  void dispose() {
+    _fcmSub?.cancel();
+    super.dispose();
   }
 
   void _handlePendingPayload() {

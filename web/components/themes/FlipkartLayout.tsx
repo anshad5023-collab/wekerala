@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
+import { ProductDetailSheet } from '@/components/shop/product-detail-sheet';
+import type { Product as AppProduct } from '@/lib/products';
 
 /* ─── Interfaces ─────────────────────────────────────────── */
 interface ShopData {
@@ -57,6 +59,21 @@ interface Props {
   shop: ShopData;
   products: Product[];
   shopId?: string;
+}
+
+/* ─── Adapter ────────────────────────────────────────────── */
+function toAppProduct(p: Product): AppProduct {
+  return {
+    id: p.productId,
+    name: { en: p.name, ml: p.name },
+    price: p.price,
+    offerPrice: p.offerPrice ?? 0,
+    unit: 'perPiece',
+    category: p.category,
+    image: p.imageUrl ?? '',
+    isOutOfStock: p.isOutOfStock,
+    description: p.description,
+  };
 }
 
 /* ─── Helpers ────────────────────────────────────────────── */
@@ -155,11 +172,13 @@ function ProductCard({
   shopName,
   whatsappNumber,
   whatsappEnabled,
+  onProductClick,
 }: {
   product: Product;
   shopName: string;
   whatsappNumber: string;
   whatsappEnabled: boolean;
+  onProductClick?: (product: Product) => void;
 }) {
   const pct = discountPercent(product.price, product.offerPrice);
   const rating = simulatedRating(product.productId);
@@ -174,8 +193,9 @@ function ProductCard({
 
   return (
     <div
-      className="bg-white flex flex-col"
+      className="bg-white flex flex-col cursor-pointer"
       style={{ boxShadow: '0 1px 4px rgba(0,0,0,0.12)', position: 'relative' }}
+      onClick={() => onProductClick?.(product)}
     >
       {/* Discount badge */}
       {pct > 0 && (
@@ -309,6 +329,7 @@ export default function FlipkartLayout({ config, shop, products, shopId }: Props
   const [activeCategory, setActiveCategory] = useState('All');
   const [sortOrder, setSortOrder] = useState<'default' | 'price_asc' | 'price_desc' | 'discount'>('default');
   const [cartCount, setCartCount] = useState(0);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const flashSaleTarget = useMemo(() => nextMidnightMs(), []);
   const countdown = useCountdown(flashSaleTarget);
 
@@ -560,8 +581,9 @@ export default function FlipkartLayout({ config, shop, products, shopId }: Props
                 return (
                   <div
                     key={p.productId}
-                    className="flex-shrink-0 flex flex-col bg-white"
+                    className="flex-shrink-0 flex flex-col bg-white cursor-pointer"
                     style={{ width: '140px', boxShadow: '0 1px 4px rgba(0,0,0,0.12)' }}
+                    onClick={() => setSelectedProduct(p)}
                   >
                     <div className="relative h-28 bg-white">
                       {p.imageUrl ? (
@@ -685,6 +707,7 @@ export default function FlipkartLayout({ config, shop, products, shopId }: Props
                 shopName={shop.shopName}
                 whatsappNumber={config.whatsappNumber}
                 whatsappEnabled={config.whatsappEnabled}
+                onProductClick={setSelectedProduct}
               />
             ))}
           </div>
@@ -793,6 +816,20 @@ export default function FlipkartLayout({ config, shop, products, shopId }: Props
           </div>
         )}
       </div>
+
+      {/* ── Product Detail Sheet ── */}
+      {selectedProduct && (
+        <ProductDetailSheet
+          product={toAppProduct(selectedProduct)}
+          language="en"
+          onClose={() => setSelectedProduct(null)}
+          allProducts={products.map(toAppProduct)}
+          onProductClick={(p) => {
+            const orig = products.find((x) => x.productId === p.id);
+            if (orig) setSelectedProduct(orig);
+          }}
+        />
+      )}
 
       {/* ── Footer ── */}
       <footer

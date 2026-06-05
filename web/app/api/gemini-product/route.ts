@@ -3,7 +3,27 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export const runtime = 'nodejs';
 
+// Simple in-memory rate limiter: 10 requests per IP per minute
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(ip: string, maxPerMinute = 10): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + 60_000 });
+    return true;
+  }
+  if (entry.count >= maxPerMinute) return false;
+  entry.count++;
+  return true;
+}
+
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+  if (!checkRateLimit(ip, 10)) {
+    return NextResponse.json({ error: 'Too many requests. Please wait a minute.' }, { status: 429 });
+  }
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
@@ -20,8 +40,11 @@ export async function POST(req: NextRequest) {
   }
 
   const { image } = body;
-  if (!image) {
-    return NextResponse.json({ error: 'No image provided' }, { status: 400 });
+  if (!image || typeof image !== 'string') {
+    return NextResponse.json({ error: 'image required' }, { status: 400 });
+  }
+  if (image.length > 2_000_000) {
+    return NextResponse.json({ error: 'Image too large' }, { status: 400 });
   }
 
   // Strip base64 data URL prefix if present (e.g. "data:image/jpeg;base64,...")

@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { ProductDetailSheet } from '@/components/shop/product-detail-sheet';
+import type { Product as AppProduct } from '@/lib/products';
 
 interface ShopData {
   shopName: string;
@@ -59,6 +61,20 @@ interface Props {
   shopId?: string;
 }
 
+function toAppProduct(p: Product): AppProduct {
+  return {
+    id: p.productId,
+    name: { en: p.name, ml: p.name },
+    price: p.price,
+    offerPrice: p.offerPrice ?? 0,
+    unit: 'perPiece',
+    category: p.category,
+    image: p.imageUrl ?? '',
+    isOutOfStock: p.isOutOfStock,
+    description: p.description,
+  };
+}
+
 function getDiscount(price: number, offerPrice: number): number {
   if (offerPrice > 0 && offerPrice < price) {
     return Math.round((1 - price / offerPrice) * 100);
@@ -96,6 +112,7 @@ export default function AmazonLayout({ config, shop, products, shopId }: Props) 
   const [search, setSearch] = useState('');
   const [activeCat, setActiveCat] = useState('All');
   const [cartCount, setCartCount] = useState(0);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [slide, setSlide] = useState(0);
   const [countdown, setCountdown] = useState(getTimeUntilMidnight());
 
@@ -339,7 +356,8 @@ export default function AmazonLayout({ config, shop, products, shopId }: Props) 
                   return (
                     <div
                       key={product.productId}
-                      className="relative w-36 flex-shrink-0 border border-gray-200 rounded-md overflow-hidden hover:shadow-md transition-shadow bg-white"
+                      className="relative w-36 flex-shrink-0 border border-gray-200 rounded-md overflow-hidden hover:shadow-md transition-shadow bg-white cursor-pointer"
+                      onClick={() => setSelectedProduct(product)}
                     >
                       {product.isOutOfStock && (
                         <div className="absolute top-0 left-0 right-0 bg-red-600 text-white text-center text-xs font-bold py-0.5 z-10">
@@ -403,8 +421,9 @@ export default function AmazonLayout({ config, shop, products, shopId }: Props) 
                 return (
                   <div
                     key={product.productId}
-                    className="relative bg-white rounded border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow flex flex-col"
+                    className="relative bg-white rounded border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow flex flex-col cursor-pointer"
                     style={{ borderRadius: '4px' }}
+                    onClick={() => setSelectedProduct(product)}
                   >
                     {/* OUT OF STOCK ribbon */}
                     {product.isOutOfStock && (
@@ -596,6 +615,20 @@ export default function AmazonLayout({ config, shop, products, shopId }: Props) 
             <path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.118 1.528 5.852L0 24l6.362-1.488A11.945 11.945 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.959 0-3.8-.535-5.378-1.465l-.385-.228-3.977.93.976-3.88-.252-.399A9.956 9.956 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
           </svg>
         </a>
+      )}
+
+      {/* ===== PRODUCT DETAIL SHEET ===== */}
+      {selectedProduct && (
+        <ProductDetailSheet
+          product={toAppProduct(selectedProduct)}
+          language="en"
+          onClose={() => setSelectedProduct(null)}
+          allProducts={products.map(toAppProduct)}
+          onProductClick={(p) => {
+            const orig = products.find((x) => x.productId === p.id);
+            if (orig) setSelectedProduct(orig);
+          }}
+        />
       )}
     </div>
   );

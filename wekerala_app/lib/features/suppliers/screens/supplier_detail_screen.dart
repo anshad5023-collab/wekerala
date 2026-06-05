@@ -62,10 +62,23 @@ class SupplierDetailScreen extends ConsumerWidget {
     );
 
     if (confirmed == true) {
-      await ref
-          .read(suppliersRepositoryProvider)
-          .deleteSupplier(shopId, supplier.supplierId);
-      if (context.mounted) context.pop();
+      try {
+        await ref
+            .read(suppliersRepositoryProvider)
+            .deleteSupplier(shopId, supplier.supplierId);
+        if (context.mounted) {
+          context.pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Supplier deleted')),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to delete supplier: $e')),
+          );
+        }
+      }
     }
   }
 

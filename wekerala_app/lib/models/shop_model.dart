@@ -262,8 +262,7 @@ class ShopModel {
   }
 
   ShopModel copyWith({
-    String? isOpen,
-    bool? isOpenBool,
+    bool? isOpen,
     String? subscriptionStatus,
     String? fcmToken,
     int? totalOrders,
@@ -305,7 +304,7 @@ class ShopModel {
       district: district,
       bannerImageUrl: bannerImageUrl,
       logoUrl: logoUrl,
-      isOpen: isOpenBool ?? this.isOpen,
+      isOpen: isOpen ?? this.isOpen,
       isActive: isActive,
       linkActive: linkActive,
       deliveryType: deliveryType,

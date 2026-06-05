@@ -12,10 +12,13 @@ service firebase.storage {
       allow read;
       allow write: if false;
     }
-    // Shop assets (banners, product images, photos) — public read, auth write
+    // Shop assets (banners, product images, photos) — public read, owner-only write
+    // Verifies the authenticated user is the shop owner via Firestore lookup
     match /shops/{shopId}/{allPaths=**} {
       allow read;
-      allow write: if request.auth != null;
+      allow write: if request.auth != null &&
+                      firestore.get(/databases/(default)/documents/shops/$(shopId)).data.ownerId
+                      == request.auth.uid;
     }
   }
 }

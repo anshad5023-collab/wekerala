@@ -203,6 +203,54 @@ class BillModel {
     if (billNote != null && billNote!.isNotEmpty) m['billNote'] = billNote;
     return m;
   }
+
+  BillModel copyWith({
+    String? billId,
+    String? shopId,
+    List<BillItemModel>? items,
+    double? totalAmount,
+    double? discountAmount,
+    double? finalAmount,
+    String? paymentMethod,
+    String? customerName,
+    String? customerPhone,
+    bool? isUdhar,
+    DateTime? createdAt,
+    Map<String, Map<String, double>>? gstBreakdown,
+    double? totalTax,
+    Object? gstinSnapshot = _billSentinel,
+    bool? isVoided,
+    Object? voidedAt = _billSentinel,
+    Object? invoiceNumber = _billSentinel,
+    Object? cashAmount = _billSentinel,
+    Object? upiAmount = _billSentinel,
+    Object? billedByName = _billSentinel,
+    Object? billNote = _billSentinel,
+  }) {
+    return BillModel(
+      billId: billId ?? this.billId,
+      shopId: shopId ?? this.shopId,
+      items: items ?? this.items,
+      totalAmount: totalAmount ?? this.totalAmount,
+      discountAmount: discountAmount ?? this.discountAmount,
+      finalAmount: finalAmount ?? this.finalAmount,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      customerName: customerName ?? this.customerName,
+      customerPhone: customerPhone ?? this.customerPhone,
+      isUdhar: isUdhar ?? this.isUdhar,
+      createdAt: createdAt ?? this.createdAt,
+      gstBreakdown: gstBreakdown ?? this.gstBreakdown,
+      totalTax: totalTax ?? this.totalTax,
+      gstinSnapshot: gstinSnapshot == _billSentinel ? this.gstinSnapshot : gstinSnapshot as String?,
+      isVoided: isVoided ?? this.isVoided,
+      voidedAt: voidedAt == _billSentinel ? this.voidedAt : voidedAt as DateTime?,
+      invoiceNumber: invoiceNumber == _billSentinel ? this.invoiceNumber : invoiceNumber as String?,
+      cashAmount: cashAmount == _billSentinel ? this.cashAmount : cashAmount as double?,
+      upiAmount: upiAmount == _billSentinel ? this.upiAmount : upiAmount as double?,
+      billedByName: billedByName == _billSentinel ? this.billedByName : billedByName as String?,
+      billNote: billNote == _billSentinel ? this.billNote : billNote as String?,
+    );
+  }
 }
 
 const Object _billSentinel = Object();

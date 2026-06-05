@@ -29,8 +29,10 @@ service cloud.firestore {
         allow write: if isOwner(shopId);
       }
 
-      // Orders — anyone can create (customer checkout); owner can read/update only
+      // Orders — anyone can create (customer checkout, including unauthenticated website guests); owner can read/update only
       // Delete intentionally blocked — orders are permanent audit records
+      // NOTE: `allow create: if true` is intentional — website allows guest checkout without login.
+      // Bot-spam mitigation is handled server-side (rate limiting, reCAPTCHA on the website form).
       match /orders/{orderId} {
         allow create: if true;
         allow read, update: if isOwner(shopId);
@@ -119,11 +121,11 @@ service cloud.firestore {
     match /homeServices/{docId}{ allow read: if true; allow create: if request.auth != null; allow update: if request.auth != null && (request.auth.uid == resource.data.ownerId || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isActive'])); allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId; }
 
     // Taxonomy / config — public read
-    match /serviceTags/{tagId}    { allow read: if true; allow write: if true; }
+    match /serviceTags/{tagId}    { allow read: if true; allow write: if request.auth != null; }
     match /deals/{dealId}         { allow read: if true; allow write: if true; }
     match /ratings/{ratingId}     { allow read: if true; allow write: if request.auth != null; }
-    match /bookmarks/{bookmarkId} { allow read, write: if true; }
-    match /config/{docId}         { allow read: if true; allow write: if true; }
-    match /platformConfig/{docId} { allow read: if true; allow write: if true; }
+    match /bookmarks/{bookmarkId} { allow read, write: if request.auth != null; }
+    match /config/{docId}         { allow read: if true; allow write: if request.auth != null; }
+    match /platformConfig/{docId} { allow read: if true; allow write: if request.auth != null; }
   }
 }

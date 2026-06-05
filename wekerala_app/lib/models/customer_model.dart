@@ -62,6 +62,7 @@ class CustomerModel {
         'totalSpent': totalSpent,
         'lastOrderDate': Timestamp.fromDate(lastOrderDate),
         'firstOrderDate': Timestamp.fromDate(firstOrderDate),
+        'loyaltyPoints': loyaltyPoints,
       };
 
   CustomerModel copyWith({
@@ -72,6 +73,7 @@ class CustomerModel {
     double? totalSpent,
     DateTime? lastOrderDate,
     DateTime? firstOrderDate,
+    int? loyaltyPoints,
   }) =>
       CustomerModel(
         customerId: customerId ?? this.customerId,
@@ -81,6 +83,7 @@ class CustomerModel {
         totalSpent: totalSpent ?? this.totalSpent,
         lastOrderDate: lastOrderDate ?? this.lastOrderDate,
         firstOrderDate: firstOrderDate ?? this.firstOrderDate,
+        loyaltyPoints: loyaltyPoints ?? this.loyaltyPoints,
       );
 
   // ── Upsert ────────────────────────────────────────────────────────────────

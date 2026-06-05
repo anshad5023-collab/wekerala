@@ -1,5 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Simple in-memory rate limiter: 20 requests per IP per minute
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(ip: string, maxPerMinute = 10): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + 60_000 });
+    return true;
+  }
+  if (entry.count >= maxPerMinute) return false;
+  entry.count++;
+  return true;
+}
+
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? '';
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 
@@ -36,6 +51,11 @@ function matchKeyword(msg: string, keywords: string[]): boolean {
 }
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+  if (!checkRateLimit(ip, 20)) {
+    return NextResponse.json({ error: 'Too many requests. Please wait a minute.' }, { status: 429 });
+  }
+
   try {
     const { shopId, message, history = [], language = 'en' } = await req.json() as {
       shopId: string;

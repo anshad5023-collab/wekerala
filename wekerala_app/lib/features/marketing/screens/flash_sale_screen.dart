@@ -107,7 +107,7 @@ class _FlashSaleScreenState extends ConsumerState<FlashSaleScreen> {
         backgroundColor: const Color(0xFFFC8019),
         icon: const Icon(Icons.add),
         label: const Text('New Sale'),
-        onPressed: _shopId == null ? null : () => _showCreateSheet(context),
+        onPressed: _shopId == null ? null : () async => _showCreateSheet(context),
       ),
     );
   }
@@ -121,18 +121,17 @@ class _FlashSaleScreenState extends ConsumerState<FlashSaleScreen> {
     return List<String>.from(snap.data()?['categories'] ?? []);
   }
 
-  void _showCreateSheet(BuildContext context) {
+  Future<void> _showCreateSheet(BuildContext context) async {
     final nameCtrl = TextEditingController();
     double discount = 20;
     DateTime startTime = DateTime.now();
     DateTime endTime = DateTime.now().add(const Duration(hours: 24));
     String? selectedCategory; // null = all products
-    List<String> categories = [];
 
-    // Load shop categories before showing sheet
-    _getCategories().then((cats) {
-      categories = cats;
-    });
+    // Pre-load categories so the dropdown is populated when the sheet opens
+    final List<String> categories = await _getCategories();
+
+    if (!context.mounted) return;
 
     showModalBottomSheet(
       context: context,
@@ -196,6 +195,12 @@ class _FlashSaleScreenState extends ConsumerState<FlashSaleScreen> {
                 style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFC8019), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 14)),
                 onPressed: () async {
                   if (nameCtrl.text.trim().isEmpty) return;
+                  if (!endTime.isAfter(startTime)) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(content: Text('End time must be after start time')),
+                    );
+                    return;
+                  }
                   await FirebaseFirestore.instance.collection('shops').doc(_shopId).collection('flashSales').add({
                     'name': nameCtrl.text.trim(),
                     'discountPercent': discount.round(),

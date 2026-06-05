@@ -5,19 +5,20 @@ import '../models/credit_model.dart';
 // ── Stream providers ──────────────────────────────────────────────────────────
 
 /// Live stream of OPEN/PARTIAL credits only (status != 'paid').
-/// Client-side filtering avoids the need for a composite Firestore index.
+/// Firestore-level filter + limit(200) prevents unbounded reads.
+/// Requires a composite index: status ASC, createdAt DESC.
 final creditsStreamProvider =
     StreamProvider.family<List<CreditModel>, String>((ref, shopId) {
   return FirebaseFirestore.instance
       .collection('shops')
       .doc(shopId)
       .collection('credits')
+      .where('status', isNotEqualTo: 'paid')
+      .orderBy('status')
       .orderBy('createdAt', descending: true)
+      .limit(200)
       .snapshots()
-      .map((s) {
-    final all = s.docs.map(CreditModel.fromFirestore).toList();
-    return all.where((c) => c.status != 'paid').toList();
-  });
+      .map((s) => s.docs.map(CreditModel.fromFirestore).toList());
 });
 
 /// Live stream of ALL credits including paid ones.
@@ -80,29 +81,47 @@ class CreditsRepository {
   }
 
   /// Record a partial payment. Automatically promotes to 'paid' if fully settled.
+  /// Uses a Firestore transaction to atomically guard against concurrent payments
+  /// pushing paidAmount above the credit amount (race condition).
   static Future<void> recordPartialPayment(
     String shopId,
     String creditId,
     double paymentAmount,
   ) async {
+    final db = FirebaseFirestore.instance;
     final ref = _col(shopId).doc(creditId);
-    final snap = await ref.get();
-    if (!snap.exists) return;
 
-    final current = CreditModel.fromFirestore(snap);
-    final newPaid = (current.paidAmount + paymentAmount).clamp(0, current.amount);
-    final fullyPaid = newPaid >= current.amount;
+    String customerPhone = '';
+    await db.runTransaction((transaction) async {
+      final snap = await transaction.get(ref);
+      if (!snap.exists) throw Exception('Credit not found');
 
-    await ref.update({
-      'paidAmount': newPaid,
-      'status': fullyPaid ? 'paid' : 'partial',
-      'updatedAt': FieldValue.serverTimestamp(),
+      final data = snap.data()!;
+      final currentPaid = (data['paidAmount'] as num?)?.toDouble() ?? 0;
+      final amount = (data['amount'] as num?)?.toDouble() ?? 0;
+      customerPhone = (data['customerPhone'] as String?) ?? '';
+
+      final newPaid = currentPaid + paymentAmount;
+      if (newPaid > amount + 0.001) {
+        // 0.001 tolerance for floating-point rounding
+        throw Exception('Payment exceeds outstanding balance');
+      }
+      final clampedPaid = newPaid.clamp(0.0, amount);
+      final fullyPaid = clampedPaid >= amount;
+
+      transaction.update(ref, {
+        'paidAmount': clampedPaid,
+        'status': fullyPaid ? 'paid' : 'partial',
+        'lastPaymentAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
     });
-    // Also decrement udharBalance on customer document
-    if (current.customerPhone.isNotEmpty && paymentAmount > 0) {
-      FirebaseFirestore.instance
+
+    // Decrement udharBalance on customer document (outside transaction — best-effort)
+    if (customerPhone.isNotEmpty && paymentAmount > 0) {
+      db
           .collection('shops').doc(shopId)
-          .collection('customers').doc(current.customerPhone)
+          .collection('customers').doc(customerPhone)
           .set({'udharBalance': FieldValue.increment(-paymentAmount)},
               SetOptions(merge: true));
     }

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -136,8 +137,9 @@ class BillingNotifier extends Notifier<BillingState> {
       if (items.isNotEmpty) {
         state = state.copyWith(cartItems: items);
       }
-    } catch (_) {
+    } catch (e, st) {
       // Non-fatal — fresh cart on error
+      debugPrint('BillingProvider: cart restore failed: $e\n$st');
     }
   }
 
@@ -451,8 +453,9 @@ class BillingNotifier extends Notifier<BillingState> {
           .collection('customers').doc(bill.customerPhone)
           .set({'loyaltyPoints': FieldValue.increment(points)},
               SetOptions(merge: true));
-    } catch (_) {
+    } catch (e, st) {
       // Non-fatal — loyalty failure must not block billing
+      debugPrint('BillingProvider: loyalty points award failed: $e\n$st');
     }
   }
 
@@ -479,8 +482,9 @@ class BillingNotifier extends Notifier<BillingState> {
           }
         }
       }
-    } catch (_) {
+    } catch (e, st) {
       // Non-fatal
+      debugPrint('BillingProvider: out-of-stock flag update failed: $e\n$st');
     }
   }
 
@@ -698,6 +702,7 @@ final weeklyBillsProvider =
       .collection('bills')
       .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
       .orderBy('createdAt', descending: true)
+      .limit(500)
       .snapshots()
       .map((s) => s.docs.map(BillModel.fromFirestore).toList());
 });
@@ -712,6 +717,7 @@ final monthlyBillsProvider =
       .collection('bills')
       .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
       .orderBy('createdAt', descending: true)
+      .limit(2000)
       .snapshots()
       .map((s) => s.docs.map(BillModel.fromFirestore).toList());
 });

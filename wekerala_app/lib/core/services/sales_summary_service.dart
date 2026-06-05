@@ -14,6 +14,7 @@ class SalesSummaryService {
         .where('createdAt',
             isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
         .where('createdAt', isLessThanOrEqualTo: Timestamp.fromDate(endOfDay))
+        .limit(1000)
         .get();
 
     final bills =
@@ -26,6 +27,7 @@ class SalesSummaryService {
     final Map<String, double> productSales = {};
 
     for (final bill in bills) {
+      if (bill.isVoided) continue;
       totalSales += bill.finalAmount;
       if (bill.isUdhar) {
         udharTotal += bill.finalAmount;
