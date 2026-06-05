@@ -117,6 +117,9 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
         final shopStream = ref.watch(shopStreamProvider(shopId));
         shopStream.whenData((shop) => _loadFrom(shop.aiSettings, shop.whatsappPhoneNumberId));
 
+        // Plan gate: Lite shops don't have WhatsApp API access
+        final isLocked = shopStream.valueOrNull?.plan == 'lite';
+
         return Scaffold(
           backgroundColor: const Color(0xFFF5F5F5),
           appBar: AppBar(
@@ -153,6 +156,34 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
                 ),
               ]),
               const SizedBox(height: 16),
+
+              // Plan gate banner for Lite shops
+              if (isLocked) ...[
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.amber.shade300),
+                  ),
+                  child: Row(children: [
+                    const Icon(Icons.lock_outline, color: Colors.amber, size: 22),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('WhatsApp AI — Standard Plan & above',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        SizedBox(height: 3),
+                        Text(
+                          'Upgrade to Standard (₹799/month) to enable WhatsApp AI auto-replies and broadcasts.',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ],
 
               // Meta setup
               _SectionLabel('Meta WhatsApp Setup'),
@@ -345,7 +376,7 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
-                  onPressed: _saving ? null : () => _save(shopId),
+                  onPressed: (_saving || isLocked) ? null : () => _save(shopId),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,

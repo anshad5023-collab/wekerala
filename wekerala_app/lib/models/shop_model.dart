@@ -61,6 +61,28 @@ class ShopModel {
   final Map<String, dynamic> loyaltySettings;
   // Google Maps link for pickup customers
   final String? googleMapsLink;
+  // Subscription plan: 'trial' | 'lite' | 'standard' | 'pro' | 'chain'
+  final String plan;
+
+  /// Returns true if this shop has WhatsApp AI access (Standard and above, or on trial).
+  bool get hasWhatsAppAccess =>
+      plan == 'trial' || plan == 'standard' || plan == 'pro' || plan == 'chain';
+
+  /// Monthly WhatsApp utility conversation limit (0 = none included).
+  int get waUtilityLimit => switch (plan) {
+        'standard' => 200,
+        'pro' => 600,
+        'chain' => 2000,
+        _ => 0,
+      };
+
+  /// Monthly WhatsApp marketing/broadcast limit (0 = none included).
+  int get waMarketingLimit => switch (plan) {
+        'standard' => 30,
+        'pro' => 100,
+        'chain' => 300,
+        _ => 0,
+      };
 
   const ShopModel({
     required this.shopId,
@@ -114,6 +136,7 @@ class ShopModel {
     this.whatsappSettings = const {},
     this.loyaltySettings = const {},
     this.googleMapsLink,
+    this.plan = 'trial',
   });
 
   static DateTime _parseDate(dynamic v, DateTime fallback) {
@@ -176,6 +199,7 @@ class ShopModel {
       whatsappSettings: Map<String, dynamic>.from(d['whatsappSettings'] as Map? ?? {}),
       loyaltySettings: Map<String, dynamic>.from(d['loyaltySettings'] as Map? ?? {}),
       googleMapsLink: d['googleMapsLink'] as String?,
+      plan: d['plan'] as String? ?? 'trial',
     );
   }
 
@@ -233,6 +257,7 @@ class ShopModel {
       if (whatsappSettings.isNotEmpty) 'whatsappSettings': whatsappSettings,
       'loyaltySettings': loyaltySettings,
       if (googleMapsLink != null && googleMapsLink!.isNotEmpty) 'googleMapsLink': googleMapsLink,
+      'plan': plan,
     };
   }
 
@@ -265,6 +290,7 @@ class ShopModel {
     Map<String, dynamic>? whatsappSettings,
     Map<String, dynamic>? loyaltySettings,
     Object? googleMapsLink = _shopSentinel,
+    String? plan,
   }) {
     return ShopModel(
       shopId: shopId,
@@ -317,6 +343,7 @@ class ShopModel {
       whatsappSettings: whatsappSettings ?? this.whatsappSettings,
       loyaltySettings: loyaltySettings ?? this.loyaltySettings,
       googleMapsLink: googleMapsLink == _shopSentinel ? this.googleMapsLink : googleMapsLink as String?,
+      plan: plan ?? this.plan,
     );
   }
 }
