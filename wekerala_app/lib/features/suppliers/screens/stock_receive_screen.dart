@@ -64,6 +64,7 @@ class _StockReceiveScreenState extends ConsumerState<StockReceiveScreen> {
             .collection('products').doc(entry.key);
         batch.update(productRef, {
           'stockQty': FieldValue.increment(entry.value),
+          'isOutOfStock': false, // clear out-of-stock flag when restocked
           'updatedAt': FieldValue.serverTimestamp(),
         });
       }
