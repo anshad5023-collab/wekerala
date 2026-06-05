@@ -47,6 +47,19 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
     final stockIdx = headers.indexOf('stock');
     final descIdx = headers.indexOf('description');
 
+    // Guard: require name and price columns
+    if (nameIdx < 0 || priceIdx < 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('CSV must have "name" and "price" columns. Check the format example above.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
     final parsed = <Map<String, dynamic>>[];
     for (int i = 1; i < lines.length; i++) {
       final cells = lines[i].split(',');
@@ -77,12 +90,30 @@ class _BulkImportScreenState extends ConsumerState<BulkImportScreen> {
       final chunk = valid.skip(i).take(50).toList();
       for (final p in chunk) {
         batch.set(ref.doc(), {
-          'name': p['name'], 'price': p['price'], 'unit': p['unit'],
-          'category': p['category'], 'stock': p['stock'], 'description': p['description'],
-          'isActive': true, 'createdAt': FieldValue.serverTimestamp(),
+          'nameEn': p['name'],
+          'nameMl': p['name'],
+          'price': p['price'],
+          'unit': p['unit'],
+          'category': p['category'],
+          'stockQty': p['stock'] > 0 ? p['stock'] : null,
+          'description': p['description'],
+          'isActive': true,
+          'isOutOfStock': false,
+          'tracksStock': p['stock'] > 0,
+          'createdAt': FieldValue.serverTimestamp(),
         });
       }
-      await batch.commit();
+      try {
+        await batch.commit();
+      } catch (e) {
+        if (mounted) {
+          setState(() => _loading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Import failed at product ${i + 1}: $e'), backgroundColor: Colors.red),
+          );
+        }
+        return;
+      }
       setState(() => _imported = i + chunk.length);
     }
     setState(() => _loading = false);

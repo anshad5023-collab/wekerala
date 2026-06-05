@@ -254,6 +254,10 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
 
   Future<void> _save(String shopId, List<String> categories) async {
     if (!_formKey.currentState!.validate()) return;
+    if (_hasVariants) {
+      if (_variants.isEmpty) { _showError('Add at least one variant.'); return; }
+      if (_variants.any((v) => v.price <= 0)) { _showError('All variants must have a price greater than 0.'); return; }
+    }
     if (!_hasVariants) {
       final price = double.tryParse(_priceCtrl.text.trim()) ?? 0;
       if (price <= 0) {

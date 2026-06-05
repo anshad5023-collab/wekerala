@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class LoyaltyScreen extends ConsumerStatefulWidget {
   const LoyaltyScreen({super.key});
@@ -140,10 +141,24 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> with SingleTicker
                     leading: CircleAvatar(backgroundColor: const Color(0xFFFF9900), child: Text(i < 3 ? medals[i] : '${i+1}')),
                     title: Text(d['name'] ?? maskedPhone, style: const TextStyle(fontWeight: FontWeight.bold)),
                     subtitle: Text('$points points • ₹${(d['totalSpent'] as num?)?.toStringAsFixed(0) ?? 0} spent'),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.message, color: Color(0xFF25D366)),
-                      onPressed: () {},
-                    ),
+                    trailing: phone.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.message, color: Color(0xFF25D366)),
+                            tooltip: 'Message on WhatsApp',
+                            onPressed: () {
+                              final cleaned = phone.replaceAll(RegExp(r'\D'), '');
+                              final number = cleaned.length == 10 ? '91$cleaned' : cleaned;
+                              final msg = Uri.encodeComponent(
+                                'Hi ${d['name'] ?? 'there'}! You have $points loyalty points. '
+                                'Visit us to redeem them. Thank you for your support!',
+                              );
+                              launchUrl(
+                                Uri.parse('https://wa.me/$number?text=$msg'),
+                                mode: LaunchMode.externalApplication,
+                              );
+                            },
+                          )
+                        : null,
                   );
                 },
               );

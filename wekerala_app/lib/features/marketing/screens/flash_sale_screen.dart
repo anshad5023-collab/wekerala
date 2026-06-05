@@ -78,7 +78,22 @@ class _FlashSaleScreenState extends ConsumerState<FlashSaleScreen> {
                         subtitle: Text('${d['discountPercent'] ?? 0}% OFF${(d['applicableCategory'] as String?)?.isNotEmpty == true ? " on ${d['applicableCategory']}" : ""} • ${isActive ? "LIVE 🔥" : isExpired ? "Ended" : "Scheduled"}'),
                         trailing: isActive
                             ? TextButton(
-                                onPressed: () => sales[i].reference.update({'expired': true}),
+                                onPressed: () async {
+                                  final ok = await showDialog<bool>(
+                                    context: ctx,
+                                    builder: (_) => AlertDialog(
+                                      title: const Text('End Flash Sale?'),
+                                      content: Text('End "${d['name'] ?? 'this sale'}" immediately? Normal prices will apply at once.'),
+                                      actions: [
+                                        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                                        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('End Sale', style: TextStyle(color: Colors.red))),
+                                      ],
+                                    ),
+                                  );
+                                  if (ok == true) {
+                                    await sales[i].reference.update({'expired': true});
+                                  }
+                                },
                                 child: const Text('End', style: TextStyle(color: Colors.red)),
                               )
                             : null,
