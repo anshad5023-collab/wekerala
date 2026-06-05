@@ -94,7 +94,7 @@ export function ShopViewById({ shopId }: { shopId: string }) {
   }, [products, selectedCategory, searchQuery]);
 
   const categories = useMemo(() => {
-    const cats = new Set(products.map((p) => p.category));
+    const cats = new Set(products.map((p) => p.category).filter(Boolean));
     return ['all', ...Array.from(cats)];
   }, [products]);
 
