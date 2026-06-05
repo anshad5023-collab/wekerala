@@ -99,17 +99,34 @@ export function ProductCard({ product, language, onProductClick }: ProductCardPr
         </h3>
 
         {/* Price row */}
-        <div className="mt-1 flex items-baseline gap-1.5 flex-wrap">
-          <span className="text-base font-bold text-primary">₹{displayPrice}</span>
-          {discountPct > 0 && (
-            <span className="text-xs text-muted-foreground line-through">₹{product.price}</span>
-          )}
-          <span className="text-xs text-muted-foreground">/{t[product.unit]}</span>
-        </div>
+        {product.hasVariants && product.variants && product.variants.length > 0 ? (
+          <div className="mt-1">
+            <span className="text-sm font-semibold text-primary">
+              From ₹{Math.min(...product.variants.map(v => v.offerPrice && v.offerPrice > 0 ? v.offerPrice : v.price))}
+            </span>
+            <span className="ml-1 text-xs text-muted-foreground italic">{product.variants.length} options</span>
+          </div>
+        ) : (
+          <div className="mt-1 flex items-baseline gap-1.5 flex-wrap">
+            <span className="text-base font-bold text-primary">₹{displayPrice}</span>
+            {discountPct > 0 && (
+              <span className="text-xs text-muted-foreground line-through">₹{product.price}</span>
+            )}
+            <span className="text-xs text-muted-foreground">/{t[product.unit]}</span>
+          </div>
+        )}
 
-        {/* Add / stepper */}
+        {/* Add / stepper — for variant products, tap opens detail sheet */}
         <div className="mt-2">
-          {quantity === 0 ? (
+          {product.hasVariants && product.variants && product.variants.length > 0 ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-8 w-full rounded-lg text-xs font-semibold border-primary text-primary"
+            >
+              Select Option
+            </Button>
+          ) : quantity === 0 ? (
             <Button
               onClick={handleAddClick}
               disabled={product.isOutOfStock}
