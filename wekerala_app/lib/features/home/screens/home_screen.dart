@@ -149,15 +149,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           .update({'activeShopId': shopId});
       await FcmService.init(shopId); // no-op on Windows/web
       if (mounted) ref.invalidate(activeShopIdProvider);
-    } catch (_) {
-      if (mounted) setState(() => _loading = false);
+    } catch (e) {
+      if (mounted) setState(() { _loading = false; _loadError = e.toString(); });
     }
   }
+
+  String? _loadError;
 
   @override
   Widget build(BuildContext context) {
     if (_loading) {
       return const ShimmerList();
+    }
+    if (_loadError != null && _biz == null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.wifi_off_outlined, size: 48, color: AppColors.textSecondary),
+              const SizedBox(height: 12),
+              const Text('Could not load shop data.\nCheck your internet connection.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: AppColors.textSecondary)),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _load,
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
     }
     final biz = _biz;
     if (biz == null) {
@@ -219,9 +244,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         children: [
           if (newOrderCount > 0)
             _NewOrdersBanner(count: newOrderCount),
-
-          // ── First-use guide (shown only until dismissed) ─
-          _FirstUseTipsCard(shopId: shopId),
 
           // ── Open / Close toggle ──────────────────────────
           _OpenCloseToggle(shopId: shopId, isOpen: isOpen, onChanged: (v) {
@@ -555,7 +577,9 @@ class _InfoTilesRow extends ConsumerWidget {
             value: '$lowStockCount',
             label: 'Low Stock Items',
             highlight: lowStockCount > 0,
-            onTap: () => context.switchTab(2),
+            onTap: () => lowStockCount > 0
+                ? context.push('/stock-alerts')
+                : context.switchTab(2),
           ),
         ),
         const SizedBox(width: 12),
