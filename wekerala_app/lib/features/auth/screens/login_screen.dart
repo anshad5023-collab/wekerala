@@ -70,6 +70,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _sendOtp() async {
     if (!_termsAccepted) {
       await _showTermsDialog();
+      if (!mounted) return;
       if (!_termsAccepted) return; // user cancelled — don't send
       // terms just accepted — fall through and send OTP automatically
     }
@@ -109,7 +110,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // Auto-verification: Android detected SMS and signed in without OTP screen
       if (next.status == AuthStatus.authenticated) {
         ref.read(authProvider.notifier).hasShops().then((hasShop) {
-          if (mounted) context.go(hasShop ? '/home' : '/onboard/type');
+          if (context.mounted) context.go(hasShop ? '/home' : '/onboard/type');
         });
       }
       if (next.status == AuthStatus.error && next.errorMessage != null) {

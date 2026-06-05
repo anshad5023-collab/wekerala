@@ -193,7 +193,7 @@ class _CreditsBody extends ConsumerWidget {
         data: (credits) {
           // ── Compute summary stats ─────────────────────────────────────────
           final totalOutstanding =
-              credits.fold<double>(0, (sum, c) => sum + c.outstanding);
+              credits.fold<double>(0, (acc, c) => acc + c.outstanding);
           final customerCount = credits.length;
           final overdueAmount = credits.fold<double>(
               0, (s, c) => c.isOverdue ? s + c.outstanding : s);
