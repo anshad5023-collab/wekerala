@@ -955,6 +955,7 @@ class _CartPanel extends ConsumerWidget {
                       onDecrement: () =>
                           notifier.updateQty(item.productId, item.qty - 1),
                       onDelete: () => notifier.removeItem(item.productId),
+                      onSetQty: (qty) => notifier.updateQty(item.productId, qty),
                     ).animate().fadeIn(duration: 200.ms);
                   },
                 ),
@@ -1136,12 +1137,14 @@ class _CartItemRow extends StatelessWidget {
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
   final VoidCallback onDelete;
+  final ValueChanged<double>? onSetQty;
 
   const _CartItemRow({
     required this.item,
     required this.onIncrement,
     required this.onDecrement,
     required this.onDelete,
+    this.onSetQty,
   });
 
   @override
@@ -1184,20 +1187,49 @@ class _CartItemRow extends StatelessWidget {
                 ],
               ),
             ),
-            // Qty stepper with 40×40 touch targets
+            // Qty stepper — long-press qty to type decimal value
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 _QtyButton(icon: Icons.remove, onTap: onDecrement),
-                SizedBox(
-                  width: 32,
-                  child: Center(
-                    child: Text(
-                      item.qty % 1 == 0
-                          ? item.qty.toInt().toString()
-                          : item.qty.toStringAsFixed(1),
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 14),
+                GestureDetector(
+                  onLongPress: onSetQty == null ? null : () async {
+                    final ctrl = TextEditingController(
+                        text: item.qty % 1 == 0
+                            ? item.qty.toInt().toString()
+                            : item.qty.toStringAsFixed(2));
+                    final context2 = context;
+                    final val = await showDialog<double>(
+                      context: context2,
+                      builder: (_) => AlertDialog(
+                        title: Text(item.productName, style: const TextStyle(fontSize: 14)),
+                        content: TextField(
+                          controller: ctrl,
+                          autofocus: true,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,3}'))],
+                          decoration: InputDecoration(suffix: Text(item.unit)),
+                        ),
+                        actions: [
+                          TextButton(onPressed: () => Navigator.pop(context2), child: const Text('Cancel')),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context2, double.tryParse(ctrl.text.trim())),
+                            child: const Text('Set'),
+                          ),
+                        ],
+                      ),
+                    );
+                    if (val != null && val > 0) onSetQty!(val);
+                  },
+                  child: SizedBox(
+                    width: 38,
+                    child: Center(
+                      child: Text(
+                        item.qty % 1 == 0
+                            ? item.qty.toInt().toString()
+                            : item.qty.toStringAsFixed(2),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      ),
                     ),
                   ),
                 ),
