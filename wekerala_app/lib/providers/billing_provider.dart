@@ -196,6 +196,15 @@ class BillingNotifier extends Notifier<BillingState> {
     _persistCart(items);
   }
 
+  /// Apply active flash sale discount to billing state.
+  void applyFlashSale(double percent, String name, String category) {
+    state = state.copyWith(
+      flashSalePercent: percent,
+      flashSaleName: name,
+      flashSaleCategory: category,
+    );
+  }
+
   /// Remove an item from the cart by [productId].
   void removeItem(String productId) {
     final items = state.cartItems.where((i) => i.productId != productId).toList();

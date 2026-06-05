@@ -89,11 +89,24 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
   @override
   void initState() {
     super.initState();
-    // Auto-focus the search field when the screen opens so cashiers
-    // can start typing a product name immediately (no extra tap needed).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _searchFocus.requestFocus();
+      _loadActiveFlashSale();
     });
+  }
+
+  Future<void> _loadActiveFlashSale() async {
+    final shopIdAsync = ref.read(activeShopIdProvider);
+    final shopId = shopIdAsync.value;
+    if (shopId == null) return;
+    final flashSale = await ref.read(activeFlashSaleProvider(shopId).future);
+    if (flashSale == null || !mounted) return;
+    final pct = (flashSale['discountPercent'] as num?)?.toDouble() ?? 0;
+    final name = flashSale['name'] as String? ?? 'Flash Sale';
+    final category = flashSale['targetCategory'] as String? ?? '';
+    if (pct > 0) {
+      ref.read(billingProvider.notifier).applyFlashSale(pct, name, category);
+    }
   }
 
   @override
