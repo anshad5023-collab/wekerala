@@ -94,8 +94,16 @@ class _KotScreenState extends ConsumerState<KotScreen>
           _orders.add(order);
         }
       });
-    } catch (_) {
-      // Non-fatal — KOT still works with empty list
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not load kitchen orders: $e'),
+            action: SnackBarAction(label: 'Retry', onPressed: _loadFromFirestore),
+            duration: const Duration(seconds: 6),
+          ),
+        );
+      }
     }
   }
 

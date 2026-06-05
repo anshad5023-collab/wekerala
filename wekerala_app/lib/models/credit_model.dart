@@ -10,6 +10,7 @@ class CreditModel {
   final String status; // 'open' | 'partial' | 'paid'
   final DateTime createdAt;
   final DateTime? dueDate;
+  final DateTime? lastReminderSentAt;
 
   const CreditModel({
     required this.creditId,
@@ -21,6 +22,7 @@ class CreditModel {
     required this.status,
     required this.createdAt,
     this.dueDate,
+    this.lastReminderSentAt,
   });
 
   // ── Computed getters ──────────────────────────────────────────────────────
@@ -62,6 +64,9 @@ class CreditModel {
       status: d['status'] as String? ?? 'open',
       createdAt: _parseDate(d['createdAt'], now),
       dueDate: dueDate,
+      lastReminderSentAt: d['lastReminderSentAt'] is Timestamp
+          ? (d['lastReminderSentAt'] as Timestamp).toDate()
+          : null,
     );
   }
 

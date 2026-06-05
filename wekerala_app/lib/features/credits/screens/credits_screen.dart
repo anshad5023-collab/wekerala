@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -121,6 +122,7 @@ class _CreditsBody extends ConsumerWidget {
                     ),
                   );
                   if (confirm != true || !context.mounted) return;
+                  final now = DateTime.now();
                   for (final credit in open) {
                     final rawPhone =
                         credit.customerPhone.replaceAll(RegExp(r'\D'), '');
@@ -135,6 +137,14 @@ class _CreditsBody extends ConsumerWidget {
                         Uri.parse('https://wa.me/$phone?text=$msg');
                     await launchUrl(uri,
                         mode: LaunchMode.externalApplication);
+                    // Log reminder time so owner knows who was last reminded
+                    FirebaseFirestore.instance
+                        .collection('shops')
+                        .doc(shopId)
+                        .collection('credits')
+                        .doc(credit.creditId)
+                        .update({'lastReminderSentAt': Timestamp.fromDate(now)})
+                        .ignore();
                     await Future.delayed(const Duration(milliseconds: 500));
                   }
                 },
@@ -700,6 +710,21 @@ class _CreditCard extends ConsumerWidget {
                       fontSize: 12,
                       fontWeight: overdue ? FontWeight.w600 : FontWeight.normal,
                     ),
+                  ),
+                ],
+              ),
+            ],
+
+            // ── Last reminder ─────────────────────────────────────────────
+            if (credit.lastReminderSentAt != null) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  const Icon(Icons.notifications_outlined, size: 13, color: AppColors.textSecondary),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Last reminded ${DateFormat('d MMM').format(credit.lastReminderSentAt!)}',
+                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
                   ),
                 ],
               ),
