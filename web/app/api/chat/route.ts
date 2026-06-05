@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
     let productList = '';
     if (shareProductPrices) {
       const productsRes = await fetch(
-        `${BASE}/shops/${shopId}/products?key=${FIREBASE_API_KEY}&pageSize=20`
+        `${BASE}/shops/${shopId}/products?key=${FIREBASE_API_KEY}&pageSize=100`
       );
       if (productsRes.ok) {
         const productsData = await productsRes.json();
