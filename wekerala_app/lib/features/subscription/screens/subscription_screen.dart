@@ -181,7 +181,7 @@ class _SubscriptionBodyState extends ConsumerState<_SubscriptionBody> {
                   ElevatedButton.icon(
                     icon: const Icon(Icons.credit_card_outlined, size: 20),
                     label: Text(
-                      _submitting ? 'Loading...' : 'Pay ₹999/month (Card / UPI / NetBanking)',
+                      _submitting ? 'Loading...' : 'Pay ₹99/month (Card / UPI / NetBanking)',
                       style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                     ),
                     onPressed: _submitting ? null : _payViaRazorpay,
@@ -207,7 +207,7 @@ class _SubscriptionBodyState extends ConsumerState<_SubscriptionBody> {
                 // Manual UPI button
                 ElevatedButton.icon(
                   icon: const Icon(Icons.currency_rupee, size: 20),
-                  label: const Text('Pay ₹999 via UPI (Manual)',
+                  label: const Text('Pay ₹99 via UPI (Manual)',
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                   onPressed: _payViaUpi,
                   style: ElevatedButton.styleFrom(

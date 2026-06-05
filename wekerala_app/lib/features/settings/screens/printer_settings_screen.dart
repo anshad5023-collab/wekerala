@@ -56,6 +56,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
       if (!mounted) return;
       if (success) {
         await PrintService.savePrinterAddress(device.macAdress);
+        if (!mounted) return;
         setState(() {
           _connectedMac = device.macAdress;
           _savedAddress = device.macAdress;

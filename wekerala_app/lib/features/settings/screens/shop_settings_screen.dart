@@ -481,6 +481,65 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
                 ),
               ),
               const SizedBox(height: 24),
+              // ── Shop Type ────────────────────────────────────
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Shop Type',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.storefront_outlined, color: AppColors.primary),
+                title: Text(_shopType.isNotEmpty ? _shopType : 'Not set'),
+                subtitle: const Text('Tap to change shop type'),
+                trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+                onTap: () => _changeShopType(context),
+              ),
+              const SizedBox(height: 16),
+              // ── Product Categories ───────────────────────────
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Product Categories',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+              ),
+              const SizedBox(height: 8),
+              if (_categories.isNotEmpty)
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: _categories.map((cat) => Chip(
+                    label: Text(cat, style: const TextStyle(fontSize: 12)),
+                    deleteIcon: const Icon(Icons.close, size: 14),
+                    onDeleted: () => setState(() => _categories.remove(cat)),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  )).toList(),
+                ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _newCategoryCtrl,
+                      textCapitalization: TextCapitalization.words,
+                      decoration: InputDecoration(
+                        hintText: 'Add category (e.g. Dairy, Snacks)',
+                        isDense: true,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                      ),
+                      onSubmitted: (_) => _addCategory(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filled(
+                    onPressed: _addCategory,
+                    icon: const Icon(Icons.add),
+                    style: IconButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
               // ── WhatsApp Auto-Send ───────────────────────────
               Align(
                 alignment: Alignment.centerLeft,
@@ -637,6 +696,7 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
 
     if (picked == null || picked == _shopType || !mounted) return;
     final defaults = kShopCategories[picked] ?? [];
+    if (!context.mounted) return;
     final reset = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
