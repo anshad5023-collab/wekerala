@@ -197,11 +197,16 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
                       const SizedBox(height: 12),
                       TextField(
                         controller: _phoneNumberIdCtrl,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                        maxLength: 20,
                         decoration: const InputDecoration(
                           labelText: 'Phone Number ID',
                           hintText: 'e.g. 123456789012345',
+                          helperText: 'Numbers only, typically 15 digits',
                           border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.tag),
+                          counterText: '',
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -286,6 +291,7 @@ class _AiSettingsScreenState extends ConsumerState<AiSettingsScreen> {
                   child: TextField(
                     controller: _noteCtrl,
                     maxLines: 3,
+                    maxLength: 500,
                     decoration: InputDecoration(
                       hintText: 'e.g. Always greet with Namaskaram. Never discuss other shops.',
                       hintStyle: TextStyle(fontSize: 13, color: Colors.grey[400]),
