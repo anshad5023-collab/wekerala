@@ -83,6 +83,8 @@ export function ProductCard({ product, language, onProductClick }: ProductCardPr
               if (c.includes('medicine') || c.includes('pharma')) return '💊';
               if (c.includes('cleaning') || c.includes('detergent')) return '🧹';
               if (c.includes('personal') || c.includes('beauty')) return '🧴';
+              if (c.includes('shoe') || c.includes('footwear') || c.includes('sandal')) return '👟';
+              if (c.includes('cloth') || c.includes('textile') || c.includes('dress')) return '👗';
               if (c.includes('baby')) return '🍼';
               return '📦';
             })()}

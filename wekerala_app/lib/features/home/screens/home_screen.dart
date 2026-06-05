@@ -1770,7 +1770,7 @@ class _ExpiryAlertsCard extends ConsumerWidget {
     final isMeat       = type.contains('meat') || type.contains('fish');
     final isBakery     = type.contains('bakery');
     final isFancy      = type.contains('fancy') || type.contains('gift') || type.contains('stationery');
-    final isTextile    = type.contains('textile') || type.contains('fabric') || type.contains('clothing');
+    final isTextile    = type.contains('textile') || type.contains('fabric') || type.contains('clothing') || type.contains('shoe') || type.contains('footwear');
     final isElectronics = type.contains('electronic') || type.contains('hardware') || type.contains('mobile');
     final isVegFruit    = type.contains('veg') || type.contains('vegetable') || type.contains('fruit');
 
