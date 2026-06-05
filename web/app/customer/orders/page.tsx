@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Package, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, Package, ShoppingBag, X, RefreshCw } from 'lucide-react';
 import { useAuthStore } from '@/lib/auth-store';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
@@ -15,7 +15,9 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
   cancelled:        { label: 'Cancelled',    color: '#dc2626', bg: '#fef2f2' },
 };
 
-interface OrderItem { productName: string; qty: number; subtotal: number; }
+const CANCELLABLE_STATUSES = new Set(['new']);
+
+interface OrderItem { productName: string; qty: number; subtotal: number; variantName?: string; }
 interface Order {
   id: string;
   shopId: string;
@@ -35,11 +37,26 @@ function formatDate(iso: string) {
   } catch { return iso; }
 }
 
-function OrderCard({ order }: { order: Order }) {
+function OrderCard({ order, onCancelled }: { order: Order; onCancelled: (id: string) => void }) {
   const status = STATUS_CONFIG[order.status] ?? { label: order.status, color: '#6b7280', bg: '#f9fafb' };
   const items = order.items ?? [];
-  const preview = items.slice(0, 2).map((i) => `${i.productName} ×${i.qty}`).join(', ');
-  const extra = items.length > 2 ? ` +${items.length - 2} more` : '';
+  const [showItems, setShowItems] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+
+  const handleCancel = async () => {
+    if (!confirm('Cancel this order?')) return;
+    setCancelling(true);
+    try {
+      await fetch(`/api/orders?shopId=${order.shopId}&orderId=${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'cancelled' }),
+      });
+      onCancelled(order.id);
+    } catch { /* ignore */ } finally {
+      setCancelling(false);
+    }
+  };
 
   return (
     <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
@@ -57,12 +74,30 @@ function OrderCard({ order }: { order: Order }) {
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="min-w-0">
             <p className="font-semibold italic text-foreground truncate">{order.shopName || 'Shop'}</p>
-            <p className="text-sm italic text-muted-foreground mt-0.5 truncate">{preview}{extra}</p>
+            <button
+              onClick={() => setShowItems((v) => !v)}
+              className="text-sm italic text-primary hover:underline mt-0.5 text-left"
+            >
+              {items.length} item{items.length !== 1 ? 's' : ''} — {showItems ? 'hide' : 'show details'}
+            </button>
           </div>
           <span className="text-lg font-bold italic text-primary whitespace-nowrap shrink-0">
             ₹{order.totalAmount}
           </span>
         </div>
+
+        {showItems && items.length > 0 && (
+          <div className="mb-3 rounded-lg bg-muted/40 p-2 space-y-1">
+            {items.map((item, i) => (
+              <div key={i} className="flex items-center justify-between text-sm">
+                <span className="italic text-foreground truncate mr-2">
+                  {item.productName}{item.variantName ? ` (${item.variantName})` : ''} ×{item.qty}
+                </span>
+                <span className="italic text-muted-foreground whitespace-nowrap">₹{item.subtotal}</span>
+              </div>
+            ))}
+          </div>
+        )}
 
         <div className="flex gap-2">
           {order.shopId && order.id && (
@@ -72,6 +107,16 @@ function OrderCard({ order }: { order: Order }) {
             >
               Track
             </Link>
+          )}
+          {CANCELLABLE_STATUSES.has(order.status) && (
+            <button
+              onClick={handleCancel}
+              disabled={cancelling}
+              className="flex items-center gap-1 rounded-lg border border-red-300 text-red-600 text-sm font-medium italic px-3 py-2 hover:bg-red-50 transition-colors disabled:opacity-50"
+            >
+              <X className="h-4 w-4" />
+              {cancelling ? '…' : 'Cancel'}
+            </button>
           )}
           <Link
             href={`/shop?shopId=${order.shopId}`}
@@ -89,15 +134,34 @@ export default function CustomerOrdersPage() {
   const { uid, phone } = useAuthStore();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
+  const fetchOrders = useCallback(async (showSpinner = false) => {
     if (!uid) { setLoading(false); return; }
-    fetch(`/api/customer/orders?uid=${encodeURIComponent(uid)}`)
-      .then((r) => r.json())
-      .then((data) => setOrders((data.orders ?? []) as Order[]))
-      .catch(() => setOrders([]))
-      .finally(() => setLoading(false));
+    if (showSpinner) setRefreshing(true);
+    try {
+      const data = await fetch(`/api/customer/orders?uid=${encodeURIComponent(uid)}`).then((r) => r.json());
+      setOrders((data.orders ?? []) as Order[]);
+    } catch { /* keep existing orders */ } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, [uid]);
+
+  // Initial load
+  useEffect(() => { fetchOrders(); }, [fetchOrders]);
+
+  // Poll every 30s for status updates on active orders
+  useEffect(() => {
+    const hasActiveOrders = orders.some((o) => !['delivered', 'cancelled'].includes(o.status));
+    if (!hasActiveOrders) return;
+    const id = setInterval(() => fetchOrders(), 30_000);
+    return () => clearInterval(id);
+  }, [orders, fetchOrders]);
+
+  const handleCancelled = (orderId: string) => {
+    setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status: 'cancelled' } : o));
+  };
 
   return (
     <div className="min-h-screen bg-[#f0fdf4]">
@@ -110,7 +174,17 @@ export default function CustomerOrdersPage() {
           <ArrowLeft className="h-5 w-5" />
         </button>
         <h1 className="text-lg font-bold italic flex-1">My Orders</h1>
-        {phone && <span className="text-xs opacity-75 truncate max-w-[140px]">{phone}</span>}
+        {uid && (
+          <button
+            onClick={() => fetchOrders(true)}
+            disabled={refreshing}
+            className="rounded-full p-1.5 hover:bg-white/20 transition-colors disabled:opacity-50"
+            aria-label="Refresh orders"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
+        )}
+        {phone && <span className="text-xs opacity-75 truncate max-w-[120px]">{phone}</span>}
       </header>
 
       <div className="p-4 space-y-4 pb-24">
@@ -147,7 +221,9 @@ export default function CustomerOrdersPage() {
             </p>
           </div>
         ) : (
-          orders.map((order) => <OrderCard key={order.id} order={order} />)
+          orders.map((order) => (
+            <OrderCard key={order.id} order={order} onCancelled={handleCancelled} />
+          ))
         )}
       </div>
     </div>
