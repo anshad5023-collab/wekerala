@@ -1826,7 +1826,7 @@ class _ExpiryAlertsCard extends ConsumerWidget {
           title: "Today's Special",
           subtitle: 'Set discount on daily specials',
           color: const Color(0xFFFC8019),
-          onTap: () => GoRouter.of(context).push('/flash-sale'),
+          onTap: () => GoRouter.of(context).push('/marketing/flash-sale'),
         ),
         _FeatureCard(
           icon: Icons.bar_chart_outlined,
