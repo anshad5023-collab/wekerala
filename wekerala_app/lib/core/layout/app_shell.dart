@@ -281,7 +281,7 @@ class _DesktopShell extends StatelessWidget {
   }
 }
 
-class _Sidebar extends StatelessWidget {
+class _Sidebar extends StatefulWidget {
   const _Sidebar({
     required this.selectedIndex,
     required this.destinations,
@@ -297,7 +297,25 @@ class _Sidebar extends StatelessWidget {
   final ValueChanged<int> onDestinationSelected;
 
   @override
+  State<_Sidebar> createState() => _SidebarState();
+}
+
+class _SidebarState extends State<_Sidebar> {
+  Future<PackageInfo>? _packageInfoFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _packageInfoFuture = PackageInfo.fromPlatform();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final selectedIndex = widget.selectedIndex;
+    final destinations = widget.destinations;
+    final newOrderCount = widget.newOrderCount;
+    final shopName = widget.shopName;
+    final onDestinationSelected = widget.onDestinationSelected;
     final sidebarWidth = (MediaQuery.of(context).size.width * 0.18).clamp(180.0, 260.0);
     return Container(
       width: sidebarWidth,
@@ -409,7 +427,7 @@ class _Sidebar extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.all(16),
             child: FutureBuilder<PackageInfo>(
-              future: PackageInfo.fromPlatform(),
+              future: _packageInfoFuture,
               builder: (_, snap) {
                 final version = snap.data?.version ?? '';
                 return Text(
