@@ -346,8 +346,19 @@ class _OrdersBody extends ConsumerWidget {
                                     behavior: SnackBarBehavior.floating,
                                     duration: const Duration(seconds: 5),
                                     action: SnackBarAction(
-                                      label: 'Undo',
-                                      onPressed: () => updateOrderStatus(shopId, order.orderId, prevStatus),
+                                      label: nextStatus == 'ready' && order.customerPhone.isNotEmpty
+                                          ? 'Notify Customer'
+                                          : 'Undo',
+                                      onPressed: nextStatus == 'ready' && order.customerPhone.isNotEmpty
+                                          ? () {
+                                              final phone = order.customerPhone.replaceAll(RegExp(r'\D'), '');
+                                              final intl = phone.startsWith('91') ? phone : '91${phone.substring(phone.length - 10)}';
+                                              final msg = Uri.encodeComponent(
+                                                'Hi ${order.customerName.isNotEmpty ? order.customerName : "Customer"}, '
+                                                'your order #${order.orderNumber} is READY for pickup! 🎉');
+                                              launchUrl(Uri.parse('https://wa.me/$intl?text=$msg'), mode: LaunchMode.externalApplication);
+                                            }
+                                          : () => updateOrderStatus(shopId, order.orderId, prevStatus),
                                     ),
                                   ),
                                 );
