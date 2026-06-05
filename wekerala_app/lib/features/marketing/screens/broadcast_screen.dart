@@ -61,7 +61,7 @@ class _BroadcastScreenState extends ConsumerState<BroadcastScreen> {
     ),
     _Template(
       label: '🕐 Store Hours',
-      body: 'Our store is open {hours}. Visit us at {url}',
+      body: '{shopName} is open {hours}. Visit: {url}',
     ),
     _Template(label: '💬 Custom', body: ''),
   ];

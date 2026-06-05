@@ -13,6 +13,7 @@ class LoyaltyScreen extends ConsumerStatefulWidget {
 class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> with SingleTickerProviderStateMixin {
   late TabController _tabs;
   String? _shopId;
+  String _shopName = '';
   bool _enabled = false;
   int _pointsPer100 = 10;
   int _minRedeem = 100;
@@ -34,6 +35,7 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> with SingleTicker
     final settings = Map<String, dynamic>.from(doc.data()['loyaltySettings'] as Map? ?? {});
     setState(() {
       _shopId = doc.id;
+      _shopName = doc.data()['shopName'] as String? ?? '';
       _enabled = settings['enabled'] == true;
       _pointsPer100 = settings['pointsPerHundred'] ?? 10;
       _minRedeem = settings['minRedeem'] ?? 100;
@@ -149,8 +151,8 @@ class _LoyaltyScreenState extends ConsumerState<LoyaltyScreen> with SingleTicker
                               final cleaned = phone.replaceAll(RegExp(r'\D'), '');
                               final number = cleaned.length == 10 ? '91$cleaned' : cleaned;
                               final msg = Uri.encodeComponent(
-                                'Hi ${d['name'] ?? 'there'}! You have $points loyalty points. '
-                                'Visit us to redeem them. Thank you for your support!',
+                                'Hi ${d['name'] ?? 'there'}! You have $points loyalty points at ${_shopName.isNotEmpty ? _shopName : 'our shop'}. '
+                                'Visit us to redeem them. Thank you for your support! 🙏',
                               );
                               launchUrl(
                                 Uri.parse('https://wa.me/$number?text=$msg'),

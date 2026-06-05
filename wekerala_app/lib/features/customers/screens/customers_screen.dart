@@ -304,6 +304,8 @@ class _CustomersBodyState extends ConsumerState<_CustomersBody> {
                   itemCount: displayed.length,
                   itemBuilder: (_, i) => _CustomerCard(
                     customer: displayed[i],
+                    shopName: ref.read(shopStreamProvider(widget.shopId)).maybeWhen(
+                      data: (s) => s.shopName, orElse: () => ''),
                   )
                       .animate()
                       .fadeIn(
@@ -370,9 +372,12 @@ class _CustomersDesktopTable extends StatelessWidget {
         rawPhone.startsWith('0') ? rawPhone.substring(1) : rawPhone;
     final countryPhone =
         phone.startsWith('91') ? phone : '91$phone';
+    final sn = ref.read(shopStreamProvider(widget.shopId)).maybeWhen(
+          data: (s) => s.shopName, orElse: () => '');
+    final shopLabel = sn.isNotEmpty ? sn : 'our shop';
 
     final message = Uri.encodeComponent(
-      'Hi $name! We miss you at our shop. '
+      'Hi $name! We miss you at $shopLabel. '
       "Here's a special 10% discount on your next order! "
       'Visit us soon 🙏',
     );
@@ -698,8 +703,9 @@ class _TopCustomerCard extends StatelessWidget {
 
 class _CustomerCard extends StatelessWidget {
   final CustomerModel customer;
+  final String shopName;
 
-  const _CustomerCard({required this.customer});
+  const _CustomerCard({required this.customer, this.shopName = ''});
 
   Color get _tagColor {
     switch (customer.tag) {
@@ -728,9 +734,10 @@ class _CustomerCard extends StatelessWidget {
         rawPhone.startsWith('0') ? rawPhone.substring(1) : rawPhone;
     final countryPhone =
         phone.startsWith('91') ? phone : '91$phone';
+    final shopLabel = shopName.isNotEmpty ? shopName : 'our shop';
 
     final message = Uri.encodeComponent(
-      'Hi $name! We miss you at our shop. '
+      'Hi $name! We miss you at $shopLabel. '
       "Here's a special 10% discount on your next order! "
       'Visit us soon 🙏',
     );

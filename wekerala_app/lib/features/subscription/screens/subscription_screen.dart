@@ -173,7 +173,11 @@ class _SubscriptionBodyState extends ConsumerState<_SubscriptionBody> {
   int _currentAmount(_Plan plan) => _isAnnual ? plan.annualPrice() : plan.price;
 
   String get _upiId => dotenv.get('SHOPLINK_UPI_ID', fallback: '');
-  String get _supportWhatsApp => dotenv.get('SUPPORT_WHATSAPP', fallback: '');
+  String get _supportWhatsApp {
+    final raw = dotenv.get('SUPPORT_WHATSAPP', fallback: '').replaceAll(RegExp(r'\D'), '');
+    if (raw.isEmpty) return '';
+    return raw.startsWith('91') ? raw : '91$raw';
+  }
   String get _razorpayKeyId => dotenv.get('RAZORPAY_KEY_ID', fallback: '');
 
   @override

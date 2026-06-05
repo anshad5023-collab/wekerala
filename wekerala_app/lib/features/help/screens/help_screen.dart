@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_config.dart';
 import '../../../providers/language_provider.dart';
 
 class HelpScreen extends ConsumerWidget {
@@ -51,7 +52,9 @@ class HelpScreen extends ConsumerWidget {
                   label: Text(t('help_whatsapp_support')),
                   onPressed: () {
                     final msg = Uri.encodeComponent(t('help_support_message'));
-                    launchUrl(Uri.parse('https://wa.me/919995000000?text=$msg'),
+                    final raw = AppConfig.supportWhatsApp.replaceAll(RegExp(r'\D'), '');
+                    final number = raw.startsWith('91') ? raw : '91$raw';
+                    launchUrl(Uri.parse('https://wa.me/$number?text=$msg'),
                         mode: LaunchMode.externalApplication);
                   },
                   style: ElevatedButton.styleFrom(
@@ -77,7 +80,7 @@ class HelpScreen extends ConsumerWidget {
         ['ഓർഡർ എങ്ങനെ confirm ചെയ്യും?', 'Orders ടാബ് തുറന്ന് ഓർഡർ tap ചെയ്ത് "Confirm Order" ബട്ടൺ ക്ലിക്ക് ചെയ്യുക.'],
         ['ഷോപ്പ് open/close ചെയ്യുന്നത് എങ്ങനെ?', 'ഡാഷ്ബോർഡിൽ ഷോപ്പ് നാമത്തിനു അടുത്ത് switch toggle ചെയ്ത് open/close ആക്കാം.'],
         ['പ്രൊഡക്ടുകൾ import ചെയ്യുന്നത് എങ്ങനെ?', 'Products ടാബിൽ Import ബട്ടൺ tap ചെയ്ത് Google Sheets ൽ നിന്ന് paste ചെയ്ത് import ചെയ്യാം.'],
-        ['Trial period എത്ര ദിവസം?', 'നിങ്ങൾക്ക് 30 ദിവസം free trial ലഭ്യമാണ്. കഴിഞ്ഞ back ₹99/month subscription ആവശ്യമാണ്.'],
+        ['Trial period എത്ര ദിവസം?', 'നിങ്ങൾക്ക് 30 ദിവസം free trial ലഭ്യമാണ്. അതിന് ശേഷം ₹349/month മുതൽ subscription ആവശ്യമാണ്.'],
         ['UPI ID എങ്ങനെ add ചെയ്യും?', 'Shop Settings → Payment Methods ൽ UPI ID enter ചെയ്യാം.'],
       ];
     }
@@ -86,7 +89,7 @@ class HelpScreen extends ConsumerWidget {
       ['How do I confirm an order?', 'Go to the Orders tab, tap the order, then tap "Confirm Order". You can track it through each step until delivery.'],
       ['How do I open or close my shop?', 'On the Dashboard, toggle the Open/Closed switch next to your shop name. When closed, customers cannot place new orders.'],
       ['How do I import products?', 'Go to the Products tab and tap Import. You can paste a product list or import from Google Sheets.'],
-      ['How long is the free trial?', 'You get 30 days free. After that, a ₹99/month subscription is required to keep your shop active.'],
+      ['How long is the free trial?', 'You get 30 days free. After that, plans start from ₹349/month to keep your shop active.'],
       ['How do I add my UPI ID?', 'Go to Shop Settings → Payment Methods and enter your UPI ID there.'],
     ];
   }

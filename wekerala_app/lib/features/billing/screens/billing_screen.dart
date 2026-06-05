@@ -366,7 +366,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
             _UpsellItem(text: 'Online store for your shop'),
             SizedBox(height: 8),
             Text(
-              'Only ₹999/month — billing is always FREE.',
+              'From ₹349/month — billing is always FREE.',
               style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 13,
