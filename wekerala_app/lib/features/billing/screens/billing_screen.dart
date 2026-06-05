@@ -103,7 +103,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     if (flashSale == null || !mounted) return;
     final pct = (flashSale['discountPercent'] as num?)?.toDouble() ?? 0;
     final name = flashSale['name'] as String? ?? 'Flash Sale';
-    final category = flashSale['targetCategory'] as String? ?? '';
+    final category = flashSale['applicableCategory'] as String? ?? '';
     if (pct > 0) {
       ref.read(billingProvider.notifier).applyFlashSale(pct, name, category);
     }
