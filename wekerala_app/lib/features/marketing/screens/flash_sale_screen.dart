@@ -170,6 +170,17 @@ class _FlashSaleScreenState extends ConsumerState<FlashSaleScreen> {
               const SizedBox(height: 8),
               Row(children: [
                 Expanded(child: OutlinedButton.icon(
+                  icon: const Icon(Icons.play_arrow_outlined),
+                  label: Text('Starts: ${startTime.day}/${startTime.month} ${startTime.hour}:${startTime.minute.toString().padLeft(2,'0')}'),
+                  onPressed: () async {
+                    final d = await showDatePicker(context: ctx, initialDate: startTime, firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 30)));
+                    if (d == null || !ctx.mounted) return;
+                    final t = await showTimePicker(context: ctx, initialTime: TimeOfDay.fromDateTime(startTime));
+                    if (t != null) setS(() => startTime = DateTime(d.year, d.month, d.day, t.hour, t.minute));
+                  },
+                )),
+                const SizedBox(width: 8),
+                Expanded(child: OutlinedButton.icon(
                   icon: const Icon(Icons.schedule),
                   label: Text('Ends: ${endTime.day}/${endTime.month} ${endTime.hour}:${endTime.minute.toString().padLeft(2,'0')}'),
                   onPressed: () async {

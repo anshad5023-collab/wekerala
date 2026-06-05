@@ -283,6 +283,7 @@ class _CreditTile extends StatelessWidget {
             style: const TextStyle(
                 fontWeight: FontWeight.w600, color: AppColors.error)),
         subtitle: Text(
+            'Since ${DateFormat('d MMM yy').format(credit.createdAt)} · '
             'Total: ₹${credit.amount.toStringAsFixed(0)} · Paid: ₹${credit.paidAmount.toStringAsFixed(0)}',
             style: const TextStyle(fontSize: 11)),
         trailing: Container(

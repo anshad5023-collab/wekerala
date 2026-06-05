@@ -96,6 +96,27 @@ class _BroadcastScreenState extends ConsumerState<BroadcastScreen> {
       return;
     }
 
+    // Confirm before sending to avoid accidental broadcasts
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Send Broadcast?'),
+        content: Text(
+          'This will send your message to customers via WhatsApp. '
+          'This cannot be undone.\n\nMessage preview:\n\n"${message.substring(0, message.length.clamp(0, 100))}${message.length > 100 ? '...' : ''}"',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+            child: const Text('Send'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
     setState(() => _sending = true);
     try {
       final callable = FirebaseFunctions.instance.httpsCallable('sendBroadcast');
