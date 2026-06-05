@@ -1822,11 +1822,18 @@ class _ExpiryAlertsCard extends ConsumerWidget {
           onTap: () => GoRouter.of(context).push('/billing'),
         ),
         _FeatureCard(
-          icon: Icons.mic_outlined,
-          title: 'Voice Order',
-          subtitle: 'Take orders by voice',
-          color: const Color(0xFF7B1FA2),
-          onTap: () => GoRouter.of(context).push('/voice-order'),
+          icon: Icons.local_fire_department_outlined,
+          title: "Today's Special",
+          subtitle: 'Set discount on daily specials',
+          color: const Color(0xFFFC8019),
+          onTap: () => GoRouter.of(context).push('/flash-sale'),
+        ),
+        _FeatureCard(
+          icon: Icons.bar_chart_outlined,
+          title: 'Sales Report',
+          subtitle: 'Daily/weekly revenue overview',
+          color: const Color(0xFF1565C0),
+          onTap: () => GoRouter.of(context).push('/analytics'),
         ),
       ];
     }
@@ -1917,6 +1924,13 @@ class _ExpiryAlertsCard extends ConsumerWidget {
           subtitle: 'Low-stock high-value items',
           color: const Color(0xFFF57F17),
           onTap: () => GoRouter.of(context).push('/stock-alerts'),
+        ),
+        _FeatureCard(
+          icon: Icons.people_outlined,
+          title: 'Customers',
+          subtitle: 'Purchase history & warranty',
+          color: const Color(0xFF7B1FA2),
+          onTap: () => GoRouter.of(context).push('/customers'),
         ),
         _FeatureCard(
           icon: Icons.people_outlined,
