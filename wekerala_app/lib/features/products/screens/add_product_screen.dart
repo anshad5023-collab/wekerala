@@ -571,15 +571,27 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                if (categories.isNotEmpty)
-                  DropdownButtonFormField<String>(
-                    value: _category.isEmpty ? null : _category,
-                    decoration: _inputDecoration(t('product_category')),
-                    items: categories
-                        .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                        .toList(),
-                    onChanged: (v) => setState(() => _category = v ?? ''),
+                TextFormField(
+                  controller: TextEditingController(text: _category)
+                    ..selection = TextSelection.fromPosition(TextPosition(offset: _category.length)),
+                  decoration: InputDecoration(
+                    labelText: t('product_category'),
+                    hintText: 'e.g. Vegetables, Medicines, Chicken',
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                    suffixIcon: categories.isNotEmpty
+                        ? PopupMenuButton<String>(
+                            icon: const Icon(Icons.arrow_drop_down),
+                            tooltip: 'Pick existing category',
+                            onSelected: (v) => setState(() => _category = v),
+                            itemBuilder: (_) => categories
+                                .map((c) => PopupMenuItem(value: c, child: Text(c)))
+                                .toList(),
+                          )
+                        : null,
                   ),
+                  onChanged: (v) => setState(() => _category = v),
+                ),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 16,
