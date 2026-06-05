@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 
-const APK_URL = '/api/download-app';
+const APK_URL = 'https://firebasestorage.googleapis.com/v0/b/shoplink-prod.firebasestorage.app/o/apk%2Fwekerala-latest.apk?alt=media';
 const WINDOWS_URL = 'https://firebasestorage.googleapis.com/v0/b/shoplink-prod.firebasestorage.app/o/releases%2Foratas-setup.exe?alt=media';
 
 const FEATURES = [
