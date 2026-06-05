@@ -75,6 +75,18 @@ async function sendWhatsApp(toPhone, message, shopData = null, retries = 2, usag
       return true;
     } catch (err) {
       const isLast = attempt === retries;
+      const errCode = err.response?.data?.error?.code;
+      // 131026 = recipient hasn't messaged in 24h, template required
+      // 131009 = parameter format does not match template
+      if (errCode === 131026 || errCode === 131009) {
+        console.warn(
+          `[WA/Meta] Template required (code ${errCode}) for ${e164}. ` +
+          `Recipient hasn't started a conversation recently. ` +
+          `Register a WhatsApp message template in Meta Business Manager ` +
+          `for proactive customer messages (Udhar reminders, order updates).`
+        );
+        return false; // no point retrying — needs a template
+      }
       console.error(`[WA/Meta] Error (attempt ${attempt + 1}):`, err.response?.data ?? err.message);
       if (!isLast) await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
     }
@@ -380,6 +392,8 @@ exports.onOrderCreated = onDocumentCreated(
       console.error(`[Order] No valid phone found for shop ${shopId}`);
       return;
     }
+    // Skip WhatsApp for Lite plan shops — they don't have WhatsApp API access
+    if (shop.plan === 'lite') return;
     // Preference check — New Order Alert is OFF by default (owners prefer in-app push)
     if (!isPrefOn(shop, 'newOrderAlert', false)) return;
 
@@ -398,7 +412,8 @@ exports.onOrderCreated = onDocumentCreated(
       `Type: ${deliveryEmoji} | Payment: ${paymentLabel}\n\n` +
       `Open weKerala app to confirm. ✅`;
 
-    await sendWhatsApp(ownerPhone, msg, null, 2, { shopId, type: 'utility' });
+    // Pass shop data so the shop's own WhatsApp Phone Number ID is used
+    await sendWhatsApp(ownerPhone, msg, shop, 2, { shopId, type: 'utility' });
 
     // Event-driven dashboard update — 1 write instead of polling every 5 minutes
     const orderTotal = order.totalAmount || order.total || 0;
@@ -431,6 +446,7 @@ exports.sendDailySalesSummary = onSchedule(
         const ownerPhone = shop.ownerPhone || shop.phoneNumber || shop.phone || shop.ownerWhatsApp || '';
 
         if (!ownerPhone || ownerPhone.length < 10) continue;
+        if (shop.plan === 'lite') continue; // Lite plan: no WhatsApp features
         if (!isPrefOn(shop, 'dailySummary', true)) continue;
 
         // Query today's bills
@@ -493,7 +509,7 @@ exports.sendDailySalesSummary = onSchedule(
           `⚠️ Low stock: ${lowStockList}\n\n` +
           `Powered by weKerala`;
 
-        await sendWhatsApp(ownerPhone, msg);
+        await sendWhatsApp(ownerPhone, msg, shop, 2, { shopId, type: 'utility' });
         console.log(`Daily summary sent for shop ${shopId}`);
       } catch (err) {
         console.error(`Error sending daily summary for shop ${shopDoc.id}:`, err.message);
@@ -740,7 +756,11 @@ exports.onOrderStatusChange = onDocumentUpdated(
 
       const db = getFirestore();
       const shopDoc = await db.collection('shops').doc(shopId).get();
-      const shopName = (shopDoc.data() && (shopDoc.data().shopName || shopDoc.data().name)) || 'Your Shop';
+      const shopData = shopDoc.data() || {};
+      const shopName = shopData.shopName || shopData.name || 'Your Shop';
+
+      // Skip WhatsApp for Lite plan shops
+      if (shopData.plan === 'lite') return null;
 
       const shopId2 = shopId; // alias for clarity inside template literal
       const preparingMsg = `👨‍🍳 *Order Being Prepared!*\n\nHi ${customerName}, your order at *${shopName}* is now being prepared.\n\nAlmost ready — hang tight! ⏱️`;
@@ -758,8 +778,8 @@ exports.onOrderStatusChange = onDocumentUpdated(
       if (!message) return null;
 
       try {
-        // Send WhatsApp to customer
-        await sendWhatsApp(customerPhone, message);
+        // Send WhatsApp to customer — pass shopData so correct Phone Number ID is used
+        await sendWhatsApp(customerPhone, message, shopData, 2, { shopId, type: 'utility' });
 
         // Also send browser push notification if customer opted in
         const webPushToken = after.webPushToken || '';
@@ -1417,6 +1437,27 @@ exports.sendBroadcast = onCall({ maxInstances: 1 }, async (request) => {
   if (!shopSnap.exists) throw new HttpsError('not-found', 'Shop not found');
   const shop = shopSnap.data();
 
+  // Lite plan: no broadcast access
+  if (shop.plan === 'lite') {
+    throw new HttpsError('permission-denied', 'Upgrade to Standard or higher to send broadcasts');
+  }
+
+  // Monthly marketing limit enforcement
+  const marketingLimits = { standard: 30, pro: 100, chain: 300 };
+  const limit = marketingLimits[shop.plan] ?? 0;
+  if (limit > 0) {
+    const month = new Date().toISOString().slice(0, 7);
+    const usageSnap = await db.doc(`shops/${shopId}/usage/${month}`).get();
+    const usedSoFar = usageSnap.exists ? (usageSnap.data().waMarketingCount || 0) : 0;
+    if (usedSoFar >= limit) {
+      throw new HttpsError(
+        'resource-exhausted',
+        `Monthly broadcast limit of ${limit} reached for your plan. ` +
+        `Upgrade to send more.`
+      );
+    }
+  }
+
   // Primary: customers collection (accurate, built from confirmed orders)
   const customersSnap = await db.collection('shops').doc(shopId).collection('customers').get();
   const phones = new Set();
@@ -1622,8 +1663,9 @@ exports.sendWinBackMessages = onSchedule(
       const shop = shopDoc.data();
       const shopId = shopDoc.id;
 
-      // Only message shops with an active WhatsApp subscription
+      // Win-back is marketing — Standard+ only, active subscription required
       if (shop.subscriptionStatus !== 'active') continue;
+      if (!shop.plan || shop.plan === 'lite' || shop.plan === 'trial') continue;
 
       const customersSnap = await db
         .collection('shops').doc(shopId)
@@ -1662,6 +1704,7 @@ exports.sendWinBackMessages = onSchedule(
       }
 
       if (shopSent > 0) {
+        await trackUsage(shopId, 'waMarketingCount', shopSent);
         console.log(`[WinBack] Sent ${shopSent} messages for shop ${shopId}`);
       }
     }

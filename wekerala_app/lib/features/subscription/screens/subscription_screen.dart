@@ -14,7 +14,10 @@ import '../../../providers/shop_provider.dart';
 class _Plan {
   final String id;
   final String label;
-  final int price;
+  final int price; // offer price
+  final int originalPrice; // strike-through price
+  final bool isPopular;
+  final String tagline;
   final Color color;
   final IconData icon;
   final String waInfo; // "" for Lite
@@ -25,12 +28,17 @@ class _Plan {
     required this.id,
     required this.label,
     required this.price,
+    required this.originalPrice,
+    this.isPopular = false,
+    required this.tagline,
     required this.color,
     required this.icon,
     required this.waInfo,
     required this.features,
     required this.lockedFeatures,
   });
+
+  int annualPrice() => price * 10; // pay 10 months, get 12
 }
 
 const _plans = [
@@ -38,6 +46,8 @@ const _plans = [
     id: 'lite',
     label: 'Lite',
     price: 349,
+    originalPrice: 499,
+    tagline: 'Perfect for shops just getting started',
     color: Color(0xFF607D8B),
     icon: Icons.storefront_outlined,
     waInfo: '',
@@ -59,6 +69,9 @@ const _plans = [
     id: 'standard',
     label: 'Standard',
     price: 799,
+    originalPrice: 999,
+    isPopular: true,
+    tagline: 'WhatsApp automation for growing shops',
     color: Color(0xFF1976D2),
     icon: Icons.chat_outlined,
     waInfo: '200 WhatsApp conversations/month\n30 broadcast sends/month',
@@ -75,6 +88,8 @@ const _plans = [
     id: 'pro',
     label: 'Pro',
     price: 1999,
+    originalPrice: 2499,
+    tagline: 'Scale your business with full automation',
     color: Color(0xFF2D6A4F),
     icon: Icons.rocket_launch_outlined,
     waInfo: '600 WhatsApp conversations/month\n100 broadcast sends/month',
@@ -92,6 +107,8 @@ const _plans = [
     id: 'chain',
     label: 'Chain',
     price: 4999,
+    originalPrice: 5999,
+    tagline: 'Multi-branch management at enterprise scale',
     color: Color(0xFF6A1B9A),
     icon: Icons.account_tree_outlined,
     waInfo: '2,000 WhatsApp conversations/month\n300 broadcast sends/month',
@@ -151,6 +168,9 @@ class _SubscriptionBodyState extends ConsumerState<_SubscriptionBody> {
   _Plan? _selectedPlan;
   Map<String, dynamic> _usage = {};
   bool _showAllPlans = false;
+  bool _isAnnual = false;
+
+  int _currentAmount(_Plan plan) => _isAnnual ? plan.annualPrice() : plan.price;
 
   String get _upiId => dotenv.get('SHOPLINK_UPI_ID', fallback: '');
   String get _supportWhatsApp => dotenv.get('SUPPORT_WHATSAPP', fallback: '');
@@ -182,15 +202,17 @@ class _SubscriptionBodyState extends ConsumerState<_SubscriptionBody> {
       );
       return;
     }
+    final amount = _currentAmount(plan);
+    final label = _isAnnual ? '${plan.label} Annual' : plan.label;
     final uri = Uri.parse(
-      'upi://pay?pa=$_upiId&pn=Oratas&am=${plan.price}&cu=INR'
-      '&tn=Oratas+${plan.label}+Plan',
+      'upi://pay?pa=$_upiId&pn=Oratas&am=$amount&cu=INR'
+      '&tn=Oratas+$label+Plan',
     );
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
       await Clipboard.setData(ClipboardData(text: _upiId));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('UPI ID copied: $_upiId — pay ₹${plan.price} in any UPI app')),
+          SnackBar(content: Text('UPI ID copied: $_upiId — pay ₹$amount in any UPI app')),
         );
       }
     }
@@ -203,7 +225,8 @@ class _SubscriptionBodyState extends ConsumerState<_SubscriptionBody> {
       final result = await callable.call<Map<Object?, Object?>>({
         'shopId': widget.shopId,
         'plan': plan.id,
-        'amount': plan.price,
+        'amount': _currentAmount(plan),
+        'isAnnual': _isAnnual,
       });
       final data = Map<String, dynamic>.from(result.data);
       final orderId = data['orderId'] as String? ?? '';
@@ -246,10 +269,13 @@ class _SubscriptionBodyState extends ConsumerState<_SubscriptionBody> {
         'subscriptionStatus': 'payment_pending',
         'paymentPendingAt': Timestamp.fromDate(DateTime.now()),
         'planRequested': plan.id,
+        'isAnnual': _isAnnual,
       });
+      final amount = _currentAmount(plan);
+      final billingCycle = _isAnnual ? 'annual' : 'monthly';
       if (_supportWhatsApp.isNotEmpty) {
         final msg = Uri.encodeComponent(
-          'Hi, I have paid ₹${plan.price} for Oratas ${plan.label} plan.\n'
+          'Hi, I have paid ₹$amount for Oratas ${plan.label} plan ($billingCycle).\n'
           'Shop ID: ${widget.shopId}\n'
           'Please activate my subscription.',
         );
@@ -287,6 +313,33 @@ class _SubscriptionBodyState extends ConsumerState<_SubscriptionBody> {
           return ListView(
             padding: const EdgeInsets.all(20),
             children: [
+              // Trial urgency banner
+              if (status == 'trial' && daysLeft <= 5 && daysLeft >= 0) ...[
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFF6B35), Color(0xFFFF8C42)],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(children: [
+                    const Text('⏰', style: TextStyle(fontSize: 22)),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(
+                          daysLeft == 0 ? 'Trial ends today!' : '$daysLeft day${daysLeft == 1 ? '' : 's'} left in your trial',
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                        ),
+                        const Text('Lock in the launch offer before prices go up.',
+                            style: TextStyle(color: Colors.white70, fontSize: 12)),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ],
               _StatusCard(status: status, daysLeft: daysLeft, plan: currentPlan),
               const SizedBox(height: 20),
 
@@ -309,15 +362,23 @@ class _SubscriptionBodyState extends ConsumerState<_SubscriptionBody> {
                 ),
                 if (_showAllPlans) ...[
                   const SizedBox(height: 16),
+                  _BillingToggle(
+                    isAnnual: _isAnnual,
+                    onToggle: (v) => setState(() => _isAnnual = v),
+                  ),
+                  const SizedBox(height: 12),
                   _PlanSelector(
                     currentPlanId: shop.plan,
                     selected: _selectedPlan,
+                    isAnnual: _isAnnual,
                     onSelect: (p) => setState(() => _selectedPlan = p),
                   ),
                   if (_selectedPlan != null && _selectedPlan!.id != shop.plan) ...[
                     const SizedBox(height: 16),
                     _PaymentSection(
                       plan: _selectedPlan!,
+                      isAnnual: _isAnnual,
+                      amount: _currentAmount(_selectedPlan!),
                       submitting: _submitting,
                       showRazorpay: _razorpayKeyId.isNotEmpty,
                       upiId: _upiId,
@@ -328,16 +389,24 @@ class _SubscriptionBodyState extends ConsumerState<_SubscriptionBody> {
                   ],
                 ],
               ] else ...[
-                // Trial or expired — show plan selection
+                // Trial or expired — show plan selection immediately
+                _BillingToggle(
+                  isAnnual: _isAnnual,
+                  onToggle: (v) => setState(() => _isAnnual = v),
+                ),
+                const SizedBox(height: 12),
                 _PlanSelector(
                   currentPlanId: shop.plan,
                   selected: _selectedPlan,
+                  isAnnual: _isAnnual,
                   onSelect: (p) => setState(() => _selectedPlan = p),
                 ),
                 const SizedBox(height: 20),
                 if (_selectedPlan != null) ...[
                   _PaymentSection(
                     plan: _selectedPlan!,
+                    isAnnual: _isAnnual,
+                    amount: _currentAmount(_selectedPlan!),
                     submitting: _submitting,
                     showRazorpay: _razorpayKeyId.isNotEmpty,
                     upiId: _upiId,
@@ -349,6 +418,8 @@ class _SubscriptionBodyState extends ConsumerState<_SubscriptionBody> {
                   _SelectPlanHint(),
                 ],
               ],
+              const SizedBox(height: 24),
+              _TrustBadges(),
               const SizedBox(height: 32),
             ],
           );
@@ -576,9 +647,14 @@ class _UsageMeter extends StatelessWidget {
 class _PlanSelector extends StatelessWidget {
   final String currentPlanId;
   final _Plan? selected;
+  final bool isAnnual;
   final ValueChanged<_Plan> onSelect;
-  const _PlanSelector(
-      {required this.currentPlanId, required this.selected, required this.onSelect});
+  const _PlanSelector({
+    required this.currentPlanId,
+    required this.selected,
+    required this.isAnnual,
+    required this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -596,6 +672,7 @@ class _PlanSelector extends StatelessWidget {
           plan: plan,
           isCurrent: isCurrent,
           isSelected: isSelected,
+          isAnnual: isAnnual,
           onTap: () => onSelect(plan),
         );
       }),
@@ -607,15 +684,22 @@ class _PlanCard extends StatelessWidget {
   final _Plan plan;
   final bool isCurrent;
   final bool isSelected;
+  final bool isAnnual;
   final VoidCallback onTap;
-  const _PlanCard(
-      {required this.plan,
-      required this.isCurrent,
-      required this.isSelected,
-      required this.onTap});
+  const _PlanCard({
+    required this.plan,
+    required this.isCurrent,
+    required this.isSelected,
+    required this.isAnnual,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final displayPrice = isAnnual ? plan.annualPrice() : plan.price;
+    final displayOriginal = isAnnual ? plan.originalPrice * 10 : plan.originalPrice;
+    final priceLabel = isAnnual ? '/year' : '/month';
+
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -628,17 +712,45 @@ class _PlanCard extends StatelessWidget {
               : AppColors.surface,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSelected ? plan.color : Colors.grey.shade200,
-            width: isSelected ? 2 : 1,
+            color: isSelected
+                ? plan.color
+                : plan.isPopular
+                    ? plan.color.withValues(alpha: 0.4)
+                    : Colors.grey.shade200,
+            width: isSelected || plan.isPopular ? 2 : 1,
           ),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // Popular badge (above card header)
+          if (plan.isPopular) ...[
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: plan.color,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.star_rounded, size: 13, color: Colors.white),
+                SizedBox(width: 4),
+                Text('Most Popular',
+                    style: TextStyle(
+                        color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+              ]),
+            ),
+          ],
           Row(children: [
             Icon(plan.icon, color: plan.color, size: 22),
             const SizedBox(width: 8),
-            Text(plan.label,
-                style: TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 16, color: plan.color)),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(plan.label,
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 16, color: plan.color)),
+                Text(plan.tagline,
+                    style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+              ]),
+            ),
             if (isCurrent) ...[
               const SizedBox(width: 8),
               Container(
@@ -654,15 +766,43 @@ class _PlanCard extends StatelessWidget {
                         fontWeight: FontWeight.bold)),
               ),
             ],
-            const Spacer(),
-            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-              Text('₹${plan.price}',
-                  style: TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.bold, color: plan.color)),
-              const Text('/month',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 11)),
-            ]),
           ]),
+          const SizedBox(height: 10),
+          // Price row with strike-through
+          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text('₹$displayPrice',
+                style: TextStyle(
+                    fontSize: 26, fontWeight: FontWeight.bold, color: plan.color)),
+            const SizedBox(width: 4),
+            Text(priceLabel,
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+            const SizedBox(width: 10),
+            Text('₹$displayOriginal',
+                style: const TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
+                    decoration: TextDecoration.lineThrough)),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFE0B2),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                'Save ₹${displayOriginal - displayPrice}',
+                style: const TextStyle(
+                    fontSize: 10, color: Color(0xFFE65100), fontWeight: FontWeight.bold),
+              ),
+            ),
+          ]),
+          if (isAnnual) ...[
+            const SizedBox(height: 2),
+            Text(
+              '₹${plan.price}/month × 10 months — 2 months FREE',
+              style: TextStyle(fontSize: 11, color: Colors.green.shade700),
+            ),
+          ],
           if (plan.waInfo.isNotEmpty) ...[
             const SizedBox(height: 8),
             Container(
@@ -718,6 +858,8 @@ class _PlanCard extends StatelessWidget {
 
 class _PaymentSection extends StatelessWidget {
   final _Plan plan;
+  final bool isAnnual;
+  final int amount;
   final bool submitting;
   final bool showRazorpay;
   final String upiId;
@@ -727,6 +869,8 @@ class _PaymentSection extends StatelessWidget {
 
   const _PaymentSection({
     required this.plan,
+    required this.isAnnual,
+    required this.amount,
     required this.submitting,
     required this.showRazorpay,
     required this.upiId,
@@ -737,6 +881,7 @@ class _PaymentSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cycleLabel = isAnnual ? 'year (2 months free!)' : 'month';
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Container(
         padding: const EdgeInsets.all(14),
@@ -749,8 +894,10 @@ class _PaymentSection extends StatelessWidget {
           Row(children: [
             const Icon(Icons.info_outline, size: 16, color: Colors.amber),
             const SizedBox(width: 6),
-            Text('Pay for ${plan.label} plan — ₹${plan.price}/month',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            Expanded(
+              child: Text('${plan.label} plan — ₹$amount/$cycleLabel',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            ),
           ]),
           const SizedBox(height: 8),
           const Text(
@@ -766,7 +913,7 @@ class _PaymentSection extends StatelessWidget {
         ElevatedButton.icon(
           icon: const Icon(Icons.credit_card_outlined, size: 20),
           label: Text(
-            submitting ? 'Loading...' : 'Pay ₹${plan.price}/month (Card / UPI / NetBanking)',
+            submitting ? 'Loading...' : 'Pay ₹$amount (Card / UPI / NetBanking)',
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
           ),
           onPressed: submitting ? null : onRazorpay,
@@ -792,7 +939,7 @@ class _PaymentSection extends StatelessWidget {
       ],
       ElevatedButton.icon(
         icon: const Icon(Icons.currency_rupee, size: 20),
-        label: Text('Pay ₹${plan.price} via UPI',
+        label: Text('Pay ₹$amount via UPI',
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
         onPressed: onUpi,
         style: ElevatedButton.styleFrom(
@@ -848,6 +995,127 @@ class _PaymentSection extends StatelessWidget {
             ]),
           ),
         ),
+    ]);
+  }
+}
+
+// ─── Billing toggle (monthly / annual) ───────────────────────────────────────
+
+class _BillingToggle extends StatelessWidget {
+  final bool isAnnual;
+  final ValueChanged<bool> onToggle;
+  const _BillingToggle({required this.isAnnual, required this.onToggle});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(30),
+      ),
+      child: Row(children: [
+        Expanded(
+          child: GestureDetector(
+            onTap: () => onToggle(false),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                color: !isAnnual ? Colors.white : Colors.transparent,
+                borderRadius: BorderRadius.circular(26),
+                boxShadow: !isAnnual
+                    ? [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 6)]
+                    : [],
+              ),
+              child: Center(
+                child: Text('Monthly',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: !isAnnual ? AppColors.primary : AppColors.textSecondary)),
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          child: GestureDetector(
+            onTap: () => onToggle(true),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                color: isAnnual ? Colors.white : Colors.transparent,
+                borderRadius: BorderRadius.circular(26),
+                boxShadow: isAnnual
+                    ? [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 6)]
+                    : [],
+              ),
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                Text('Annual',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                        color: isAnnual ? AppColors.primary : AppColors.textSecondary)),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade600,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text('2 FREE',
+                      style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
+// ─── Trust badges ─────────────────────────────────────────────────────────────
+
+class _TrustBadges extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(children: [
+        const Text('Why Kerala shops choose weKerala',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+        const SizedBox(height: 14),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+          _TrustBadge(icon: Icons.replay_rounded, label: '7-Day\nRefund'),
+          _TrustBadge(icon: Icons.cancel_outlined, label: 'Cancel\nAnytime'),
+          _TrustBadge(icon: Icons.store_outlined, label: '50+ Kerala\nShops'),
+          _TrustBadge(icon: Icons.support_agent_outlined, label: 'WhatsApp\nSupport'),
+        ]),
+      ]),
+    );
+  }
+}
+
+class _TrustBadge extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _TrustBadge({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      Icon(icon, size: 26, color: AppColors.primary),
+      const SizedBox(height: 4),
+      Text(label,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 10, color: AppColors.textSecondary, height: 1.3)),
     ]);
   }
 }
