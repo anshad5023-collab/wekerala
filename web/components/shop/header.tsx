@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
-import { ShoppingCart, Store } from 'lucide-react';
+import { ShoppingCart, Store, ChevronDown, Package, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCartStore } from '@/lib/cart-store';
 import { useAuthStore } from '@/lib/auth-store';
@@ -22,7 +22,17 @@ export function Header({ language, onLanguageToggle, onCartClick, shopName, shop
   const itemCount = useCartStore((state) => state.getItemCount());
   const { uid, phone, logout } = useAuthStore();
   const [showLogin, setShowLogin] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const displayName = language === 'ml' && shopNameMl ? shopNameMl : shopName;
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setShowUserMenu(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   return (
     <>
@@ -50,14 +60,36 @@ export function Header({ language, onLanguageToggle, onCartClick, shopName, shop
             </Button>
 
             {uid ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={logout}
-                className="rounded-full bg-white/10 px-3 text-xs font-medium text-primary-foreground hover:bg-white/20 hover:text-primary-foreground"
-              >
-                {phone?.replace('+91', '') ?? 'me'}
-              </Button>
+              <div ref={menuRef} className="relative">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowUserMenu((v) => !v)}
+                  className="rounded-full bg-white/10 px-3 text-xs font-medium text-primary-foreground hover:bg-white/20 hover:text-primary-foreground gap-1"
+                >
+                  {phone?.replace('+91', '') ?? 'me'}
+                  <ChevronDown className="h-3 w-3" />
+                </Button>
+                {showUserMenu && (
+                  <div className="absolute right-0 top-full mt-2 w-44 rounded-xl border border-border bg-white shadow-lg z-50 overflow-hidden">
+                    <a
+                      href="/customer/orders"
+                      className="flex items-center gap-2 px-4 py-3 text-sm text-foreground hover:bg-muted transition-colors"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      <Package className="h-4 w-4 text-primary" />
+                      My Orders
+                    </a>
+                    <button
+                      onClick={() => { logout(); setShowUserMenu(false); }}
+                      className="flex w-full items-center gap-2 px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Sign out
+                    </button>
+                  </div>
+                )}
+              </div>
             ) : (
               <Button
                 size="sm"
