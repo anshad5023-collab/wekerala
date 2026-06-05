@@ -188,6 +188,7 @@ class BillingNotifier extends Notifier<BillingState> {
         hsnCode: product.hsnCode,
         priceIncludesGst: product.priceIncludesGst,
         batchNumber: product.batchNumber,
+        tracksStock: product.stockQty != null, // false for services
       ));
     }
 
@@ -342,7 +343,7 @@ class BillingNotifier extends Notifier<BillingState> {
       // Variant items have productId = 'realId_variantId' — handle separately.
       final batch = FirebaseFirestore.instance.batch();
       for (final item in state.cartItems) {
-        if (item.productId.isEmpty) continue;
+        if (item.productId.isEmpty || !item.tracksStock) continue;
         final parts = item.productId.split('_');
         final realProductId = parts.first;
         final isVariant = parts.length > 1;

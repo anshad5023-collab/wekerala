@@ -12,6 +12,7 @@ class BillItemModel {
   final String? hsnCode;
   final bool priceIncludesGst;
   final String? batchNumber; // pharmacy dispensing record
+  final bool tracksStock; // false for services — skip stock decrement on billing
 
   const BillItemModel({
     required this.productId,
@@ -25,6 +26,7 @@ class BillItemModel {
     this.hsnCode,
     this.priceIncludesGst = true,
     this.batchNumber,
+    this.tracksStock = true,
   });
 
   BillItemModel copyWith({
@@ -39,6 +41,7 @@ class BillItemModel {
     Object? hsnCode = _billSentinel,
     bool? priceIncludesGst,
     Object? batchNumber = _billSentinel,
+    bool? tracksStock,
   }) {
     return BillItemModel(
       productId: productId ?? this.productId,
@@ -52,6 +55,7 @@ class BillItemModel {
       hsnCode: hsnCode == _billSentinel ? this.hsnCode : hsnCode as String?,
       priceIncludesGst: priceIncludesGst ?? this.priceIncludesGst,
       batchNumber: batchNumber == _billSentinel ? this.batchNumber : batchNumber as String?,
+      tracksStock: tracksStock ?? this.tracksStock,
     );
   }
 
@@ -68,6 +72,7 @@ class BillItemModel {
       hsnCode: map['hsnCode'] as String?,
       priceIncludesGst: (map['priceIncludesGst'] as bool?) ?? true,
       batchNumber: map['batchNumber'] as String?,
+      tracksStock: (map['tracksStock'] as bool?) ?? true,
     );
   }
 
