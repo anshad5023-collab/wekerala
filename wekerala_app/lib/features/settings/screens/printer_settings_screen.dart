@@ -35,8 +35,18 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
 
   Future<void> _loadPairedDevices() async {
     setState(() => _isLoading = true);
-    final devices = await PrintService.getPairedDevices();
-    if (mounted) setState(() { _devices = devices; _isLoading = false; });
+    try {
+      final devices = await PrintService.getPairedDevices()
+          .timeout(const Duration(seconds: 10));
+      if (mounted) setState(() { _devices = devices; _isLoading = false; });
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Bluetooth not responding. Make sure Bluetooth is on and try again.')),
+        );
+      }
+    }
   }
 
   Future<void> _connectToDevice(BluetoothInfo device) async {

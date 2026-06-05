@@ -300,7 +300,22 @@ class _ActionButtons extends StatelessWidget {
     return Column(
       children: [
         ElevatedButton(
-          onPressed: () => updateOrderStatus(shopId, order.orderId, next),
+          onPressed: () async {
+            try {
+              await updateOrderStatus(shopId, order.orderId, next);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Order moved to $nextLabel'), backgroundColor: AppColors.success),
+                );
+              }
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Update failed: $e'), backgroundColor: AppColors.error),
+                );
+              }
+            }
+          },
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,

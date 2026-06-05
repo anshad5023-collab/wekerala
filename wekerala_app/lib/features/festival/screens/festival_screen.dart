@@ -108,11 +108,18 @@ class _FestivalBodyState extends ConsumerState<_FestivalBody> {
       return;
     }
 
+    final groupLabel = _filter == _CustomerFilter.all
+        ? 'All Customers'
+        : _filter == _CustomerFilter.regular
+            ? 'Regular Customers'
+            : 'At-Risk Customers';
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: Text('Send to ${filtered.length} customers?'),
         content: Text(
+          'Group: $groupLabel\n\n'
           'WhatsApp will open for each customer one by one. '
           'After sending, return to the app and tap Next.',
         ),

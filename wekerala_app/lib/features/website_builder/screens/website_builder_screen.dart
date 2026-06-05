@@ -186,7 +186,25 @@ class _WebsiteBuilderScreenState extends State<WebsiteBuilderScreen>
     }
   }
 
-  void _discardDraft() {
+  Future<void> _discardDraft() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Discard Changes?'),
+        content: const Text('All AI suggestions will be lost. This cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep Draft'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Discard', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
     if (_isWebViewSupported) {
       _webViewController.runJavaScript(
         'window.__undoAiChanges && window.__undoAiChanges()',

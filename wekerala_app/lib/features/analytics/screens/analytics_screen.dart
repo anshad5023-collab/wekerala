@@ -104,6 +104,14 @@ ${_topProduct.isNotEmpty ? '🏆 Top Product: $_topProduct\n──────�
 
       final phone =
           (shop?.ownerWhatsApp ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+      if (phone.isEmpty && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('WhatsApp number not set — add it in Settings › Shop Details to send directly.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
       final url = phone.isNotEmpty
           ? 'https://wa.me/91$phone?text=$encoded'
           : 'https://wa.me/?text=$encoded';
@@ -502,7 +510,7 @@ class _AnalyticsContentState extends State<_AnalyticsContent> {
           ),
         ]),
         const SizedBox(height: 12),
-        _CompletionCard(rate: completionRate, t: widget.t),
+        _CompletionCard(rate: completionRate, t: widget.t, periodLabel: periodLabel),
         const SizedBox(height: 12),
         _SparklineChart(values: last7),
         const SizedBox(height: 16),
@@ -819,7 +827,8 @@ class _SparklineChart extends StatelessWidget {
 class _CompletionCard extends StatelessWidget {
   final double rate;
   final String Function(String) t;
-  const _CompletionCard({required this.rate, required this.t});
+  final String periodLabel;
+  const _CompletionCard({required this.rate, required this.t, required this.periodLabel});
 
   @override
   Widget build(BuildContext context) {
@@ -893,7 +902,7 @@ class _CompletionCard extends StatelessWidget {
               ]),
         ),
         const SizedBox(width: 12),
-        Text(t('analytics_this_month'),
+        Text(periodLabel,
             style: const TextStyle(
                 color: AppColors.textSecondary, fontSize: 11)),
       ]),
