@@ -2,6 +2,8 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import Image from 'next/image';
+import { ProductDetailSheet } from '@/components/shop/product-detail-sheet';
+import type { Product as AppProduct } from '@/lib/products';
 
 interface ShopData {
   shopName: string;
@@ -51,6 +53,22 @@ interface Props {
 }
 
 type CartState = { [productId: string]: number };
+
+// ─── Adapter ─────────────────────────────────────────────────────────────────
+
+function toAppProduct(p: Product): AppProduct {
+  return {
+    id: p.productId,
+    name: { en: p.name, ml: p.name },
+    price: p.price,
+    offerPrice: p.offerPrice ?? 0,
+    unit: 'perPiece',
+    category: p.category,
+    image: p.imageUrl ?? '',
+    isOutOfStock: p.isOutOfStock,
+    description: p.description,
+  };
+}
 
 // ─── VEG DETECTION ────────────────────────────────────────────────────────────
 const VEG_KEYWORDS = [
@@ -125,16 +143,17 @@ interface MenuItemCardProps {
   onAdd: () => void;
   onIncrease: () => void;
   onDecrease: () => void;
+  onProductClick?: (product: Product) => void;
 }
 
-function MenuItemCard({ product, qty, onAdd, onIncrease, onDecrease }: MenuItemCardProps) {
+function MenuItemCard({ product, qty, onAdd, onIncrease, onDecrease, onProductClick }: MenuItemCardProps) {
   const displayPrice = product.offerPrice > 0 ? product.offerPrice : product.price;
   const hasDiscount = product.offerPrice > 0 && product.offerPrice < product.price;
 
   return (
     <div className="flex items-start gap-3 py-4 px-4 border-b border-gray-100 bg-white">
       {/* LEFT */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onProductClick?.(product)}>
         <div className="flex items-start gap-1 mb-1">
           <VegIndicator product={product} />
           <span className="text-sm font-semibold text-gray-900 leading-tight">

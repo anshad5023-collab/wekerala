@@ -16,7 +16,7 @@ interface Product {
   unit: string; imageUrl: string; category: string; isOutOfStock: boolean;
   isFeatured?: boolean; isNew?: boolean; description?: string;
 }
-interface Props { config: WebsiteConfig; shop: ShopData; products: Product[]; shopId?: string }
+interface Props { config: WebsiteConfig; shop: ShopData; products: Product[]; shopId?: string; language?: 'en' | 'ml' }
 
 // Normalize phone to international format for wa.me URLs — adds 91 (India) if 10-digit
 function toWaNum(raw: string): string {
@@ -182,7 +182,7 @@ function ProductSearch({ value, onChange, primaryColor }: { value: string; onCha
 }
 
 // ── CLEAN (Modern) — fully responsive mobile + desktop ──────────────────────────
-function CleanLayout({ config, shop, products, shopId }: Props) {
+function CleanLayout({ config, shop, products, shopId, language = 'en' }: Props) {
   const p = config.primaryColor;
   const waNum = config.whatsappEnabled !== false ? toWaNum(config.whatsappNumber || shop.ownerPhone) : '';
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
@@ -216,7 +216,7 @@ function CleanLayout({ config, shop, products, shopId }: Props) {
               type="text"
               value={search}
               onChange={e => setSearch(e.target.value)}
-              placeholder="Search products…"
+              placeholder={language === 'ml' ? 'ഉൽപ്പന്നം തിരയുക…' : 'Search products…'}
               className="flex-1 text-sm outline-none bg-transparent text-gray-700 placeholder-gray-400"
             />
             {search && <button onClick={() => setSearch('')} className="text-gray-400 text-xs">✕</button>}
@@ -225,7 +225,7 @@ function CleanLayout({ config, shop, products, shopId }: Props) {
             <a href={`https://wa.me/${waNum}`} target="_blank" rel="noreferrer"
               className="hidden md:inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-white text-sm font-semibold shrink-0"
               style={{ backgroundColor: '#25D366' }}>
-              💬 {config.primaryButtonText || 'Order Now'}
+              💬 {config.primaryButtonText || (language === 'ml' ? 'ഓർഡർ ചെയ്യൂ' : 'Order Now')}
             </a>
           )}
         </div>
