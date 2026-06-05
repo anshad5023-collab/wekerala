@@ -623,10 +623,13 @@ Future<void> _showQuickStockUpdate(
                           'updatedAt': Timestamp.now(),
                         });
                     if (context.mounted) {
+                      final newPrice = double.tryParse(priceCtrl.text.trim()) ?? product.price;
+                      final priceChanged = newPrice != product.price;
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(
-                              'Updated: ${product.nameEn} → $newQty ${product.unit}'),
+                          content: Text(priceChanged
+                              ? 'Updated: ${product.nameEn} — ₹${newPrice.toStringAsFixed(0)}, $newQty ${product.unit}'
+                              : 'Updated: ${product.nameEn} → $newQty ${product.unit}'),
                           backgroundColor: AppColors.success,
                           behavior: SnackBarBehavior.floating,
                         ),
@@ -643,7 +646,7 @@ Future<void> _showQuickStockUpdate(
                     }
                   }
                 },
-                child: const Text('Save Stock'),
+                child: const Text('Save Changes'),
               ),
             ),
           ],
