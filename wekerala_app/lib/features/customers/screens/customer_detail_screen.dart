@@ -182,7 +182,7 @@ class CustomerDetailScreen extends ConsumerWidget {
                     children: [
                       const _SectionLabel('OUTSTANDING UDHAR'),
                       const SizedBox(height: 8),
-                      ...credits.map((c) => _CreditTile(credit: c)),
+                      ...credits.map((c) => _CreditTile(credit: c, shopId: shopId)),
                       const SizedBox(height: 20),
                     ],
                   );
@@ -263,7 +263,83 @@ class _SectionLabel extends StatelessWidget {
 
 class _CreditTile extends StatelessWidget {
   final CreditModel credit;
-  const _CreditTile({required this.credit});
+  final String shopId;
+  const _CreditTile({required this.credit, required this.shopId});
+
+  Future<void> _recordPayment(BuildContext context) async {
+    final outstanding = credit.outstanding;
+    final ctrl = TextEditingController(text: outstanding.toStringAsFixed(0));
+    final amount = await showDialog<double>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Record Payment'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Outstanding: ₹${outstanding.toStringAsFixed(0)}',
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Amount received (₹)',
+                prefixText: '₹ ',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () {
+              final v = double.tryParse(ctrl.text.trim());
+              if (v == null || v <= 0) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Enter a valid amount')),
+                );
+                return;
+              }
+              if (v > outstanding + 0.01) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Cannot exceed outstanding ₹${outstanding.toStringAsFixed(0)}')),
+                );
+                return;
+              }
+              Navigator.pop(context, v);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (amount == null) return;
+
+    final newPaid = credit.paidAmount + amount;
+    final newStatus = newPaid >= credit.amount - 0.01 ? 'paid' : 'partial';
+    await FirebaseFirestore.instance
+        .collection('shops').doc(shopId)
+        .collection('credits').doc(credit.creditId)
+        .update({
+      'paidAmount': newPaid,
+      'status': newStatus,
+    });
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(newStatus == 'paid'
+              ? '✓ Credit fully paid off!'
+              : '₹${amount.toStringAsFixed(0)} recorded. ₹${(credit.amount - newPaid).toStringAsFixed(0)} still outstanding.'),
+          backgroundColor: newStatus == 'paid' ? AppColors.success : null,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -275,28 +351,41 @@ class _CreditTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         side: BorderSide(color: AppColors.error.withValues(alpha: 0.2)),
       ),
-      child: ListTile(
-        dense: true,
-        leading: const Icon(Icons.account_balance_wallet_outlined,
-            color: AppColors.error, size: 20),
-        title: Text('₹${credit.outstanding.toStringAsFixed(0)} outstanding',
-            style: const TextStyle(
-                fontWeight: FontWeight.w600, color: AppColors.error)),
-        subtitle: Text(
-            'Since ${DateFormat('d MMM yy').format(credit.createdAt)} · '
-            'Total: ₹${credit.amount.toStringAsFixed(0)} · Paid: ₹${credit.paidAmount.toStringAsFixed(0)}',
-            style: const TextStyle(fontSize: 11)),
-        trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: AppColors.error.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(credit.status.toUpperCase(),
-              style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.error)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        child: Row(
+          children: [
+            const Icon(Icons.account_balance_wallet_outlined,
+                color: AppColors.error, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('₹${credit.outstanding.toStringAsFixed(0)} outstanding',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600, color: AppColors.error, fontSize: 13)),
+                  const SizedBox(height: 2),
+                  Text(
+                      'Since ${DateFormat('d MMM yy').format(credit.createdAt)} · '
+                      'Total: ₹${credit.amount.toStringAsFixed(0)} · Paid: ₹${credit.paidAmount.toStringAsFixed(0)}',
+                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton.icon(
+              onPressed: () => _recordPayment(context),
+              icon: const Icon(Icons.payments_outlined, size: 14),
+              label: const Text('Pay', style: TextStyle(fontSize: 12)),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.success,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
         ),
       ),
     );

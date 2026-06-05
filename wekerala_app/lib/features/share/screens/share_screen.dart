@@ -50,8 +50,9 @@ class _ShareBody extends ConsumerWidget {
         error: (e, _) => Center(child: Text(e.toString())),
         data: (shop) {
           // Use pretty slug URL if available (e.g. wekerala.vercel.app/shops/rajan-store)
-          final url = shop.shopSlug.isNotEmpty
-              ? 'https://wekerala.vercel.app/shops/${shop.shopSlug}'
+          final slug = shop.shopSlug.trim();
+          final url = slug.isNotEmpty
+              ? 'https://wekerala.vercel.app/shops/$slug'
               : '${AppConfig.storefrontBaseUrl}?shopId=$shopId';
           return ListView(
             padding: const EdgeInsets.all(20),
@@ -70,7 +71,8 @@ class _ShareBody extends ConsumerWidget {
                   child: Column(children: [
                     QrImageView(data: url, size: 200, backgroundColor: Colors.white),
                     const SizedBox(height: 8),
-                    Text(shop.shopName,
+                    Text(
+                        shop.shopName.isNotEmpty ? shop.shopName : 'My Shop',
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                     const SizedBox(height: 2),
                     Text(url,
@@ -128,10 +130,17 @@ class _ShareBody extends ConsumerWidget {
                 icon: const Icon(Icons.chat, color: Color(0xFF25D366)),
                 label: Text(t('share_whatsapp'),
                     style: const TextStyle(color: Color(0xFF25D366))),
-                onPressed: () {
+                onPressed: () async {
                   final msg = Uri.encodeComponent('${t('share_message')}\n$url');
-                  launchUrl(Uri.parse('https://wa.me/?text=$msg'),
-                      mode: LaunchMode.externalApplication);
+                  final launched = await launchUrl(
+                    Uri.parse('https://wa.me/?text=$msg'),
+                    mode: LaunchMode.externalApplication,
+                  );
+                  if (!launched && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Could not open WhatsApp. Is it installed?')),
+                    );
+                  }
                 },
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Color(0xFF25D366)),
