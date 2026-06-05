@@ -38,6 +38,8 @@ class _BillHistoryScreenState extends ConsumerState<BillHistoryScreen> {
     final now = DateTime.now();
     setState(() {
       _selectedPeriod = period;
+      _searchQuery = '';
+      _searchController.clear();
       switch (period) {
         case 'Today':
           _start = DateTime(now.year, now.month, now.day);

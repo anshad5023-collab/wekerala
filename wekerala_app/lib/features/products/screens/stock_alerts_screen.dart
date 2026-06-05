@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../models/product_model.dart';
@@ -52,10 +51,10 @@ class _StockAlertsBody extends ConsumerWidget {
 
     final now = DateTime.now();
     final thirtyDaysFromNow = now.add(const Duration(days: 30));
+    // Include both already-expired and expiring-soon products
     final expiringProducts = allProductsAsync.when(
       data: (products) => products
           .where((p) => p.expiryDate != null &&
-              p.expiryDate!.isAfter(now) &&
               p.expiryDate!.isBefore(thirtyDaysFromNow))
           .toList()
         ..sort((a, b) => a.expiryDate!.compareTo(b.expiryDate!)),
@@ -182,7 +181,7 @@ class _StockAlertsBody extends ConsumerWidget {
                                   color: Color(0xFFF57C00), size: 18),
                               const SizedBox(width: 6),
                               Text(
-                                'Expiring Soon (${expiringProducts.length})',
+                                'Expiring / Expired (${expiringProducts.length})',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 14,
@@ -281,6 +280,12 @@ class _StockAlertTile extends StatelessWidget {
             style: FilledButton.styleFrom(backgroundColor: AppColors.primary),
             onPressed: () {
               final qty = int.tryParse(controller.text.trim());
+              if (qty == null || qty < 0) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  const SnackBar(content: Text('Please enter a valid whole number (0 or more)')),
+                );
+                return;
+              }
               Navigator.of(ctx).pop(qty);
             },
             child: const Text('Save'),
@@ -429,6 +434,7 @@ class _ExpiryTile extends StatelessWidget {
 
   String _daysUntilExpiry() {
     final days = product.expiryDate!.difference(DateTime.now()).inDays;
+    if (days < 0) return 'EXPIRED ${-days} day${-days == 1 ? '' : 's'} ago!';
     if (days == 0) return 'Expires today!';
     if (days == 1) return 'Expires tomorrow';
     return 'Expires in $days days';
@@ -436,6 +442,7 @@ class _ExpiryTile extends StatelessWidget {
 
   Color _urgencyColor() {
     final days = product.expiryDate!.difference(DateTime.now()).inDays;
+    if (days < 0) return AppColors.error;
     if (days <= 3) return AppColors.error;
     if (days <= 7) return const Color(0xFFF57C00);
     return const Color(0xFF1976D2);
@@ -454,16 +461,18 @@ class _ExpiryTile extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
         ),
         child: Center(
-          child: Text(
-            '$days\nd',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w800,
-              fontSize: 12,
-              height: 1.1,
-            ),
-          ),
+          child: days < 0
+              ? Icon(Icons.warning_rounded, color: color, size: 22)
+              : Text(
+                  '$days\nd',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                    height: 1.1,
+                  ),
+                ),
         ),
       ),
       title: Text(product.nameEn,

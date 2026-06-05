@@ -13,8 +13,8 @@ import '../../../models/product_model.dart';
 class _KotItem {
   final String name;
   int qty = 1;
-  final String notes = '';
-  _KotItem({required this.name});
+  String notes = '';
+  _KotItem({required this.name, this.notes = ''});
 }
 
 class _KotOrder {
@@ -80,7 +80,10 @@ class _KotScreenState extends ConsumerState<KotScreen>
           if (_orders.any((o) => o.id == id)) continue;
           final rawItems = (d['items'] as List?)?.cast<Map>() ?? [];
           final items = rawItems.map((i) {
-            final item = _KotItem(name: i['name'] as String? ?? '');
+            final item = _KotItem(
+              name: i['name'] as String? ?? '',
+              notes: i['notes'] as String? ?? '',
+            );
             item.qty = (i['qty'] as int?) ?? 1;
             return item;
           }).toList();
@@ -167,6 +170,28 @@ class _KotScreenState extends ConsumerState<KotScreen>
     _syncToFirestore(order);
   }
 
+  Future<void> _clearServed() async {
+    final served = _servedOrders;
+    if (served.isEmpty) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Clear Served Orders?'),
+        content: Text('Remove ${served.length} served order${served.length == 1 ? '' : 's'} from this view. They remain saved in history.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _orders.removeWhere((o) => o.status == 'served'));
+  }
+
   List<_KotOrder> get _activeOrders =>
       _orders.where((o) => o.status != 'served').toList();
   List<_KotOrder> get _servedOrders =>
@@ -180,6 +205,18 @@ class _KotScreenState extends ConsumerState<KotScreen>
         title: const Text('Kitchen Orders (KOT)'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
+        actions: [
+          AnimatedBuilder(
+            animation: _tabController,
+            builder: (_, __) => _tabController.index == 1 && _servedOrders.isNotEmpty
+                ? IconButton(
+                    icon: const Icon(Icons.delete_sweep_outlined),
+                    tooltip: 'Clear served orders',
+                    onPressed: _clearServed,
+                  )
+                : const SizedBox.shrink(),
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           indicatorColor: Colors.white,
@@ -541,6 +578,31 @@ class _NewKotSheetState extends ConsumerState<_NewKotSheet> {
     });
   }
 
+  Future<void> _editItemNotes(_KotItem item) async {
+    final ctrl = TextEditingController(text: item.notes);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Notes for ${item.name}'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLength: 80,
+          decoration: const InputDecoration(
+            hintText: 'e.g. no onion, extra spicy...',
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, ctrl.text.trim()), child: const Text('Save')),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (result == null || !mounted) return;
+    setState(() => item.notes = result);
+  }
+
   @override
   Widget build(BuildContext context) {
     final shopAsync = ref.watch(activeShopIdProvider);
@@ -618,20 +680,42 @@ class _NewKotSheetState extends ConsumerState<_NewKotSheet> {
                 children: [
                   const Text('Order', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.textSecondary)),
                   const SizedBox(height: 6),
-                  ..._items.map((item) => Row(
+                  ..._items.map((item) => Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          GestureDetector(
-                            onTap: () => _removeItem(item),
-                            child: const Icon(Icons.remove_circle_outline, size: 18, color: AppColors.error),
+                          Row(
+                            children: [
+                              GestureDetector(
+                                onTap: () => _removeItem(item),
+                                child: const Icon(Icons.remove_circle_outline, size: 18, color: AppColors.error),
+                              ),
+                              const SizedBox(width: 6),
+                              Text('${item.qty}×', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                              const SizedBox(width: 4),
+                              Expanded(child: Text(item.name, style: const TextStyle(fontSize: 13))),
+                              GestureDetector(
+                                onTap: () => _editItemNotes(item),
+                                child: Icon(
+                                  Icons.note_alt_outlined,
+                                  size: 16,
+                                  color: item.notes.isNotEmpty ? AppColors.primary : Colors.grey.shade400,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              GestureDetector(
+                                onTap: () => _addItem(item.name),
+                                child: const Icon(Icons.add_circle_outline, size: 18, color: AppColors.primary),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 6),
-                          Text('${item.qty}×', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                          const SizedBox(width: 4),
-                          Expanded(child: Text(item.name, style: const TextStyle(fontSize: 13))),
-                          GestureDetector(
-                            onTap: () => _addItem(item.name),
-                            child: const Icon(Icons.add_circle_outline, size: 18, color: AppColors.primary),
-                          ),
+                          if (item.notes.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(left: 28, bottom: 2),
+                              child: Text(
+                                item.notes,
+                                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary, fontStyle: FontStyle.italic),
+                              ),
+                            ),
                         ],
                       )),
                 ],

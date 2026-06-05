@@ -38,6 +38,22 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
   }
 
   Future<void> _signOut() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Sign Out?'),
+        content: const Text('You will need to enter your phone number and OTP to sign back in.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
     await FirebaseAuth.instance.signOut();
     if (mounted) context.go('/login');
   }
@@ -104,6 +120,15 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
       ),
     );
     if (saved != null && saved.isNotEmpty) {
+      final emailRegex = RegExp(r'^[\w.+-]+@[\w-]+\.[a-z]{2,}$', caseSensitive: false);
+      if (!emailRegex.hasMatch(saved)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please enter a valid email address'), backgroundColor: AppColors.error),
+          );
+        }
+        return;
+      }
       try {
         await FirebaseAuth.instance.currentUser
             ?.verifyBeforeUpdateEmail(saved);
@@ -271,7 +296,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
                                       content: Text(
-                                          'Contact support at oratas4ai@gmail.com to upgrade.'),
+                                          'Contact support at ortas4ai@gmail.com to upgrade.'),
                                     ),
                                   );
                                 },
