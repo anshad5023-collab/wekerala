@@ -199,15 +199,21 @@ export function ShopViewById({ shopId }: { shopId: string }) {
       <Header shopName={shopData.shopName} shopNameMl={shopData.shopNameMl} logoUrl={shopData.logoUrl} language={language} onLanguageToggle={() => setLanguage(language === 'en' ? 'ml' : 'en')} onCartClick={() => setCurrentPage('cart')} />
       <div className="max-w-screen-xl mx-auto">
         <ShopBanner bannerImageUrl={shopData.bannerImageUrl} promotionalBanner={shopData.promotionalBanner} deliveryTimeEstimate={shopData.deliveryTimeEstimate} minOrderAmount={shopData.minOrderAmount} deliveryCharge={shopData.deliveryCharge} isOpen={shopData.isOpen} language={language} />
-        {/* Shop address + Maps link — shown if owner set it in settings */}
-        {shopData.address && (
+        {/* Shop contact bar — address, Maps link, WhatsApp contact */}
+        {(shopData.address || shopData.ownerWhatsApp) && (
           <div className="flex items-center gap-1.5 px-4 py-2 text-xs text-muted-foreground border-b border-border bg-muted/30">
-            <span>📍</span>
-            <span className="flex-1">{shopData.address}</span>
+            {shopData.address && <><span>📍</span><span className="flex-1 truncate">{shopData.address}</span></>}
             {shopData.googleMapsLink && (
               <a href={shopData.googleMapsLink} target="_blank" rel="noopener noreferrer"
                  className="text-blue-600 underline font-medium whitespace-nowrap">
-                Get Directions
+                Directions
+              </a>
+            )}
+            {shopData.ownerWhatsApp && (
+              <a href={`https://wa.me/${shopData.ownerWhatsApp.replace(/\D/g, '')}?text=Hi, I have a question about your shop`}
+                 target="_blank" rel="noopener noreferrer"
+                 className="flex items-center gap-0.5 text-green-600 font-semibold whitespace-nowrap">
+                <span>💬</span> Chat
               </a>
             )}
           </div>
