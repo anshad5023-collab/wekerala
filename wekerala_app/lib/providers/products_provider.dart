@@ -99,6 +99,13 @@ class ProductRepository {
       batch.set(_col(shopId).doc(p.productId), p.toFirestore());
     }
     await batch.commit();
+    // Auto-register all new categories into shop.categories
+    final newCategories = products.map((p) => p.category).where((c) => c.isNotEmpty).toSet().toList();
+    if (newCategories.isNotEmpty) {
+      await FirebaseFirestore.instance.collection('shops').doc(shopId).update({
+        'categories': FieldValue.arrayUnion(newCategories),
+      });
+    }
   }
 }
 
