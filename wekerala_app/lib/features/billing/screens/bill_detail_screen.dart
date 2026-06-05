@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -44,6 +45,16 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
         backgroundColor: _bill.isVoided ? Colors.red.shade700 : AppColors.primary,
         foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.copy_outlined),
+            tooltip: 'Copy invoice ID',
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: shortId));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('$shortId copied'), duration: const Duration(seconds: 2)),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.share),
             tooltip: 'Share bill',
@@ -506,18 +517,21 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
     final dateStr = DateFormat('d MMM yyyy, hh:mm a').format(bill.createdAt);
     final subject = Uri.encodeComponent('Receipt $invoiceId – $dateStr');
     final body = Uri.encodeComponent(_formatBillText(bill).replaceAll('*', ''));
-    final email = bill.customerPhone.isNotEmpty ? '' : '';
+    // Opens email compose — recipient left blank since email isn't stored on bills
     launchUrl(
-      Uri.parse('mailto:$email?subject=$subject&body=$body'),
+      Uri.parse('mailto:?subject=$subject&body=$body'),
       mode: LaunchMode.externalApplication,
     );
   }
   void _shareOnWhatsApp(BillModel bill) {
     final text = Uri.encodeComponent(_formatBillText(bill));
-    launchUrl(
-      Uri.parse('https://wa.me/?text=$text'),
-      mode: LaunchMode.externalApplication,
-    );
+    // If we know the customer's number, open chat with them directly
+    final phone = bill.customerPhone.replaceAll(RegExp(r'\D'), '');
+    final number = phone.length == 10 ? '91$phone' : (phone.length == 12 ? phone : '');
+    final url = number.isNotEmpty
+        ? 'https://wa.me/$number?text=$text'
+        : 'https://wa.me/?text=$text';
+    launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
   }
 
   String _formatBillText(BillModel bill) {

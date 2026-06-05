@@ -338,7 +338,8 @@ class _VoiceOrderScreenState extends ConsumerState<VoiceOrderScreen> {
       final orderId = ordersRef.doc().id;
 
       final now = DateTime.now();
-      final orderNumber = (now.millisecondsSinceEpoch % 100000).toInt();
+      // Derive order number from the collision-free Firestore doc ID
+      final orderNumber = (orderId.hashCode.abs() % 90000) + 10000;
 
       final items = _parsedItems
           .where((e) => e.name.isNotEmpty)
@@ -695,7 +696,7 @@ class _ItemsSection extends StatelessWidget {
               style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
             ),
           )
-        else
+        else ...[
           ...List.generate(items.length, (i) {
             return _ItemRow(
               nameCtl: nameCtls[i],
@@ -707,6 +708,25 @@ class _ItemsSection extends StatelessWidget {
               onUnitChanged: (u) => onUnitChanged(i, u),
             );
           }),
+          // Running subtotal — lets owner verify total before saving
+          if (items.any((e) => e.price > 0)) ...[
+            const Divider(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                const Text('Estimated Total: ',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                Text(
+                  '₹${items.fold<double>(0, (s, e) => s + e.price * e.qty).toStringAsFixed(2)}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      color: AppColors.primary),
+                ),
+              ],
+            ),
+          ],
+        ],
       ],
     );
   }

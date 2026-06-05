@@ -54,6 +54,11 @@ class _Gstr1ScreenState extends ConsumerState<Gstr1Screen> {
     final shopName = shop?.shopName ?? '';
     final gstin = shop?.gstin ?? '';
 
+    final now = DateTime.now();
+    final isFuture = _selectedYear > now.year ||
+        (_selectedYear == now.year && _selectedMonth > now.month);
+    final isCurrent = _selectedYear == now.year && _selectedMonth == now.month;
+
     return Column(
       children: [
         _PeriodSelector(
@@ -64,12 +69,63 @@ class _Gstr1ScreenState extends ConsumerState<Gstr1Screen> {
             _selectedYear = y;
           }),
         ),
+        // GSTIN missing warning
+        if (gstin.isEmpty)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.shade300),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700, size: 18),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'GSTIN not set — go to Settings › Shop Details to add it before filing.',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        // Future/current month warning
+        if (isFuture || isCurrent)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.blue.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.blue.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.blue.shade700, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    isFuture
+                        ? 'This is a future period — GSTR-1 can only be filed for completed months.'
+                        : 'This month is not yet complete. Re-generate before filing.',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ],
+            ),
+          ),
         Expanded(
           child: billsAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Center(child: Text('Error: $e')),
             data: (bills) => _GstrReport(
               bills: bills.where((b) => !b.isVoided).toList(),
+              voidedBills: bills.where((b) => b.isVoided).toList(),
               month: _selectedMonth,
               year: _selectedYear,
               shopName: shopName,
@@ -145,6 +201,7 @@ class _PeriodSelector extends StatelessWidget {
 
 class _GstrReport extends StatelessWidget {
   final List<BillModel> bills;
+  final List<BillModel> voidedBills;
   final int month;
   final int year;
   final String shopName;
@@ -152,6 +209,7 @@ class _GstrReport extends StatelessWidget {
 
   const _GstrReport({
     required this.bills,
+    required this.voidedBills,
     required this.month,
     required this.year,
     required this.shopName,
@@ -294,6 +352,51 @@ class _GstrReport extends StatelessWidget {
                     style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
                 Text('₹${_exemptSales.toStringAsFixed(2)}',
                     style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+
+        // ── Credit Notes (Voided bills) ──────────────────────────────────────
+        if (voidedBills.isNotEmpty) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.red.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.cancel_outlined, color: Colors.red.shade700, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Credit Notes (Voided Bills)',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: Colors.red.shade700),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('${voidedBills.length} voided bill(s)',
+                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    Text(
+                      '−₹${voidedBills.fold(0.0, (s, b) => s + b.finalAmount).toStringAsFixed(2)}',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.red.shade700),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Report these as credit notes when filing GSTR-1.',
+                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                ),
               ],
             ),
           ),

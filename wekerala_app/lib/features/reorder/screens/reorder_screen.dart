@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/gemini_service.dart';
@@ -49,7 +50,31 @@ class _ReorderBody extends ConsumerStatefulWidget {
 class _ReorderBodyState extends ConsumerState<_ReorderBody> {
   bool _askingGemini = false;
   String? _suggestion;
-  final Set<String> _orderedProductIds = {};
+  Set<String> _orderedProductIds = {};
+
+  // SharedPreferences key scoped to today + shop so it auto-expires next day
+  String get _prefsKey {
+    final today = DateTime.now();
+    return 'reorder_ordered_${widget.shopId}_${today.year}_${today.month}_${today.day}';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOrderedState();
+  }
+
+  Future<void> _loadOrderedState() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getStringList(_prefsKey) ?? [];
+    if (mounted) setState(() => _orderedProductIds = stored.toSet());
+  }
+
+  Future<void> _markOrdered(String productId) async {
+    setState(() => _orderedProductIds.add(productId));
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_prefsKey, _orderedProductIds.toList());
+  }
 
   Future<void> _askGemini(List<ProductModel> products, Map<String, int> salesMap) async {
     setState(() { _askingGemini = true; _suggestion = null; });
@@ -329,9 +354,7 @@ class _ReorderBodyState extends ConsumerState<_ReorderBody> {
                     product: p,
                     weekSales: weekSales,
                     isOrdered: _orderedProductIds.contains(p.productId),
-                    onMarkOrdered: () => setState(() {
-                      _orderedProductIds.add(p.productId);
-                    }),
+                    onMarkOrdered: () => _markOrdered(p.productId),
                   ).animate().fadeIn(
                         duration: 250.ms,
                         delay: Duration(milliseconds: 40 + i * 30),

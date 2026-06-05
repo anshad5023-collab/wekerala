@@ -37,6 +37,18 @@ class _StaffManagementScreenState extends ConsumerState<StaffManagementScreen> {
   Future<void> _addStaff() async {
     final phone = _phoneCtrl.text.trim();
     if (phone.isEmpty) return;
+    // Validate 10-digit Indian mobile number
+    if (!RegExp(r'^[6-9]\d{9}$').hasMatch(phone)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Enter a valid 10-digit mobile number (starts with 6-9).'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+      return;
+    }
 
     setState(() => _adding = true);
     try {
@@ -97,8 +109,8 @@ class _StaffManagementScreenState extends ConsumerState<StaffManagementScreen> {
     final confirmed = await showDialog<bool>(
       context: ctx,
       builder: (_) => AlertDialog(
-        title: const Text('Remove Staff'),
-        content: Text('Remove $phone from staff?'),
+        title: const Text('Deactivate Staff'),
+        content: Text('Deactivate $phone? They will lose access to this shop. You can re-add them later.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -106,7 +118,7 @@ class _StaffManagementScreenState extends ConsumerState<StaffManagementScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Remove', style: TextStyle(color: Colors.red)),
+            child: const Text('Deactivate', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -115,10 +127,14 @@ class _StaffManagementScreenState extends ConsumerState<StaffManagementScreen> {
     if (confirmed != true) return;
 
     try {
-      await _staffCol.doc(uid).delete();
+      // Soft-delete: mark inactive so bill history attribution is preserved
+      await _staffCol.doc(uid).update({
+        'isActive': false,
+        'deactivatedAt': FieldValue.serverTimestamp(),
+      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Staff member removed.')),
+          const SnackBar(content: Text('Staff member deactivated.')),
         );
       }
     } catch (e) {
@@ -180,7 +196,10 @@ class _StaffManagementScreenState extends ConsumerState<StaffManagementScreen> {
             return const ShimmerList(itemCount: 5);
           }
 
-          final docs = snapshot.data?.docs ?? [];
+          // Filter out soft-deleted (inactive) staff client-side
+          final docs = (snapshot.data?.docs ?? [])
+              .where((d) => d.data()['isActive'] != false)
+              .toList();
 
           if (docs.isEmpty) {
             return Center(
