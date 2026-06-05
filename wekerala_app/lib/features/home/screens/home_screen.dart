@@ -1903,7 +1903,33 @@ class _ExpiryAlertsCard extends ConsumerWidget {
       ];
     }
 
-    if (isMeat || isBakery) {
+    if (isMeat) {
+      return [
+        _FeatureCard(
+          icon: Icons.warning_amber_outlined,
+          title: 'Expiry Alerts',
+          subtitle: 'Track perishable stock',
+          color: const Color(0xFFE53935),
+          onTap: () => GoRouter.of(context).push('/stock-alerts'),
+        ),
+        _FeatureCard(
+          icon: Icons.price_change_outlined,
+          title: 'Products',
+          subtitle: 'Update today\'s prices',
+          color: const Color(0xFFE65100),
+          onTap: () => GoRouter.of(context).push('/products'),
+        ),
+        _FeatureCard(
+          icon: Icons.mic_outlined,
+          title: 'Voice Order',
+          subtitle: 'Hands-free entry',
+          color: const Color(0xFF7B1FA2),
+          onTap: () => GoRouter.of(context).push('/voice-order'),
+        ),
+      ];
+    }
+
+    if (isBakery) {
       return [
         _FeatureCard(
           icon: Icons.warning_amber_outlined,
