@@ -124,9 +124,10 @@ export function ProductDetailSheet({ product, language, onClose }: ProductDetail
             </div>
           )}
 
-          {/* Add / stepper */}
+          {/* Add / stepper — hidden when product has variants (use variant buttons above) */}
           <div className="mt-5">
             {quantity === 0 ? (
+              product.hasVariants && product.variants && product.variants.length > 0 ? null : (
               <Button
                 onClick={() => addItem(product)}
                 disabled={product.isOutOfStock}
@@ -134,7 +135,7 @@ export function ProductDetailSheet({ product, language, onClose }: ProductDetail
                 size="lg"
               >
                 + {t.addButton}
-              </Button>
+              </Button>))
             ) : (
               <div className="flex h-12 items-center justify-between rounded-xl border-2 border-primary bg-primary/5">
                 <Button
