@@ -179,6 +179,13 @@ service cloud.firestore {
       allow write: if false; // Cloud Functions admin SDK only
     }
 
+    // Community product catalog — built from barcode scans across all shops
+    // Any signed-in user can read; write only when authenticated (to prevent spam)
+    match /product_catalog/{barcode} {
+      allow read: if true; // public — barcode lookup works even before login
+      allow write: if signedIn(); // any shop owner can contribute
+    }
+
     // Phase 11/15 listing collections
     match /services/{docId} {
       allow read: if true;
