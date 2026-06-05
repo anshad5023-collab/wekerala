@@ -272,7 +272,7 @@ function CleanLayout({ config, shop, products, shopId, language = 'en' }: Props)
             <div className="flex items-center gap-2 rounded-xl border bg-white px-3 py-2" style={{ borderColor: `${p}30` }}>
               <span className="text-gray-400 text-sm">🔍</span>
               <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Search products…"
+                placeholder={language === 'ml' ? 'ഉൽപ്പന്നം തിരയുക…' : 'Search products…'}
                 className="flex-1 text-sm outline-none bg-transparent text-gray-700 placeholder-gray-400" />
               {search && <button onClick={() => setSearch('')} className="text-gray-400 text-xs">✕</button>}
             </div>
@@ -294,7 +294,7 @@ function CleanLayout({ config, shop, products, shopId, language = 'en' }: Props)
           {/* Bestsellers row */}
           {has('products') && products.some(pr => pr.isFeatured) && !search && activeCat === 'All' && (
             <div className="px-4 pt-3 pb-2">
-              <h3 className="font-bold text-sm mb-3" style={{ color: p }}>⭐ Bestsellers</h3>
+              <h3 className="font-bold text-sm mb-3" style={{ color: p }}>⭐ {language === 'ml' ? 'ബെസ്റ്റ്സെല്ലർ' : 'Bestsellers'}</h3>
               <div className="flex gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
                 {products.filter(pr => pr.isFeatured).map(pr => (
                   <div key={pr.productId} className="wk-card shrink-0 w-28 border border-gray-100 rounded-xl overflow-hidden bg-white shadow-sm">
