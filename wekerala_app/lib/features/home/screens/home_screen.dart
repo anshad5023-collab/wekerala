@@ -1978,10 +1978,17 @@ class _ExpiryAlertsCard extends ConsumerWidget {
     if (isBakery) {
       return [
         _FeatureCard(
+          icon: Icons.shopping_bag_outlined,
+          title: 'Pre-Orders',
+          subtitle: 'Cakes & event orders',
+          color: const Color(0xFFE53935),
+          onTap: () => context.switchTab(1),
+        ),
+        _FeatureCard(
           icon: Icons.warning_amber_outlined,
           title: 'Expiry Alerts',
-          subtitle: 'Track perishable items',
-          color: const Color(0xFFE53935),
+          subtitle: 'Fresh items near expiry',
+          color: const Color(0xFFFC8019),
           onTap: () => GoRouter.of(context).push('/stock-alerts'),
         ),
         _FeatureCard(
@@ -2001,7 +2008,7 @@ class _ExpiryAlertsCard extends ConsumerWidget {
       ];
     }
 
-    // Default — grocery / general
+    // Default — grocery / general shop
     return [
       _FeatureCard(
         icon: Icons.auto_awesome_outlined,
@@ -2016,6 +2023,13 @@ class _ExpiryAlertsCard extends ConsumerWidget {
         subtitle: 'Never run out of stock',
         color: const Color(0xFFE53935),
         onTap: () => GoRouter.of(context).push('/stock-alerts'),
+      ),
+      _FeatureCard(
+        icon: Icons.people_outlined,
+        title: 'Customers',
+        subtitle: 'Regulars & udhar accounts',
+        color: const Color(0xFF7B1FA2),
+        onTap: () => GoRouter.of(context).push('/customers'),
       ),
       _FeatureCard(
         icon: Icons.account_balance_outlined,
