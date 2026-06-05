@@ -242,7 +242,6 @@ class ProductLookupService {
     'chocolates': ['Snacks'],
     'confectionery': ['Snacks'],
     'candy': ['Snacks'],
-    'sugar': ['Snacks'],
     'vegetables': ['Vegetables'],
     'fruits': ['Fruits'],
     'cereals': ['Grocery Staples'],

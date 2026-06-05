@@ -318,7 +318,10 @@ class _CustomersBodyState extends ConsumerState<_CustomersBody> {
           // ── Desktop DataTable ────────────────────────────────────────────
           final desktopTable = displayed.isEmpty
               ? _EmptyState(hasCustomers: allCustomers.isNotEmpty)
-              : _CustomersDesktopTable(customers: displayed);
+              : _CustomersDesktopTable(
+                  customers: displayed,
+                  shopName: ref.read(shopStreamProvider(widget.shopId)).maybeWhen(
+                    data: (s) => s.shopName, orElse: () => ''));
 
           return AdaptiveLayout(
             // ── MOBILE layout ──────────────────────────────────────────
@@ -347,8 +350,9 @@ class _CustomersBodyState extends ConsumerState<_CustomersBody> {
 
 class _CustomersDesktopTable extends StatelessWidget {
   final List<CustomerModel> customers;
+  final String shopName;
 
-  const _CustomersDesktopTable({required this.customers});
+  const _CustomersDesktopTable({required this.customers, this.shopName = ''});
 
   Color _tagColor(String tag) {
     switch (tag) {
@@ -372,9 +376,7 @@ class _CustomersDesktopTable extends StatelessWidget {
         rawPhone.startsWith('0') ? rawPhone.substring(1) : rawPhone;
     final countryPhone =
         phone.startsWith('91') ? phone : '91$phone';
-    final sn = ref.read(shopStreamProvider(widget.shopId)).maybeWhen(
-          data: (s) => s.shopName, orElse: () => '');
-    final shopLabel = sn.isNotEmpty ? sn : 'our shop';
+    final shopLabel = shopName.isNotEmpty ? shopName : 'our shop';
 
     final message = Uri.encodeComponent(
       'Hi $name! We miss you at $shopLabel. '
