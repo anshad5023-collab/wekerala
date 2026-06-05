@@ -233,7 +233,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           _GreetingRow(shopName: shopName, greeting: greeting, dateStr: dateStr)
               .animate()
               .fadeIn(duration: 400.ms),
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
+
+          // Setup guide for new owners (auto-hides when products are added)
+          _FirstUseTipsCard(shopId: shopId).animate().fadeIn(duration: 400.ms),
+
+          const SizedBox(height: 8),
 
           // Row 1 — Hero KPI tile: Today's Revenue (full width)
           _HeroRevenueTile(revenue: totalTodayRevenue, yesterday: _yesterdayRevenue)
