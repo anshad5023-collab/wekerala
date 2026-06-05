@@ -115,14 +115,25 @@ export async function PATCH(req: NextRequest) {
 async function decrementStock(shopId: string, items: Array<{ productId?: string; qty?: number }>) {
   try {
     const { getAdminDb } = await import('@/lib/firebase-admin');
+    const { FieldValue } = await import('firebase-admin/firestore');
     const db = getAdminDb();
     const batch = db.batch();
     for (const item of items) {
       if (!item.productId || !item.qty) continue;
       const ref = db.collection('shops').doc(shopId).collection('products').doc(item.productId);
-      batch.update(ref, { stockQty: require('firebase-admin/firestore').FieldValue.increment(-item.qty) });
+      batch.update(ref, { stockQty: FieldValue.increment(-item.qty), orderCount: FieldValue.increment(item.qty) });
     }
     await batch.commit();
+    // Auto-mark out of stock when stock hits zero
+    for (const item of items) {
+      if (!item.productId) continue;
+      const ref = db.collection('shops').doc(shopId).collection('products').doc(item.productId);
+      const snap = await ref.get();
+      if (snap.exists) {
+        const qty = (snap.data()?.stockQty as number) ?? 1;
+        if (qty <= 0) await ref.update({ isOutOfStock: true });
+      }
+    }
   } catch (e) {
     console.error('[Stock] Decrement failed:', e);
   }
