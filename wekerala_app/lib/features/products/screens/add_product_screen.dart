@@ -539,6 +539,16 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
+                  controller: _searchAliasCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Search Aliases (optional)',
+                    hintText: 'e.g. paracetamol, fever tablet (comma-separated)',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
                   controller: _descriptionCtrl,
                   maxLines: 3,
                   decoration: const InputDecoration(
