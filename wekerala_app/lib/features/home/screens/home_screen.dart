@@ -1772,6 +1772,33 @@ class _ExpiryAlertsCard extends ConsumerWidget {
     final isFancy      = type.contains('fancy') || type.contains('gift') || type.contains('stationery');
     final isTextile    = type.contains('textile') || type.contains('fabric') || type.contains('clothing');
     final isElectronics = type.contains('electronic') || type.contains('hardware') || type.contains('mobile');
+    final isVegFruit    = type.contains('veg') || type.contains('vegetable') || type.contains('fruit');
+
+    if (isVegFruit) {
+      return [
+        _FeatureCard(
+          icon: Icons.price_change_outlined,
+          title: 'Products',
+          subtitle: 'Update today\'s prices',
+          color: const Color(0xFF388E3C),
+          onTap: () => GoRouter.of(context).push('/products'),
+        ),
+        _FeatureCard(
+          icon: Icons.warning_amber_outlined,
+          title: 'Stock Alerts',
+          subtitle: 'Track perishables',
+          color: const Color(0xFFE53935),
+          onTap: () => GoRouter.of(context).push('/stock-alerts'),
+        ),
+        _FeatureCard(
+          icon: Icons.auto_awesome_outlined,
+          title: 'Reorder AI',
+          subtitle: 'What to stock this week',
+          color: const Color(0xFF8D6E63),
+          onTap: () => GoRouter.of(context).push('/reorder'),
+        ),
+      ];
+    }
 
     if (isRestaurant) {
       return [
