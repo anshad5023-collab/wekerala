@@ -210,7 +210,7 @@
   "share_button": "Share Link",
   "share_whatsapp": "Share on WhatsApp",
   "share_link_copied": "Link copied!",
-  "share_message": "🛍️ Order groceries online from our shop! Fast delivery, easy payment.\n\n",
+  "share_message": "🛍️ Order online from {shopName}! Fast delivery, easy payment.\n\n",
 
   "help_title": "Help & FAQ",
   "help_faq_section": "Frequently Asked Questions",

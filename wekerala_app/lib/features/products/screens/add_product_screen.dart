@@ -186,7 +186,14 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       _applyLookup(data);
     } else {
       setState(() => _loadingImage = false);
-      _showError('Barcode not found. Enter details manually.');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Barcode not in database. Try AI photo scan?'),
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'Scan Photo',
+          onPressed: _scanPhoto,
+        ),
+      ));
     }
   }
 
@@ -214,7 +221,14 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       _applyLookup(data);
     } else {
       setState(() => _loadingImage = false);
-      _showError('Product not found in database. Enter details manually.');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Barcode not in database. Try AI photo scan?'),
+        duration: const Duration(seconds: 5),
+        action: SnackBarAction(
+          label: 'Scan Photo',
+          onPressed: _scanPhoto,
+        ),
+      ));
     }
   }
 

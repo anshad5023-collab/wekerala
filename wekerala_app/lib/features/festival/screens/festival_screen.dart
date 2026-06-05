@@ -65,10 +65,21 @@ class _FestivalBodyState extends ConsumerState<_FestivalBody> {
     super.dispose();
   }
 
+  String _resolvedShopName() {
+    final shopAsync = ref.read(shopStreamProvider(widget.shopId));
+    return shopAsync.maybeWhen(data: (s) => s.shopName, orElse: () => '');
+  }
+
+  String _applyShopName(String template) {
+    final name = _resolvedShopName();
+    return name.isNotEmpty ? template.replaceAll('{shopName}', name) : template;
+  }
+
   void _selectFestival(Festival f) {
     setState(() {
       _selected = f;
-      _msgCtrl.text = _useMalayalam ? f.templateMl : f.templateEn;
+      final template = _useMalayalam ? f.templateMl : f.templateEn;
+      _msgCtrl.text = _applyShopName(template);
     });
   }
 
@@ -76,7 +87,8 @@ class _FestivalBodyState extends ConsumerState<_FestivalBody> {
     setState(() {
       _useMalayalam = ml;
       if (_selected != null) {
-        _msgCtrl.text = ml ? _selected!.templateMl : _selected!.templateEn;
+        final template = ml ? _selected!.templateMl : _selected!.templateEn;
+        _msgCtrl.text = _applyShopName(template);
       }
     });
   }
@@ -310,12 +322,6 @@ class _FestivalBodyState extends ConsumerState<_FestivalBody> {
                           TextStyle(color: AppColors.textSecondary, fontSize: 13),
                     ),
                   ),
-                ),
-
-                const SizedBox(height: 8),
-                const Text(
-                  'Tip: Replace {shopName} with your actual shop name.',
-                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
                 ),
 
                 const SizedBox(height: 24),

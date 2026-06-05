@@ -116,7 +116,7 @@ class _ShareBody extends ConsumerWidget {
                 icon: const Icon(Icons.share),
                 label: Text(t('share_button')),
                 onPressed: () => Share.share(
-                    '${t('share_message')}\n$url',
+                    '${t('share_message').replaceAll('{shopName}', shop.shopName)}\n$url',
                     subject: shop.shopName),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
@@ -131,7 +131,7 @@ class _ShareBody extends ConsumerWidget {
                 label: Text(t('share_whatsapp'),
                     style: const TextStyle(color: Color(0xFF25D366))),
                 onPressed: () async {
-                  final msg = Uri.encodeComponent('${t('share_message')}\n$url');
+                  final msg = Uri.encodeComponent('${t('share_message').replaceAll('{shopName}', shop.shopName)}\n$url');
                   final launched = await launchUrl(
                     Uri.parse('https://wa.me/?text=$msg'),
                     mode: LaunchMode.externalApplication,
