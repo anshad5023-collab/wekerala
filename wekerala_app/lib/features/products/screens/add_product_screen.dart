@@ -551,6 +551,16 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
+                TextFormField(
+                  controller: _batchNumberCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Batch Number (optional — for pharmacy/dairy)',
+                    hintText: 'e.g. BATCH-2024-001',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+                const SizedBox(height: 12),
                 if (categories.isNotEmpty)
                   DropdownButtonFormField<String>(
                     value: _category.isEmpty ? null : _category,
