@@ -160,14 +160,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/kot', builder: (_, __) => const KotScreen()),
       GoRoute(
         path: '/bills/:billId',
-        builder: (_, state) => BillDetailScreen(bill: state.extra as BillModel),
+        builder: (_, state) {
+          final bill = state.extra;
+          if (bill is! BillModel) {
+            // Deep link without data object: fall back to bill history
+            return const BillHistoryScreen();
+          }
+          return BillDetailScreen(bill: bill);
+        },
       ),
       GoRoute(path: '/customers', builder: (_, __) => const CustomersScreen()),
         GoRoute(
           path: '/customers/detail',
-          builder: (_, state) => CustomerDetailScreen(
-            customer: state.extra! as CustomerModel,
-          ),
+          builder: (_, state) {
+            final customer = state.extra;
+            if (customer is! CustomerModel) {
+              // Deep link without data object: fall back to customers list
+              return const CustomersScreen();
+            }
+            return CustomerDetailScreen(customer: customer);
+          },
         ),
       GoRoute(path: '/suppliers', builder: (_, __) => const SuppliersListScreen()),
       GoRoute(
@@ -186,9 +198,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/suppliers/:supplierId',
-        builder: (_, state) => SupplierDetailScreen(
-          supplier: state.extra as SupplierModel,
-        ),
+        builder: (_, state) {
+          final supplier = state.extra;
+          if (supplier is! SupplierModel) {
+            // Deep link without data object: fall back to suppliers list
+            return const SuppliersListScreen();
+          }
+          return SupplierDetailScreen(supplier: supplier);
+        },
       ),
       GoRoute(path: '/voice-order', builder: (_, __) => const VoiceOrderScreen()),
       GoRoute(path: '/reorder', builder: (_, __) => const ReorderScreen()),

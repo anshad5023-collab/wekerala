@@ -136,7 +136,9 @@ class AuthNotifier extends Notifier<AuthState> {
         {'language': lang},
         SetOptions(merge: true),
       );
-    } catch (_) {}
+    } catch (e, st) {
+      debugPrint('AuthProvider: language sync failed: $e\n$st');
+    }
     state = state.copyWith(status: AuthStatus.authenticated);
   }
 

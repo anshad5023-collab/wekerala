@@ -335,7 +335,7 @@ function CleanLayout({ config, shop, products, shopId, language = 'en' }: Props)
                           {hasOffer && <span className="absolute bottom-1.5 left-1.5 text-xs font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">{discPct}% OFF</span>}
                           {pr.isOutOfStock && (
                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                              <span className="text-white text-xs font-bold bg-black/60 px-2 py-1 rounded">Out of Stock</span>
+                              <span className="text-white text-xs font-bold bg-black/60 px-2 py-1 rounded">{language === 'ml' ? 'സ്റ്റോക്കില്ല' : 'Out of Stock'}</span>
                             </div>
                           )}
                         </div>
@@ -359,7 +359,7 @@ function CleanLayout({ config, shop, products, shopId, language = 'en' }: Props)
           {/* About & Contact sections */}
           {has('about') && (
             <section className="mx-4 mt-6 px-6 py-8 bg-white rounded-xl border border-gray-100">
-              <h2 className="font-semibold text-lg mb-2" style={{ color: p }}>About Us</h2>
+              <h2 className="font-semibold text-lg mb-2" style={{ color: p }}>{language === 'ml' ? 'ഞങ്ങളെക്കുറിച്ച്' : 'About Us'}</h2>
               <p className="text-gray-600">{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
               {config.storeHoursEnabled && config.storeHoursText && (
                 <p className="text-sm text-gray-500 mt-3">🕐 {config.storeHoursText}</p>
@@ -368,7 +368,7 @@ function CleanLayout({ config, shop, products, shopId, language = 'en' }: Props)
           )}
           {has('contact') && (
             <section className="mx-4 mt-4 px-6 py-8 bg-white rounded-xl border border-gray-100">
-              <h2 className="font-semibold text-lg mb-3" style={{ color: p }}>Contact</h2>
+              <h2 className="font-semibold text-lg mb-3" style={{ color: p }}>{language === 'ml' ? 'ബന്ധപ്പെടുക' : 'Contact'}</h2>
               <p className="text-gray-600">{shop.district}, Kerala</p>
               {shop.ownerPhone && <p className="text-gray-600 mt-1">📞 {shop.ownerPhone}</p>}
               <div className="mt-4"><WABtn config={config} shop={shop} /></div>
@@ -1425,7 +1425,7 @@ function PolicyFooter({ config, shopId }: { config: WebsiteConfig; shopId?: stri
 }
 
 // ── MAIN RENDERER ────────────────────────────────────────────────────────────────
-export default function ThemeRenderer({ config, shop, products, shopId }: Props) {
+export default function ThemeRenderer({ config, shop, products, shopId, language }: Props) {
   const theme = getTheme(config.themeId);
   const font = config.fontFamily || theme.defaults.fontFamily;
   const fontUrl = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(font).replace(/%20/g, '+')}:wght@400;500;600;700&display=swap`;
@@ -1435,8 +1435,7 @@ export default function ThemeRenderer({ config, shop, products, shopId }: Props)
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: `@import url('${fontUrl}'); * { font-family: '${font}', sans-serif; }` }} />
-      <AnnouncementBar config={config} />
-      {theme.layout === 'clean' && <CleanLayout {...layoutProps} />}
+      {theme.layout === 'clean' && <CleanLayout {...layoutProps} language={language ?? 'en'} />}
       {theme.layout === 'dark' && <DarkLayout {...layoutProps} />}
       {theme.layout === 'warm' && <WarmLayout {...layoutProps} />}
       {theme.layout === 'neopop' && <NeopopLayout {...layoutProps} />}

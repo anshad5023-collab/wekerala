@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const PROJECT_ID = (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? 'shoplink-prod').replace(/^﻿/, '');
-const API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? 'AIzaSyCFB9YZL3_bXjvRMoWaYFv8nTs_ote52GQ';
+const API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? '';
+if (!API_KEY) {
+  console.error('[publish] NEXT_PUBLIC_FIREBASE_API_KEY is not set');
+}
 const BASE_REST = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 
 // ─── Firestore value types ────────────────────────────────────────────────────
