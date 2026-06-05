@@ -26,7 +26,14 @@ export function SearchOverlay({
   products,
 }: SearchOverlayProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [showFilters, setShowFilters] = useState(true);
+
+  // Debounce search input by 200ms to avoid filtering on every keystroke
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery), 200);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
   const t = translations[language];
 
   const {
@@ -48,27 +55,30 @@ export function SearchOverlay({
   // Filter products based on search, category, price, and variants
   const filteredProducts = useMemo(() => {
     return products.filter((product) => {
-      // Category filter
-      const matchesCategory = activeCategory === 'all' || product.category === activeCategory;
-      
-      // Search filter
-      const q = searchQuery.toLowerCase();
+      // When a search query is active, search across ALL categories
+      // so customers find products regardless of miscategorisation
+      const matchesCategory = debouncedQuery
+        ? true
+        : activeCategory === 'all' || product.category === activeCategory;
+
+      // Search filter (uses debounced value for performance)
+      const q = debouncedQuery.toLowerCase();
       const matchesSearch =
-        searchQuery === '' ||
+        debouncedQuery === '' ||
         product.name.en.toLowerCase().includes(q) ||
         product.name.ml.toLowerCase().includes(q) ||
         (product.searchAlias ?? '').toLowerCase().includes(q);
-      
+
       // Price filter
       let matchesPrice = true;
       if (activePriceFilter) {
         const { min, max } = activePriceFilter;
         matchesPrice = product.price >= min && (max === null || product.price <= max);
       }
-      
+
       return matchesCategory && matchesSearch && matchesPrice;
     });
-  }, [activeCategory, searchQuery, activePriceFilter]);
+  }, [activeCategory, debouncedQuery, activePriceFilter]);
 
   const handleApply = () => {
     onApplyFilters(searchQuery);
