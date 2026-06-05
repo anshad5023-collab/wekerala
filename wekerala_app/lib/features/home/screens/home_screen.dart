@@ -73,20 +73,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           .orderBy('createdAt', descending: true)
           .get();
 
-      final creditsSnap = await FirebaseFirestore.instance
+      // Use aggregation to compute outstanding — 1 read instead of N reads
+      final creditsAgg = await FirebaseFirestore.instance
           .collection('shops')
           .doc(shopId)
           .collection('credits')
           .where('status', whereIn: ['open', 'partial'])
+          .aggregate(sum('amount'), sum('paidAmount'))
           .get();
-
-      // Compute udhar owed.
-      double owed = 0;
-      for (final d in creditsSnap.docs) {
-        final amount = (d.data()['amount'] as num?)?.toDouble() ?? 0;
-        final paid = (d.data()['paidAmount'] as num?)?.toDouble() ?? 0;
-        owed += (amount - paid);
-      }
+      final totalCreditAmount = creditsAgg.getSum('amount') ?? 0.0;
+      final totalCreditPaid = creditsAgg.getSum('paidAmount') ?? 0.0;
+      final owed = totalCreditAmount - totalCreditPaid;
 
       // Compute today's revenue from delivered orders and pending order count.
       final today = DateTime.now();

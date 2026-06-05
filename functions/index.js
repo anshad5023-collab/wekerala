@@ -28,7 +28,22 @@ const RAZORPAY_WEBHOOK_SECRET = defineString('RAZORPAY_WEBHOOK_SECRET', { defaul
  * Uses the per-shop whatsappPhoneNumberId if set; falls back to platform META_PHONE_NUMBER_ID.
  * Each shop owner adds their own Phone Number ID in Settings → WhatsApp Notifications.
  */
-async function sendWhatsApp(toPhone, message, shopData = null, retries = 2) {
+// Atomically increments a usage counter for a shop in the current month.
+// metric: 'waUtilityCount' | 'waMarketingCount' | 'aiScansUsed' | 'billsCreated'
+async function trackUsage(shopId, metric, count = 1) {
+  if (!shopId || !metric) return;
+  try {
+    const month = new Date().toISOString().slice(0, 7); // e.g. "2026-06"
+    await getFirestore()
+      .doc(`shops/${shopId}/usage/${month}`)
+      .set({ [metric]: FieldValue.increment(count) }, { merge: true });
+  } catch (e) {
+    console.error('[trackUsage]', e.message);
+  }
+}
+
+// usageOpts: optional { shopId: string, type: 'utility' | 'marketing' }
+async function sendWhatsApp(toPhone, message, shopData = null, retries = 2, usageOpts = null) {
   const digits = toPhone.replace(/\D/g, '');
   const e164 = digits.startsWith('91') && digits.length === 12
     ? digits : `91${digits.slice(-10)}`;
@@ -52,6 +67,11 @@ async function sendWhatsApp(toPhone, message, shopData = null, retries = 2) {
         }
       );
       console.log(`[WA/Meta] Sent to ${e164}: ${resp.status}`);
+      // Track usage per shop per month
+      if (usageOpts?.shopId && usageOpts?.type) {
+        const metric = usageOpts.type === 'marketing' ? 'waMarketingCount' : 'waUtilityCount';
+        trackUsage(usageOpts.shopId, metric).catch(() => {}); // fire-and-forget
+      }
       return true;
     } catch (err) {
       const isLast = attempt === retries;
@@ -378,7 +398,18 @@ exports.onOrderCreated = onDocumentCreated(
       `Type: ${deliveryEmoji} | Payment: ${paymentLabel}\n\n` +
       `Open weKerala app to confirm. ✅`;
 
-    await sendWhatsApp(ownerPhone, msg);
+    await sendWhatsApp(ownerPhone, msg, null, 2, { shopId, type: 'utility' });
+
+    // Event-driven dashboard update — 1 write instead of polling every 5 minutes
+    const orderTotal = order.totalAmount || order.total || 0;
+    const month = new Date().toISOString().slice(0, 7);
+    await db.doc(`merchantDashboards/${shopId}`).set({
+      pendingOrders: FieldValue.increment(1),
+      todayOrderCount: FieldValue.increment(1),
+      todaySales: FieldValue.increment(orderTotal),
+      lastUpdated: FieldValue.serverTimestamp(),
+      month,
+    }, { merge: true });
   }
 );
 
@@ -545,14 +576,33 @@ exports.sendUdharReminders = onSchedule(
 
             // Send reminder to customer if due soon or overdue
             if ((isDueSoon || isOverdue) && customerPhone && customerPhone.length >= 10) {
-              const customerMsg =
-                `🔔 Payment Reminder\n\n` +
-                `Hi ${customerName}, your Udhar at *${shopName}* is pending.\n` +
-                `Amount: ₹${Math.round(outstanding)}\n` +
-                `Due: ${formattedDue}\n\n` +
-                `Please pay at your earliest convenience.`;
+              // FCM-first: check if customer has a web push token from the storefront PWA.
+              // If yes → free web push; if no → paid WhatsApp utility message.
+              const custDigits = customerPhone.replace(/\D/g, '').slice(-10);
+              const custSnap = await db
+                .collection('shops').doc(shopId)
+                .collection('customers').doc(custDigits)
+                .get();
+              const webPushToken = custSnap.data()?.webPushToken || null;
 
-              await sendWhatsApp(customerPhone, customerMsg);
+              if (webPushToken) {
+                // Free FCM web push — no WhatsApp cost
+                await sendWebPush(
+                  webPushToken,
+                  `Payment Reminder — ${shopName}`,
+                  `Hi ${customerName}, ₹${Math.round(outstanding)} is due. Tap to pay.`,
+                  { shopId }
+                );
+              } else {
+                const customerMsg =
+                  `🔔 Payment Reminder\n\n` +
+                  `Hi ${customerName}, your Udhar at *${shopName}* is pending.\n` +
+                  `Amount: ₹${Math.round(outstanding)}\n` +
+                  `Due: ${formattedDue}\n\n` +
+                  `Please pay at your earliest convenience.`;
+
+                await sendWhatsApp(customerPhone, customerMsg, null, 2, { shopId, type: 'utility' });
+              }
             }
 
             // Track overdue credits for owner summary
@@ -1406,6 +1456,9 @@ exports.sendBroadcast = onCall({ maxInstances: 1 }, async (request) => {
     }
   }
 
+  // Track marketing usage — each broadcast recipient = 1 marketing conversation
+  if (sent > 0) await trackUsage(shopId, 'waMarketingCount', sent);
+
   await db.collection('shops').doc(shopId).collection('broadcasts').add({
     message,
     sentAt: FieldValue.serverTimestamp(),
@@ -1661,4 +1714,20 @@ exports.sendTestWhatsApp = onCall({ maxInstances: 1 }, async (request) => {
 
   console.log(`[TestWA] Test message sent to ${ownerPhone} for shop ${shopId}`);
   return { success: true };
+});
+
+// ─── Function 20: Track Usage (callable) ─────────────────────────────────────
+// Flutter calls this to increment usage counters for AI scans, bills, etc.
+// WhatsApp sends are tracked automatically inside sendWhatsApp().
+// metric: 'aiScansUsed' | 'billsCreated' | 'waUtilityCount' | 'waMarketingCount'
+
+exports.trackUsageFn = onCall({ maxInstances: 10 }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Login required');
+  const { shopId, metric, count = 1 } = request.data;
+  if (!shopId || !metric) throw new HttpsError('invalid-argument', 'Missing shopId or metric');
+  if (!['aiScansUsed', 'billsCreated', 'waUtilityCount', 'waMarketingCount'].includes(metric)) {
+    throw new HttpsError('invalid-argument', 'Unknown metric');
+  }
+  await trackUsage(shopId, metric, count);
+  return { ok: true };
 });
