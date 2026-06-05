@@ -19,7 +19,7 @@ final _customerBillsProvider = FutureProvider.family<List<BillModel>,
       .collection('bills')
       .where('customerPhone', isEqualTo: args.phone)
       .orderBy('createdAt', descending: true)
-      .limit(30)
+      .limit(100)
       .get();
   return snap.docs.map(BillModel.fromFirestore).toList();
 });

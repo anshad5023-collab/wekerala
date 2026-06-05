@@ -672,12 +672,16 @@ final activeFlashSaleProvider =
       .snapshots()
       .map((snap) {
     final now = DateTime.now();
+    Map<String, dynamic>? best;
+    double bestPct = 0;
     for (final doc in snap.docs) {
       final d = doc.data();
       final end = (d['endTime'] as Timestamp?)?.toDate();
-      if (end != null && end.isAfter(now)) return d;
+      if (end == null || !end.isAfter(now)) continue;
+      final pct = ((d['discountPercent'] ?? 0) as num).toDouble();
+      if (pct > bestPct) { bestPct = pct; best = d; }
     }
-    return null;
+    return best;
   });
 });
 

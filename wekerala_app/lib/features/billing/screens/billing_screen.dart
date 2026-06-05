@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -85,6 +86,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
   bool _saving = false;
   double? _splitCashAmount;
   double? _splitUpiAmount;
+  int _redeemedLoyaltyPoints = 0;
 
   @override
   void initState() {
@@ -207,10 +209,21 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
       requireFields: method == 'udhar',
       initialNote: billNote,
       shopId: shopId,
-      onSubmit: (name, phone, note) {
+      onSubmit: (name, phone, note, loyaltyPointsRedeemed) {
         customerName = name;
         customerPhone = phone;
         billNote = note;
+        _redeemedLoyaltyPoints = loyaltyPointsRedeemed;
+        // Apply loyalty redemption as additional discount
+        if (loyaltyPointsRedeemed > 0) {
+          final shop = ref.read(shopStreamProvider(shopId)).valueOrNull;
+          final vpp = (shop?.loyaltySettings['valuePerPoint'] as num?)?.toDouble() ?? 0.5;
+          final loyaltyDiscount = loyaltyPointsRedeemed * vpp;
+          final existing = double.tryParse(_discountCtrl.text) ?? 0;
+          final combined = existing + loyaltyDiscount;
+          _discountCtrl.text = combined.toStringAsFixed(2);
+          ref.read(billingProvider.notifier).setDiscount(combined);
+        }
       },
     );
 
@@ -270,6 +283,15 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
       );
 
       if (!mounted) return;
+      // Deduct redeemed loyalty points from customer's balance
+      if (_redeemedLoyaltyPoints > 0 && customerPhone.isNotEmpty) {
+        FirebaseFirestore.instance
+            .collection('shops').doc(shopId)
+            .collection('customers').doc(customerPhone)
+            .update({'loyaltyPoints': FieldValue.increment(-_redeemedLoyaltyPoints)})
+            .ignore();
+        _redeemedLoyaltyPoints = 0;
+      }
       ref.read(billingProvider.notifier).clearCart();
       _discountCtrl.clear();
 
@@ -379,7 +401,7 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
   Future<bool> _showCustomerDialog(
     BuildContext context, {
     required bool requireFields,
-    required void Function(String name, String phone, String note) onSubmit,
+    required void Function(String name, String phone, String note, int loyaltyPointsRedeemed) onSubmit,
     String? shopId,
     String initialNote = '',
   }) async {
@@ -405,9 +427,20 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
       }
     }
 
+    // Loyalty settings from the shop document
+    final shop = shopId != null ? ref.read(shopStreamProvider(shopId)).valueOrNull : null;
+    final loyaltySettings = shop?.loyaltySettings ?? {};
+    final loyaltyEnabled = loyaltySettings['enabled'] == true;
+    final minRedeem = (loyaltySettings['minRedeem'] as num?)?.toInt() ?? 100;
+    final valuePerPoint = (loyaltySettings['valuePerPoint'] as num?)?.toDouble() ?? 0.5;
+
+    // Dialog-local state managed by StatefulBuilder
+    int dialogLoyaltyPoints = 0;
+    bool redeemLoyalty = false;
+
     final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setDlgState) => AlertDialog(
         backgroundColor: AppColors.background,
         title: Text(
           requireFields ? 'Udhar Customer Details' : 'Customer (Optional)',
@@ -513,6 +546,10 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                 onSelected: (customer) {
                   nameCtrl.text = customer.name;
                   phoneCtrl.text = customer.phone;
+                  setDlgState(() {
+                    dialogLoyaltyPoints = customer.loyaltyPoints;
+                    redeemLoyalty = false;
+                  });
                 },
               ),
               const SizedBox(height: 12),
@@ -527,6 +564,22 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                         ? 'Valid 10-digit phone required'
                         : null
                     : null,
+                onChanged: (val) {
+                  // Sync loyalty points when phone matches a known customer
+                  final match = customers.firstWhere(
+                    (c) => c.phone == val,
+                    orElse: () => CustomerModel(
+                      customerId: '', name: '', phone: val,
+                      totalOrders: 0, totalSpent: 0,
+                      lastOrderDate: DateTime.now(),
+                      firstOrderDate: DateTime.now(),
+                    ),
+                  );
+                  setDlgState(() {
+                    dialogLoyaltyPoints = match.loyaltyPoints;
+                    redeemLoyalty = false;
+                  });
+                },
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -534,6 +587,20 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
                 decoration: _inputDecoration(
                     'Note / Prescription No. (optional)'),
               ),
+              // Loyalty redemption toggle (shown when loyalty is enabled and customer has enough points)
+              if (loyaltyEnabled && dialogLoyaltyPoints >= minRedeem) ...[
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  value: redeemLoyalty,
+                  onChanged: (v) => setDlgState(() => redeemLoyalty = v ?? false),
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    'Redeem $dialogLoyaltyPoints pts  →  ₹${(dialogLoyaltyPoints * valuePerPoint).toStringAsFixed(0)} off',
+                    style: const TextStyle(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.w600),
+                  ),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+              ],
             ],
           ),
         ),
@@ -550,14 +617,15 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
             ),
             onPressed: () {
               if (formKey.currentState?.validate() ?? true) {
-                onSubmit(nameCtrl.text.trim(), phoneCtrl.text.trim(), noteCtrl.text.trim());
+                final redeemedPoints = (loyaltyEnabled && redeemLoyalty) ? dialogLoyaltyPoints : 0;
+                onSubmit(nameCtrl.text.trim(), phoneCtrl.text.trim(), noteCtrl.text.trim(), redeemedPoints);
                 Navigator.pop(ctx, true);
               }
             },
             child: const Text('Confirm'),
           ),
         ],
-      ),
+      )),
     );
 
     return result ?? false;

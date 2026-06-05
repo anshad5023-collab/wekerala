@@ -238,7 +238,7 @@ export function ShopViewById({ shopId }: { shopId: string }) {
         <CategoryFilter language={language} categories={categories} selectedCategory={selectedCategory} onSelectCategory={setSelectedCategory} />
         <ProductGrid language={language} products={filteredProducts} onProductClick={setSelectedProduct} isFiltered={!!(searchQuery || selectedCategory !== 'all')} />
       </div>
-      <FloatingCartBar language={language} onClick={() => setCurrentPage('cart')} />
+      <FloatingCartBar language={language} onClick={() => setCurrentPage('cart')} isOpen={shopData.isOpen} />
       <ChatWidget shopId={shopId} shopData={shopData} language={language} />
       {selectedProduct && <ProductDetailSheet product={selectedProduct} language={language} onClose={() => setSelectedProduct(null)} />}
     </>

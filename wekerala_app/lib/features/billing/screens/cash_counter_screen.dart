@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,6 +52,46 @@ class _CashCounterScreenState extends ConsumerState<CashCounterScreen> {
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.save_outlined),
+            tooltip: 'Save day-end record',
+            onPressed: () async {
+              if (shopId.isEmpty) return;
+              final now = DateTime.now();
+              final upi = summary['upiTotal'] ?? 0.0;
+              final udhar = summary['udharTotal'] ?? 0.0;
+              final total = summary['totalSales'] ?? 0.0;
+              final billCount = (summary['billCount'] ?? 0.0).toInt();
+              try {
+                await FirebaseFirestore.instance
+                    .collection('shops')
+                    .doc(shopId)
+                    .collection('dayEndAudit')
+                    .add({
+                  'date': Timestamp.fromDate(now),
+                  'systemCash': systemCash,
+                  'handCount': handCount,
+                  'variance': variance,
+                  'upiTotal': upi,
+                  'udharTotal': udhar,
+                  'totalSales': total,
+                  'billCount': billCount,
+                  'savedAt': FieldValue.serverTimestamp(),
+                });
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Day-end record saved')),
+                  );
+                }
+              } catch (_) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Failed to save record')),
+                  );
+                }
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.share_outlined),
             tooltip: 'Share day-end report',
