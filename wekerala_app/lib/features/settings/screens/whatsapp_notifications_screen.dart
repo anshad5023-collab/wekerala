@@ -17,6 +17,9 @@ class WhatsappNotificationsScreen extends ConsumerStatefulWidget {
 
 class _WhatsappNotificationsScreenState
     extends ConsumerState<WhatsappNotificationsScreen> {
+  // ── POS WhatsApp receipt (saved to autoSendWhatsappReceipt on shop doc) ────
+  bool _autoSendReceipt = false;
+
   // ── Owner notification toggles (saved to whatsappSettings) ────────────────
   bool _newOrderAlert = false;
   bool _autoCancelAlert = true;
@@ -58,6 +61,7 @@ class _WhatsappNotificationsScreenState
     final s = shop.whatsappSettings;
     final ai = shop.aiSettings;
     setState(() {
+      _autoSendReceipt     = shop.autoSendWhatsappReceipt;
       // Notification toggles
       _newOrderAlert       = s['newOrderAlert']       as bool? ?? false;
       _autoCancelAlert     = s['autoCancelAlert']     as bool? ?? true;
@@ -89,6 +93,7 @@ class _WhatsappNotificationsScreenState
     setState(() => _saving = true);
     try {
       await FirebaseFirestore.instance.collection('shops').doc(shopId).update({
+        'autoSendWhatsappReceipt': _autoSendReceipt,
         'whatsappSettings': {
           'newOrderAlert':       _newOrderAlert,
           'autoCancelAlert':     _autoCancelAlert,
@@ -451,6 +456,21 @@ class _WhatsappNotificationsScreenState
                 ),
                 const SizedBox(height: 16),
               ],
+
+              // ── POS Billing ───────────────────────────────────────────
+              _SectionLabel('POS Billing'),
+              _Card(children: [
+                _PrefTile(
+                  icon: Icons.receipt_long_outlined,
+                  iconColor: const Color(0xFF25D366),
+                  title: 'WhatsApp receipt after billing',
+                  subtitle:
+                      'Opens WhatsApp with pre-filled receipt after each POS payment — you tap Send',
+                  value: _autoSendReceipt,
+                  onChanged: (v) => setState(() => _autoSendReceipt = v),
+                ),
+              ]),
+              const SizedBox(height: 16),
 
               // ── Order Alerts ──────────────────────────────────────────
               _SectionLabel('Order Alerts'),

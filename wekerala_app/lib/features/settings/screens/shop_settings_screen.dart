@@ -491,8 +491,8 @@ class _ShopSettingsBodyState extends ConsumerState<_ShopSettingsBody> {
               SwitchListTile(
                 value: _autoSendWhatsapp,
                 onChanged: (v) => setState(() => _autoSendWhatsapp = v),
-                title: const Text('Auto-send WhatsApp receipt'),
-                subtitle: const Text('Opens WhatsApp automatically after each payment'),
+                title: const Text('WhatsApp receipt after billing'),
+                subtitle: const Text('Opens WhatsApp with pre-filled receipt — you tap Send to customer'),
                 activeColor: AppColors.primary,
                 contentPadding: EdgeInsets.zero,
               ),

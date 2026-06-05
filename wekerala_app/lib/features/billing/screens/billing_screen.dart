@@ -2220,7 +2220,7 @@ class _ReceiptSheetState extends State<_ReceiptSheet> {
   }
 
   /// Opens WhatsApp directly with the bill receipt pre-filled.
-  /// Falls back to the generic share sheet if the customer has no phone.
+  /// Shows a warning if the customer has no phone number.
   Future<void> _openWhatsApp() async {
     final phone = widget.bill.customerPhone.replaceAll(RegExp(r'\D'), '');
     final text = _buildReceiptText();
@@ -2235,6 +2235,17 @@ class _ReceiptSheetState extends State<_ReceiptSheet> {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
         return;
       }
+    }
+    // No customer phone — show warning and fall back to share sheet
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'No customer phone number — sharing via general share sheet instead.'),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 3),
+        ),
+      );
     }
     Share.share(text);
   }
