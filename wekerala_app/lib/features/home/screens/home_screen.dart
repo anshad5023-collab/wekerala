@@ -140,13 +140,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       });
 
       // Write activeShopId so OrdersListScreen / ProductsListScreen can find it.
+      // Use set+merge so this never throws if the users doc doesn't exist yet.
       await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
-          .update({'activeShopId': shopId});
+          .set({'activeShopId': shopId}, SetOptions(merge: true));
       await FcmService.init(shopId); // no-op on Windows/web
       if (mounted) ref.invalidate(activeShopIdProvider);
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[HomeScreen._load] ERROR: $e\n$st');
       if (mounted) setState(() { _loading = false; _loadError = e.toString(); });
     }
   }
@@ -165,16 +167,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.wifi_off_outlined, size: 48, color: AppColors.textSecondary),
+              const Icon(Icons.error_outline, size: 48, color: AppColors.textSecondary),
               const SizedBox(height: 12),
-              const Text('Could not load shop data.\nCheck your internet connection.',
+              const Text('Could not load your shop.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(color: AppColors.textSecondary)),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+              const SizedBox(height: 8),
+              Text(
+                _loadError ?? 'Unknown error',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
               const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _load,
+              ElevatedButton.icon(
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Retry'),
+                onPressed: () { setState(() { _loading = true; _loadError = null; }); _load(); },
                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-                child: const Text('Retry'),
               ),
             ],
           ),

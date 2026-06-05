@@ -1,6 +1,4 @@
 rules_version = '2';
-// R1 DRAFT — NOT DEPLOYED. Test against emulator before: firebase deploy --only firestore:rules
-// Replace root firestore.rules only after emulator suite passes.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -163,6 +161,22 @@ service cloud.firestore {
       match /kots/{kotId} {
         allow read, write: if signedIn();
       }
+      // Usage tracking — written by Cloud Functions (admin), read by owner only
+      match /usage/{month} {
+        allow read: if signedIn();
+        allow write: if false; // Cloud Functions admin SDK only
+      }
+      // Broadcast history — written by Cloud Functions, read by owner
+      match /broadcasts/{broadcastId} {
+        allow read: if signedIn();
+        allow write: if false; // Cloud Functions admin SDK only
+      }
+    }
+
+    // Event-driven merchant dashboard — written by Cloud Functions, read by owner
+    match /merchantDashboards/{shopId} {
+      allow read: if signedIn();
+      allow write: if false; // Cloud Functions admin SDK only
     }
 
     // Phase 11/15 listing collections

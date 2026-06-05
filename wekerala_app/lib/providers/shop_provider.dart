@@ -206,10 +206,10 @@ class OnboardingNotifier extends Notifier<OnboardingState> {
       );
 
       await _db.collection('shops').doc(state.shopId).set(shop.toFirestore());
-      await _db.collection('users').doc(user.uid).update({
+      await _db.collection('users').doc(user.uid).set({
         'shopIds': FieldValue.arrayUnion([state.shopId]),
         'activeShopId': state.shopId,
-      });
+      }, SetOptions(merge: true));
 
       state = state.copyWith(
         isLoading: false,

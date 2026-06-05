@@ -94,5 +94,5 @@ class FcmService {
       FirebaseFirestore.instance
           .collection('shops')
           .doc(shopId)
-          .update({'fcmToken': token});
+          .set({'fcmToken': token}, SetOptions(merge: true));
 }
