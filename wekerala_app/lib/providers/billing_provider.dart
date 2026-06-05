@@ -367,6 +367,9 @@ class BillingNotifier extends Notifier<BillingState> {
       }
       await batch.commit();
 
+      // Auto-update isOutOfStock for products whose stock just hit 0
+      unawaited(_updateOutOfStockFlags(shopId, state.cartItems));
+
       // Upsert customer record for any bill that has a phone number
       if (bill.customerPhone.isNotEmpty && bill.customerName.isNotEmpty) {
         unawaited(CustomerModel.upsertFromOrder(
@@ -441,6 +444,34 @@ class BillingNotifier extends Notifier<BillingState> {
               SetOptions(merge: true));
     } catch (_) {
       // Non-fatal — loyalty failure must not block billing
+    }
+  }
+
+  /// After billing, auto-set isOutOfStock=true for products that hit zero stock.
+  static Future<void> _updateOutOfStockFlags(
+      String shopId, List<BillItemModel> cartItems) async {
+    try {
+      final db = FirebaseFirestore.instance;
+      final productIds = cartItems
+          .where((i) => i.tracksStock && !i.productId.contains('_'))
+          .map((i) => i.productId)
+          .toSet();
+      for (final id in productIds) {
+        final snap = await db.collection('shops').doc(shopId)
+            .collection('products').doc(id).get();
+        if (!snap.exists) continue;
+        final qty = (snap.data()?['stockQty'] as num?)?.toDouble() ?? 1;
+        if (qty <= 0) {
+          unawaited(snap.reference.update({'isOutOfStock': true}));
+        } else {
+          // Restore if restocked via stock-receive (just in case)
+          if (snap.data()?['isOutOfStock'] == true) {
+            unawaited(snap.reference.update({'isOutOfStock': false}));
+          }
+        }
+      }
+    } catch (_) {
+      // Non-fatal
     }
   }
 
