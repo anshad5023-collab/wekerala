@@ -297,7 +297,7 @@ function CleanLayout({ config, shop, products, shopId }: Props) {
               <h3 className="font-bold text-sm mb-3" style={{ color: p }}>⭐ Bestsellers</h3>
               <div className="flex gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
                 {products.filter(pr => pr.isFeatured).map(pr => (
-                  <div key={pr.productId} className="shrink-0 w-28 border border-gray-100 rounded-xl overflow-hidden bg-white shadow-sm">
+                  <div key={pr.productId} className="wk-card shrink-0 w-28 border border-gray-100 rounded-xl overflow-hidden bg-white shadow-sm">
                     {pr.imageUrl && <img src={pr.imageUrl} alt={pr.name} className="w-full h-20 object-cover" />}
                     <div className="p-1.5">
                       <p className="text-xs font-medium line-clamp-2">{pr.name}</p>
@@ -324,11 +324,11 @@ function CleanLayout({ config, shop, products, shopId }: Props) {
                     const hasOffer = pr.offerPrice > 0 && pr.offerPrice < pr.price;
                     const discPct = hasOffer ? Math.round((1 - pr.price / pr.offerPrice) * 100) : 0;
                     return (
-                      <div key={pr.productId} className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                      <div key={pr.productId} className="wk-card bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
                         <div className="relative">
                           {pr.imageUrl
-                            ? <img src={pr.imageUrl} alt={pr.name} className="w-full h-36 object-cover" />
-                            : <div className="w-full h-36 bg-gray-100 flex items-center justify-center text-3xl">🛍</div>
+                            ? <img src={pr.imageUrl} alt={pr.name} className="wk-product-img" />
+                            : <div className="wk-product-img bg-gray-100 flex items-center justify-center text-3xl">🛍</div>
                           }
                           {pr.isNew && <span className="absolute top-1.5 left-1.5 text-xs font-bold bg-blue-500 text-white px-1.5 py-0.5 rounded-full">New</span>}
                           {pr.isFeatured && <span className="absolute top-1.5 right-1.5 text-xs font-bold bg-amber-400 text-white px-1.5 py-0.5 rounded-full">⭐</span>}
@@ -459,10 +459,10 @@ function DarkLayout({ config, shop, products, shopId }: Props) {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 px-4 pt-2 pb-6">
             {visible.map(pr => (
-              <div key={pr.productId} className="rounded-xl overflow-hidden border-l-4 hover:shadow-lg transition-shadow" style={{ backgroundColor: '#0d0d1f', borderColor: p }}>
+              <div key={pr.productId} className="wk-card rounded-xl overflow-hidden border-l-4 hover:shadow-lg transition-shadow" style={{ backgroundColor: '#0d0d1f', borderColor: p }}>
                 {pr.imageUrl
-                  ? <img src={pr.imageUrl} alt={pr.name} className="w-full h-32 md:h-40 object-cover opacity-90" />
-                  : <div className="w-full h-32 md:h-40 bg-black/30 flex items-center justify-center text-3xl">🛍</div>
+                  ? <img src={pr.imageUrl} alt={pr.name} className="wk-product-img opacity-90" />
+                  : <div className="wk-product-img bg-black/30 flex items-center justify-center text-3xl">🛍</div>
                 }
                 {pr.isOutOfStock && <div className="bg-red-700 text-white text-center text-xs py-0.5 font-bold">Out of Stock</div>}
                 <div className="p-2.5">
@@ -589,11 +589,11 @@ function WarmLayout({ config, shop, products, shopId }: Props) {
               const hasOffer = pr.offerPrice > 0 && pr.offerPrice < pr.price;
               const discPct = hasOffer ? Math.round((1 - pr.price / pr.offerPrice) * 100) : 0;
               return (
-                <div key={pr.productId} className="rounded-xl overflow-hidden border-2 relative hover:shadow-md transition-shadow" style={{ borderColor: config.secondaryColor, backgroundColor: '#fffbf5' }}>
+                <div key={pr.productId} className="wk-card rounded-xl overflow-hidden border-2 relative hover:shadow-md transition-shadow" style={{ borderColor: config.secondaryColor, backgroundColor: '#fffbf5' }}>
                   <div className="relative">
                     {pr.imageUrl
-                      ? <img src={pr.imageUrl} alt={pr.name} className="w-full h-32 md:h-40 object-cover rounded-t-xl" />
-                      : <div className="w-full h-32 md:h-40 bg-amber-50 flex items-center justify-center text-3xl">🛍</div>
+                      ? <img src={pr.imageUrl} alt={pr.name} className="wk-product-img rounded-t-xl" />
+                      : <div className="wk-product-img bg-amber-50 flex items-center justify-center text-3xl">🛍</div>
                     }
                     {hasOffer && <span className="absolute top-1 left-1 text-xs font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">{discPct}% OFF</span>}
                     {pr.isOutOfStock && <div className="absolute inset-0 bg-white/60 flex items-center justify-center"><span className="text-xs font-bold bg-gray-400 text-white px-2 py-1 rounded">Out of Stock</span></div>}
@@ -708,10 +708,10 @@ function NeopopLayout({ config, shop, products, shopId }: Props) {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 px-4 pt-2 pb-6">
             {visible.map(pr => (
-              <div key={pr.productId} className="rounded-xl overflow-hidden border-2 hover:shadow-xl transition-shadow" style={{ backgroundColor: '#151515', borderColor: p, boxShadow: `0 0 16px ${p}20` }}>
+              <div key={pr.productId} className="wk-card rounded-xl overflow-hidden border-2 hover:shadow-xl transition-shadow" style={{ backgroundColor: '#151515', borderColor: p, boxShadow: `0 0 16px ${p}20` }}>
                 {pr.imageUrl
-                  ? <img src={pr.imageUrl} alt={pr.name} className="w-full h-32 md:h-40 object-cover" />
-                  : <div className="w-full h-32 md:h-40 flex items-center justify-center text-3xl" style={{ background: `${p}20` }}>🛍</div>
+                  ? <img src={pr.imageUrl} alt={pr.name} className="wk-product-img" />
+                  : <div className="wk-product-img flex items-center justify-center text-3xl" style={{ background: `${p}20` }}>🛍</div>
                 }
                 {pr.isOutOfStock && <div className="bg-red-600 text-white text-center text-xs py-0.5 font-bold">Out of Stock</div>}
                 <div className="p-2.5">
@@ -836,10 +836,10 @@ function EditorialLayout({ config, shop, products, shopId }: Props) {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 px-4 pt-2 pb-6">
             {visible.map(pr => (
-              <div key={pr.productId} className="bg-white rounded-lg overflow-hidden hover:shadow-md transition-shadow">
+              <div key={pr.productId} className="wk-card bg-white rounded-lg overflow-hidden hover:shadow-md transition-shadow">
                 {pr.imageUrl
-                  ? <img src={pr.imageUrl} alt={pr.name} className="w-full h-36 md:h-44 object-cover" />
-                  : <div className="w-full h-36 md:h-44 bg-gray-100 flex items-center justify-center text-3xl">🛍</div>
+                  ? <img src={pr.imageUrl} alt={pr.name} className="wk-product-img" />
+                  : <div className="wk-product-img bg-gray-100 flex items-center justify-center text-3xl">🛍</div>
                 }
                 {pr.isOutOfStock && <div className="bg-gray-400 text-white text-center text-xs py-0.5 font-bold">Out of Stock</div>}
                 <div className="p-3">
@@ -967,11 +967,11 @@ function CarouselLayout({ config, shop, products, shopId }: Props) {
                 const hasOffer = pr.offerPrice > 0 && pr.offerPrice < pr.price;
                 const discPct = hasOffer ? Math.round((1 - pr.price / pr.offerPrice) * 100) : 0;
                 return (
-                  <div key={pr.productId} className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                  <div key={pr.productId} className="wk-card bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
                     <div className="relative">
                       {pr.imageUrl
-                        ? <img src={pr.imageUrl} alt={pr.name} className="w-full h-32 md:h-40 object-cover" />
-                        : <div className="w-full h-32 md:h-40 bg-gray-100 flex items-center justify-center text-3xl">🛍</div>
+                        ? <img src={pr.imageUrl} alt={pr.name} className="wk-product-img" />
+                        : <div className="wk-product-img bg-gray-100 flex items-center justify-center text-3xl">🛍</div>
                       }
                       {hasOffer && <span className="absolute top-1 left-1 text-xs font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">{discPct}% OFF</span>}
                       {pr.isOutOfStock && <div className="absolute inset-0 bg-white/60 flex items-center justify-center"><span className="text-xs font-bold bg-gray-400 text-white px-2 py-1 rounded">Out of Stock</span></div>}
@@ -1209,11 +1209,11 @@ function FestivalLayout({ config, shop, products, shopId }: Props) {
               const hasOffer = pr.offerPrice > 0 && pr.offerPrice < pr.price;
               const discPct = hasOffer ? Math.round((1 - pr.price / pr.offerPrice) * 100) : 0;
               return (
-                <div key={pr.productId} className="bg-white rounded-xl overflow-hidden border-2 hover:shadow-md transition-shadow" style={{ borderColor: `${s}60` }}>
+                <div key={pr.productId} className="wk-card bg-white rounded-xl overflow-hidden border-2 hover:shadow-md transition-shadow" style={{ borderColor: `${s}60` }}>
                   <div className="relative">
                     {pr.imageUrl
-                      ? <img src={pr.imageUrl} alt={pr.name} className="w-full h-32 md:h-40 object-cover" />
-                      : <div className="w-full h-32 md:h-40 flex items-center justify-center text-3xl" style={{ backgroundColor: `${p}10` }}>🛍</div>
+                      ? <img src={pr.imageUrl} alt={pr.name} className="wk-product-img" />
+                      : <div className="wk-product-img flex items-center justify-center text-3xl" style={{ backgroundColor: `${p}10` }}>🛍</div>
                     }
                     {hasOffer && <span className="absolute top-1 left-1 text-xs font-bold bg-red-500 text-white px-1.5 py-0.5 rounded-full">{discPct}% OFF</span>}
                     {pr.isOutOfStock && <div className="absolute inset-0 bg-white/60 flex items-center justify-center"><span className="text-xs font-bold bg-gray-400 text-white px-2 py-1 rounded">Out of Stock</span></div>}

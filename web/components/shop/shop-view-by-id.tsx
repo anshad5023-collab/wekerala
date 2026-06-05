@@ -255,7 +255,15 @@ export function ShopViewById({ shopId }: { shopId: string }) {
         </a>
       )}
       <ChatWidget shopId={shopId} shopData={shopData} language={language} />
-      {selectedProduct && <ProductDetailSheet product={selectedProduct} language={language} onClose={() => setSelectedProduct(null)} />}
+      {selectedProduct && (
+        <ProductDetailSheet
+          product={selectedProduct}
+          language={language}
+          onClose={() => setSelectedProduct(null)}
+          allProducts={products}
+          onProductClick={(p) => setSelectedProduct(p)}
+        />
+      )}
     </>
   );
 }

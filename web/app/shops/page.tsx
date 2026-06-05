@@ -17,7 +17,8 @@ function ShopCard({ shop }: { shop: WkListing }) {
   const callUrl = phone ? `tel:${phone}` : null;
 
   return (
-    <div style={{
+    <div className="wk-shop-card"
+      style={{
       background: '#fff',
       borderRadius: 16,
       overflow: 'hidden',
@@ -25,16 +26,16 @@ function ShopCard({ shop }: { shop: WkListing }) {
       marginBottom: 14,
     }}>
       <Link href={shop.href ?? `/shop?shopId=${shop.id}`} style={{ textDecoration: 'none', display: 'block' }}>
-        <div style={{ position: 'relative', width: '100%', height: 180, background: '#f0f0f0', overflow: 'hidden' }}>
+        <div style={{ position: 'relative', width: '100%', paddingBottom: '62.5%', background: '#f0f0f0', overflow: 'hidden' }}>
           {shop.photoUrl ? (
             <img
               src={shop.photoUrl}
               alt={shop.name}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
               loading="lazy"
             />
           ) : (
-            <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e8f0e8' }}>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#e8f0e8' }}>
               <span style={{ fontSize: 52 }}>🏪</span>
             </div>
           )}

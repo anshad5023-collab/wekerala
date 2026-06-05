@@ -12,9 +12,11 @@ interface ProductDetailSheetProps {
   product: Product;
   language: Language;
   onClose: () => void;
+  allProducts?: Product[];
+  onProductClick?: (product: Product) => void;
 }
 
-export function ProductDetailSheet({ product, language, onClose }: ProductDetailSheetProps) {
+export function ProductDetailSheet({ product, language, onClose, allProducts, onProductClick }: ProductDetailSheetProps) {
   const t = translations[language];
   const { addItem, updateQuantity, getItemQuantity } = useCartStore();
   const quantity = getItemQuantity(product.id);
@@ -42,7 +44,7 @@ export function ProductDetailSheet({ product, language, onClose }: ProductDetail
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
 
       {/* Sheet */}
-      <div className="relative w-full rounded-t-2xl bg-white shadow-xl animate-in slide-in-from-bottom duration-300">
+      <div className="relative w-full rounded-t-2xl bg-white shadow-xl wk-sheet-enter flex flex-col" style={{ maxHeight: '88vh' }}>
         {/* Close button */}
         <button
           onClick={onClose}
@@ -72,7 +74,7 @@ export function ProductDetailSheet({ product, language, onClose }: ProductDetail
         </div>
 
         {/* Content */}
-        <div className="p-5">
+        <div className="flex-1 overflow-y-auto p-5">
           <h2 className="text-xl font-bold text-gray-900">{product.name.en}</h2>
           {product.name.ml && (
             <p className="mt-0.5 text-sm text-gray-500">{product.name.ml}</p>
@@ -164,6 +166,50 @@ export function ProductDetailSheet({ product, language, onClose }: ProductDetail
               </div>
             )}
           </div>
+
+          {/* Similar products */}
+          {(allProducts ?? []).length > 1 && (() => {
+            const sameCat = (allProducts ?? []).filter(p => p.id !== product.id && p.category === product.category);
+            const others = (allProducts ?? []).filter(p => p.id !== product.id && p.category !== product.category);
+            const similar = [...sameCat, ...others].slice(0, 8);
+            if (similar.length === 0) return null;
+            return (
+              <div className="mt-5 pt-5 border-t border-gray-100">
+                <h3 className="text-sm font-bold text-gray-700 mb-3">
+                  {language === 'ml' ? 'സമാനമായ ഉൽപ്പന്നങ്ങൾ' : 'More like this'}
+                </h3>
+                <div className="flex gap-2.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+                  {similar.map((sp) => {
+                    const spDiscount = sp.offerPrice > 0 && sp.offerPrice < sp.price
+                      ? sp.offerPrice : sp.price;
+                    return (
+                      <button
+                        key={sp.id}
+                        onClick={() => onProductClick?.(sp)}
+                        className="shrink-0 w-24 rounded-xl overflow-hidden border border-gray-200 bg-white text-left shadow-sm hover:shadow-md transition-shadow active:scale-95"
+                      >
+                        <div className="relative h-20 bg-gray-100">
+                          {sp.image ? (
+                            <img
+                              src={sp.image}
+                              alt={sp.name[language]}
+                              className="absolute inset-0 w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="absolute inset-0 flex items-center justify-center text-2xl">📦</div>
+                          )}
+                        </div>
+                        <div className="p-1.5">
+                          <p className="text-xs font-medium text-gray-800 truncate leading-tight">{sp.name[language]}</p>
+                          <p className="text-xs font-bold text-primary mt-0.5">₹{spDiscount}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
     </div>
