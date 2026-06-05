@@ -347,6 +347,7 @@ function MenuItemCard({
 export default function SwiggyLayout({ config, shop, products, shopId }: Props) {
   const [cart, setCart] = useState<Record<string, number>>({});
   const [activeCategory, setActiveCategory] = useState<string>('');
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [copiedCoupon, setCopiedCoupon] = useState<string>('');
   const categoryRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const contentRef = useRef<HTMLDivElement>(null);
@@ -736,6 +737,7 @@ export default function SwiggyLayout({ config, shop, products, shopId }: Props) 
                         onAdd={() => addToCart(product.productId)}
                         onIncrease={() => increaseQty(product.productId)}
                         onDecrease={() => decreaseQty(product.productId)}
+                        onProductClick={setSelectedProduct}
                       />
                     ))}
                   </div>
@@ -884,6 +886,20 @@ export default function SwiggyLayout({ config, shop, products, shopId }: Props) 
 
       {/* Bottom spacer when cart is visible */}
       {cartItemCount > 0 && <div className="h-24" />}
+
+      {/* ── Product Detail Sheet ── */}
+      {selectedProduct && (
+        <ProductDetailSheet
+          product={toAppProduct(selectedProduct)}
+          language="en"
+          onClose={() => setSelectedProduct(null)}
+          allProducts={products.map(toAppProduct)}
+          onProductClick={(p) => {
+            const orig = products.find((x) => x.productId === p.id);
+            if (orig) setSelectedProduct(orig);
+          }}
+        />
+      )}
     </div>
   );
 }
