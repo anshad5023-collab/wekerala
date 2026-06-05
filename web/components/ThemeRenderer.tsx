@@ -18,9 +18,17 @@ interface Product {
 }
 interface Props { config: WebsiteConfig; shop: ShopData; products: Product[]; shopId?: string }
 
+// Normalize phone to international format for wa.me URLs — adds 91 (India) if 10-digit
+function toWaNum(raw: string): string {
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return '';
+  return digits.length === 10 ? `91${digits}` : digits;
+}
+
 function WAFloat({ config, shop }: { config: WebsiteConfig; shop: ShopData }) {
   if (!config.whatsappEnabled) return null;
-  const num = config.whatsappNumber || shop.ownerPhone;
+  const num = toWaNum(config.whatsappNumber || shop.ownerPhone);
+  if (!num) return null;
   return (
     <a href={`https://wa.me/${num}`} target="_blank" rel="noreferrer"
       className="fixed bottom-6 right-4 w-14 h-14 bg-green-500 rounded-full flex items-center justify-center shadow-xl text-2xl z-50 hover:scale-110 transition-transform">
@@ -31,7 +39,8 @@ function WAFloat({ config, shop }: { config: WebsiteConfig; shop: ShopData }) {
 
 function WABtn({ config, shop, className = '', style = {} }: { config: WebsiteConfig; shop: ShopData; className?: string; style?: React.CSSProperties }) {
   if (!config.whatsappEnabled) return null;
-  const num = config.whatsappNumber || shop.ownerPhone;
+  const num = toWaNum(config.whatsappNumber || shop.ownerPhone);
+  if (!num) return null;
   const label = config.primaryButtonText || 'Order Now';
   return (
     <a href={`https://wa.me/${num}`} target="_blank" rel="noreferrer"
@@ -175,7 +184,7 @@ function ProductSearch({ value, onChange, primaryColor }: { value: string; onCha
 // ── CLEAN (Modern) — fully responsive mobile + desktop ──────────────────────────
 function CleanLayout({ config, shop, products, shopId }: Props) {
   const p = config.primaryColor;
-  const waNum = config.whatsappEnabled !== false ? (config.whatsappNumber || shop.ownerPhone) : '';
+  const waNum = config.whatsappEnabled !== false ? toWaNum(config.whatsappNumber || shop.ownerPhone) : '';
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
   const has = (s: string) => config.sections.includes(s);
   const [activeCat, setActiveCat] = useState('All');
@@ -376,7 +385,7 @@ function CleanLayout({ config, shop, products, shopId }: Props) {
 // ── DARK (Bold) ─────────────────────────────────────────────────────────────────
 function DarkLayout({ config, shop, products, shopId }: Props) {
   const p = config.primaryColor; const bg = '#1a1a2e';
-  const waNum = config.whatsappEnabled !== false ? (config.whatsappNumber || shop.ownerPhone) : '';
+  const waNum = config.whatsappEnabled !== false ? toWaNum(config.whatsappNumber || shop.ownerPhone) : '';
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
   const has = (s: string) => config.sections.includes(s);
   const [activeCat, setActiveCat] = useState('All');
@@ -502,7 +511,7 @@ function DarkLayout({ config, shop, products, shopId }: Props) {
 // ── WARM (Traditional) ──────────────────────────────────────────────────────────
 function WarmLayout({ config, shop, products, shopId }: Props) {
   const p = config.primaryColor; const bg = '#fef9f0';
-  const waNum = config.whatsappEnabled !== false ? (config.whatsappNumber || shop.ownerPhone) : '';
+  const waNum = config.whatsappEnabled !== false ? toWaNum(config.whatsappNumber || shop.ownerPhone) : '';
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
   const has = (s: string) => config.sections.includes(s);
   const [activeCat, setActiveCat] = useState('All');
@@ -632,7 +641,7 @@ function WarmLayout({ config, shop, products, shopId }: Props) {
 // ── NEOPOP (Amaze) ──────────────────────────────────────────────────────────────
 function NeopopLayout({ config, shop, products, shopId }: Props) {
   const p = config.primaryColor; const s = config.secondaryColor;
-  const waNum = config.whatsappEnabled !== false ? (config.whatsappNumber || shop.ownerPhone) : '';
+  const waNum = config.whatsappEnabled !== false ? toWaNum(config.whatsappNumber || shop.ownerPhone) : '';
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
   const has = (sec: string) => config.sections.includes(sec);
   const [activeCat, setActiveCat] = useState('All');
@@ -745,7 +754,7 @@ function NeopopLayout({ config, shop, products, shopId }: Props) {
 // ── EDITORIAL (Helsinki + Mana) ─────────────────────────────────────────────────
 function EditorialLayout({ config, shop, products, shopId }: Props) {
   const p = config.primaryColor;
-  const waNum = config.whatsappEnabled !== false ? (config.whatsappNumber || shop.ownerPhone) : '';
+  const waNum = config.whatsappEnabled !== false ? toWaNum(config.whatsappNumber || shop.ownerPhone) : '';
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
   const has = (s: string) => config.sections.includes(s);
   const isLight = config.secondaryColor.startsWith('#8') || config.secondaryColor.startsWith('#9');
@@ -874,7 +883,7 @@ function EditorialLayout({ config, shop, products, shopId }: Props) {
 // ── CAROUSEL (Catalyst) ─────────────────────────────────────────────────────────
 function CarouselLayout({ config, shop, products, shopId }: Props) {
   const p = config.primaryColor;
-  const waNum = config.whatsappEnabled !== false ? (config.whatsappNumber || shop.ownerPhone) : '';
+  const waNum = config.whatsappEnabled !== false ? toWaNum(config.whatsappNumber || shop.ownerPhone) : '';
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
   const [activeCat, setActiveCat] = useState('All');
   const [search, setSearch] = useState('');
@@ -1010,7 +1019,7 @@ function CarouselLayout({ config, shop, products, shopId }: Props) {
 // ── LUXURY (Oxford) ─────────────────────────────────────────────────────────────
 function LuxuryLayout({ config, shop, products, shopId }: Props) {
   const p = config.primaryColor;
-  const waNum = config.whatsappEnabled !== false ? (config.whatsappNumber || shop.ownerPhone) : '';
+  const waNum = config.whatsappEnabled !== false ? toWaNum(config.whatsappNumber || shop.ownerPhone) : '';
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
   const has = (s: string) => config.sections.includes(s);
   const [activeCat, setActiveCat] = useState('All');
@@ -1123,7 +1132,7 @@ function LuxuryLayout({ config, shop, products, shopId }: Props) {
 // ── FESTIVAL (Festival + Zenith) ────────────────────────────────────────────────
 function FestivalLayout({ config, shop, products, shopId }: Props) {
   const p = config.primaryColor; const s = config.secondaryColor;
-  const waNum = config.whatsappEnabled !== false ? (config.whatsappNumber || shop.ownerPhone) : '';
+  const waNum = config.whatsappEnabled !== false ? toWaNum(config.whatsappNumber || shop.ownerPhone) : '';
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
   const has = (sec: string) => config.sections.includes(sec);
   const bg = config.themeId === 'zenith' ? '#f0fdf4' : '#fff8e7';
@@ -1247,13 +1256,10 @@ function FestivalLayout({ config, shop, products, shopId }: Props) {
 }
 
 // ── REVIEWS / TESTIMONIALS ───────────────────────────────────────────────────────
-// Hardcoded sample reviews — in a real implementation these would come from Firestore
-// For now, use 3 placeholder reviews that look realistic
-const SAMPLE_REVIEWS = [
-  { name: 'Anitha K.', rating: 5, text: 'Very fresh vegetables! Delivery was on time and packaging was good.', date: '2 days ago' },
-  { name: 'Muhammed R.', rating: 5, text: 'Best prices in the area. The coconut oil is authentic. Will order again!', date: '1 week ago' },
-  { name: 'Priya S.', rating: 4, text: 'Good quality products. The customer service via WhatsApp is very helpful.', date: '2 weeks ago' },
-]
+// Real reviews come from Firestore — placeholder hardcoded reviews were removed
+// because they showed grocery-specific text on all shop types (shoe shops, pharmacies, etc.)
+// TODO: wire up real reviews from shops/{shopId}/reviews subcollection
+const SAMPLE_REVIEWS: { name: string; rating: number; text: string; date: string }[] = []
 
 function StarRating({ rating }: { rating: number }) {
   return (
@@ -1264,7 +1270,7 @@ function StarRating({ rating }: { rating: number }) {
 }
 
 function ReviewsSection({ config }: { config: WebsiteConfig }) {
-  if (!config.reviewsEnabled) return null
+  if (!config.reviewsEnabled || SAMPLE_REVIEWS.length === 0) return null
 
   return (
     <section style={{ background: '#f9f9f9', padding: '40px 16px' }}>

@@ -224,7 +224,7 @@ export function ShopViewById({ shopId }: { shopId: string }) {
               </a>
             )}
             {shopData.ownerWhatsApp && (
-              <a href={`https://wa.me/${shopData.ownerWhatsApp.replace(/\D/g, '')}?text=Hi, I have a question about your shop`}
+              <a href={`https://wa.me/${shopData.ownerWhatsApp.replace(/\D/g, '').replace(/^(\d{10})$/, '91$1')}?text=Hi, I have a question about your shop`}
                  target="_blank" rel="noopener noreferrer"
                  className="flex items-center gap-0.5 text-green-600 font-semibold whitespace-nowrap">
                 <span>💬</span> Chat
@@ -242,7 +242,7 @@ export function ShopViewById({ shopId }: { shopId: string }) {
       {/* Floating WhatsApp button — drives inbound conversations (free 24h service window) */}
       {shopData.ownerWhatsApp && (
         <a
-          href={`https://wa.me/${shopData.ownerWhatsApp.replace(/\D/g, '')}?text=${encodeURIComponent('Hi! I have a question about your products.')}`}
+          href={`https://wa.me/${shopData.ownerWhatsApp.replace(/\D/g, '').replace(/^(\d{10})$/, '91$1')}?text=${encodeURIComponent('Hi! I have a question about your products.')}`}
           target="_blank"
           rel="noopener noreferrer"
           className="fixed bottom-20 left-4 z-50 flex items-center gap-2 rounded-full bg-[#25D366] px-4 py-3 text-white shadow-lg transition-transform hover:scale-105 active:scale-95"

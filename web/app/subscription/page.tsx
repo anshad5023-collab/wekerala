@@ -120,7 +120,7 @@ export default function SubscriptionPage() {
 
               {plan.cta && (
                 <a
-                  href={`https://wa.me/919072068323?text=${encodeURIComponent((plan.ctaMsg ?? '') + '(my shop)')}`}
+                  href={`https://wa.me/918848013569?text=${encodeURIComponent((plan.ctaMsg ?? '') + '(my shop)')}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
@@ -142,7 +142,7 @@ export default function SubscriptionPage() {
         {/* Note */}
         <p style={{ fontFamily: WK.mono, fontSize: 10, color: WK.muted, textAlign: 'center', marginTop: 24, lineHeight: 1.7 }}>
           Payments are currently processed manually via WhatsApp.
-          Online billing coming soon. Questions? WhatsApp us at +91 90720 68323.
+          Online billing coming soon. Questions? WhatsApp us at +91 88480 13569.
         </p>
       </div>
     </div>
