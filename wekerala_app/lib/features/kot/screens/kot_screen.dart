@@ -106,7 +106,7 @@ class _KotScreenState extends ConsumerState<KotScreen>
   }
 
   void _openNewKot() async {
-    final items = await showModalBottomSheet<List<_KotItem>>(
+    final result = await showModalBottomSheet<({String table, List<_KotItem> items})>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -116,14 +116,14 @@ class _KotScreenState extends ConsumerState<KotScreen>
         ref: ref,
       ),
     );
-    if (items == null || items.isEmpty) return;
+    if (result == null || result.items.isEmpty) return;
     setState(() {
       _orders.insert(
         0,
         _KotOrder(
           id: 'KOT-${DateTime.now().millisecondsSinceEpoch}',
-          table: _selectedTable,
-          items: items,
+          table: result.table,
+          items: result.items,
           createdAt: DateTime.now(),
         ),
       );
@@ -502,7 +502,7 @@ class _NewKotSheetState extends ConsumerState<_NewKotSheet> {
   @override
   void initState() {
     super.initState();
-    _table = widget.initialTable;
+    _table = widget.initialTable; // mutable — updated by dropdown selection
     _searchCtrl.addListener(() => setState(() => _search = _searchCtrl.text.trim().toLowerCase()));
   }
 
@@ -705,7 +705,7 @@ class _NewKotSheetState extends ConsumerState<_NewKotSheet> {
             child: ElevatedButton(
               onPressed: _items.isEmpty
                   ? null
-                  : () => Navigator.of(context).pop(_items),
+                  : () => Navigator.of(context).pop((table: _table, items: _items)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
