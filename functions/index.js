@@ -2056,7 +2056,7 @@ exports.sendBirthdayMessages = onSchedule(
 // on storage and CDN bandwidth. Sets a 1-year cache header on the output file.
 // Skips: already-WebP files, tiny icons (<10 KB), thumbnail variants.
 exports.compressUploadedImage = onObjectFinalized(
-  { cpu: 2, memory: '512MiB', timeoutSeconds: 120 },
+  { cpu: 2, memory: '512MiB', timeoutSeconds: 120, region: 'asia-south1' },
   async (event) => {
     const object = event.data;
     const filePath = object.name;
