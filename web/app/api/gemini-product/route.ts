@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
     const prompt = buildPrompt(shopType);
 
@@ -159,6 +159,23 @@ export async function POST(req: NextRequest) {
         );
       }
       parsed = JSON.parse(match[0]);
+    }
+
+    // After Gemini identifies name+brand, try to fetch an actual product image
+    // from Open Food Facts by searching the product name — completely free
+    if (parsed.name || parsed.brand) {
+      const query = [parsed.brand, parsed.name].filter(Boolean).join(' ');
+      try {
+        const offRes = await fetch(
+          `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=1&lc=en`,
+          { headers: { 'User-Agent': 'Oratas/1.0 (oratas4ai@gmail.com)' } }
+        );
+        if (offRes.ok) {
+          const offData = await offRes.json() as { products?: Array<{ image_front_url?: string }> };
+          const imgUrl = offData.products?.[0]?.image_front_url;
+          if (imgUrl) parsed.imageUrl = imgUrl;
+        }
+      } catch { /* image fetch is best-effort */ }
     }
 
     return NextResponse.json(parsed);

@@ -144,6 +144,8 @@ class ProductLookupService {
         final brand = (data['brand'] as String? ?? '').trim();
         final rawCat = (data['category'] as String? ?? '').trim();
         final unit = _normaliseUnit(data['unit'] as String? ?? 'piece');
+        // imageUrl is now returned by the API (fetched from Open Food Facts after identification)
+        final imageUrl = (data['imageUrl'] as String? ?? '').trim();
 
         final category = shopCategories.firstWhere(
           (c) =>
@@ -176,6 +178,7 @@ class ProductLookupService {
         return ProductData(
           nameEn: fullName,
           brand: brand,
+          imageUrl: imageUrl,
           category: category,
           unit: unit,
           source: 'gemini',

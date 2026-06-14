@@ -36,84 +36,81 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   }
 
   Future<void> _redirect() async {
+    // Minimal delay — enough for logo fade-in to be visible
     await Future.delayed(const Duration(milliseconds: 400));
     if (!mounted) return;
 
-    // Run OTA check and language load in parallel — cuts up to 5s off startup
-    final parallel = await Future.wait([
-      OtaService.check().timeout(const Duration(seconds: 4), onTimeout: () => OtaStatus.none),
-      SharedPreferences.getInstance(),
-    ]);
-    if (!mounted) return;
-
-    final otaStatus = parallel[0] as OtaStatus;
-    final prefs = parallel[1] as SharedPreferences;
-
-    // Maintenance mode blocks everything
-    if (otaStatus.maintenanceMode) {
-      Navigator.of(context).pushReplacement(MaterialPageRoute(
-        builder: (_) => MaintenanceScreen(message: otaStatus.maintenanceMessage),
-      ));
-      return;
-    }
-
-    // Force update blocks navigation
-    if (otaStatus.forceUpdate) {
-      await UpdateDialog.showIfNeeded(context, otaStatus);
-      if (!mounted) return;
-      return;
-    }
-
+    final prefs = await SharedPreferences.getInstance();
     final savedLang = prefs.getString('language');
+
     if (savedLang != null) {
       ref.read(languageProvider.notifier).setLanguage(savedLang);
     }
 
     if (!mounted) return;
 
+    // First-ever launch — no language chosen yet
     if (savedLang == null) {
       context.go('/language');
+      _checkOtaInBackground();
       return;
     }
 
-    // Wait for Firebase to fully restore auth state (stream is authoritative).
-    final user = await ref.read(authStateProvider.future);
-    if (!mounted) return;
+    // Firebase currentUser is synchronous (reads local cache — no network needed).
+    // Use this for instant navigation instead of waiting for the auth stream.
+    final cachedUser = FirebaseAuth.instance.currentUser;
 
-    if (user == null) {
-      // Not logged in — show language screen only on first-ever install
-      if (savedLang == null) {
-        context.go('/language');
-      } else {
-        context.go('/login');
+    if (cachedUser == null) {
+      context.go('/login');
+      _checkOtaInBackground();
+      return;
+    }
+
+    // Restore language from Firestore only if missing locally
+    if (savedLang == null) {
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(cachedUser.uid)
+            .get();
+        final cloudLang = userDoc.data()?['language'] as String?;
+        final lang = (cloudLang != null && cloudLang.isNotEmpty) ? cloudLang : 'en';
+        await ref.read(languageProvider.notifier).setLanguage(lang);
+      } catch (_) {
+        await ref.read(languageProvider.notifier).setLanguage('en');
       }
-    } else {
-      // Logged in — skip language screen even if SharedPreferences was cleared.
-      // Restore language from Firestore if missing locally.
-      if (savedLang == null) {
-        try {
-          final userDoc = await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .get();
-          final cloudLang = userDoc.data()?['language'] as String?;
-          final lang = (cloudLang != null && cloudLang.isNotEmpty) ? cloudLang : 'en';
-          await ref.read(languageProvider.notifier).setLanguage(lang);
-        } catch (_) {
-          await ref.read(languageProvider.notifier).setLanguage('en');
-        }
-        if (!mounted) return;
-      }
-      final hasShop = await ref.read(authProvider.notifier).hasShops();
       if (!mounted) return;
-      context.go(hasShop ? '/home' : '/onboard/type');
     }
 
-    // Show optional update notification after navigation (non-blocking)
-    if (otaStatus.hasUpdate && !otaStatus.forceUpdate && mounted) {
-      await Future.delayed(const Duration(milliseconds: 300));
-      if (mounted) await UpdateDialog.showIfNeeded(context, otaStatus);
-    }
+    final hasShop = await ref.read(authProvider.notifier).hasShops();
+    if (!mounted) return;
+    context.go(hasShop ? '/home' : '/onboard/type');
+
+    // OTA check runs AFTER navigation — never blocks the user
+    _checkOtaInBackground();
+  }
+
+  Future<void> _checkOtaInBackground() async {
+    try {
+      final otaStatus = await OtaService.check()
+          .timeout(const Duration(seconds: 4), onTimeout: () => OtaStatus.none);
+      if (!mounted) return;
+
+      if (otaStatus.maintenanceMode) {
+        Navigator.of(context).pushReplacement(MaterialPageRoute(
+          builder: (_) => MaintenanceScreen(message: otaStatus.maintenanceMessage),
+        ));
+        return;
+      }
+      if (otaStatus.forceUpdate) {
+        await UpdateDialog.showIfNeeded(context, otaStatus);
+        return;
+      }
+      if (otaStatus.hasUpdate) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (mounted) await UpdateDialog.showIfNeeded(context, otaStatus);
+      }
+    } catch (_) {}
   }
 
   @override
