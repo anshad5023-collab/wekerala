@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
-const APK_URL = '/wekerala.apk';
-const WINDOWS_URL = '/wekerala-windows.zip';
+// GitHub Releases CDN — auto-redirects to newest release on every new build
+const APK_URL = 'https://github.com/anshad5023-collab/wekerala/releases/latest/download/app-release.apk';
+const WINDOWS_URL = 'https://github.com/anshad5023-collab/wekerala/releases/latest/download/oratas-setup.exe';
 
 type Platform = 'android' | 'windows' | 'other';
 
@@ -112,7 +113,7 @@ export default function DownloadPage() {
               <div>
                 <p style={{ margin: '0 0 4px', fontSize: 12, color: !androidPrimary ? '#fff' : 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600, opacity: 0.75 }}>Download for</p>
                 <p style={{ margin: '0 0 4px', fontSize: 22, fontWeight: 800, color: !androidPrimary ? '#fff' : 'var(--foreground)' }}>Windows</p>
-                <p style={{ margin: 0, fontSize: 12, color: !androidPrimary ? '#fff' : 'var(--muted-foreground)', opacity: 0.8 }}>Desktop · Windows 10+</p>
+                <p style={{ margin: 0, fontSize: 12, color: !androidPrimary ? '#fff' : 'var(--muted-foreground)', opacity: 0.8 }}>Installer · Windows 10+</p>
               </div>
               <div style={{ marginLeft: 'auto', background: !androidPrimary ? '#fff' : 'oklch(0.40 0.18 270)', color: !androidPrimary ? 'oklch(0.40 0.18 270)' : '#fff', borderRadius: 12, padding: '8px 16px', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>
                 Download

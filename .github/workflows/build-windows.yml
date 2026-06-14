@@ -107,12 +107,14 @@ jobs:
           path: installer_output/oratas-setup.exe
           retention-days: 30
 
-      - name: Create GitHub Release
+      - name: Attach installer to main release
+        # Upload installer to the same release tag as the APK (created by build-apk.yml).
+        # Both APK and installer share one tag so /releases/latest/download/ works for both.
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.${{ github.run_number }}-win
-          name: "Oratas Windows v1.0.${{ github.run_number }}"
-          body: "Windows installer — build #${{ github.run_number }}"
+          tag_name: v1.0.${{ github.run_number }}
+          name: "Oratas v1.0.${{ github.run_number }}"
+          body: "Automatic release from build #${{ github.run_number }}"
           files: installer_output/oratas-setup.exe
           make_latest: false
         env:
