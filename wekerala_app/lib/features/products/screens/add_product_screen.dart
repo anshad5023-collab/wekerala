@@ -168,6 +168,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   void _applyLookup(ProductData data) {
     setState(() {
       if (data.nameEn.isNotEmpty) _nameEnCtrl.text = data.nameEn;
+      if (data.description.isNotEmpty && _descriptionCtrl.text.trim().isEmpty) {
+        _descriptionCtrl.text = data.description;
+      }
       if (data.imageUrl.isNotEmpty) {
         _imageUrl = data.imageUrl;
         _imageSource = 'barcode';

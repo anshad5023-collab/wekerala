@@ -10,6 +10,7 @@ class ProductData {
   final String imageUrl;
   final String category;
   final String unit;
+  final String description;
   final String source;
   final String barcodeType;
   /// Shop-type-specific fields extracted by Gemini (composition, strength, fabric, etc.)
@@ -21,6 +22,7 @@ class ProductData {
     this.imageUrl = '',
     this.category = '',
     this.unit = 'piece',
+    this.description = '',
     this.source = '',
     this.barcodeType = 'CUSTOM',
     this.attributes = const {},
@@ -144,8 +146,8 @@ class ProductLookupService {
         final brand = (data['brand'] as String? ?? '').trim();
         final rawCat = (data['category'] as String? ?? '').trim();
         final unit = _normaliseUnit(data['unit'] as String? ?? 'piece');
-        // imageUrl is now returned by the API (fetched from Open Food Facts after identification)
         final imageUrl = (data['imageUrl'] as String? ?? '').trim();
+        final description = (data['description'] as String? ?? '').trim();
 
         // Match Gemini category against shop's category list.
         // Strategy: substring match first, then word-overlap fallback.
@@ -195,6 +197,7 @@ class ProductLookupService {
           imageUrl: imageUrl,
           category: category,
           unit: unit,
+          description: description,
           source: 'gemini',
           attributes: attributes,
         );

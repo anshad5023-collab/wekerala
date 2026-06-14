@@ -18,7 +18,7 @@ function checkRateLimit(ip: string, maxPerMinute = 10): boolean {
 }
 
 function buildPrompt(shopType: string): string {
-  const base = 'You are analyzing a product photo from an Indian retail store in Kerala. Return ONLY valid JSON — no markdown, no code fences, no explanation.';
+  const base = 'You are analyzing a product photo from an Indian retail store in Kerala. Be as SPECIFIC as possible — read all visible text on the label including model name, variant, size/weight. Return ONLY valid JSON — no markdown, no code fences, no explanation.';
 
   if (shopType === 'Pharmacy') {
     return `${base}
@@ -26,9 +26,10 @@ Extract medicine/pharmaceutical product details. Use exactly this JSON structure
 {
   "name": "medicine name in English (brand name only, not generic)",
   "brand": "manufacturer/company name",
+  "description": "1-2 sentence description: what it treats, key active ingredients, dosage form e.g. Paracetamol 500mg tablet for fever and mild pain relief",
   "category": "exactly one of: Medicines | Personal Care | Baby Care | Health Devices | Vitamins",
   "unit": "piece",
-  "composition": "active ingredient(s) with strength e.g. Paracetamol 500mg or Amoxicillin 250mg + Clavulanic acid 125mg",
+  "composition": "active ingredient(s) with strength e.g. Paracetamol 500mg",
   "strength": "dosage strength e.g. 500mg or 10mg/5ml",
   "manufacturer": "manufacturing company name",
   "form": "exactly one of: Tablet | Capsule | Syrup | Drops | Ointment / Cream | Injection | Inhaler | Powder | Gel | Spray",
@@ -42,14 +43,14 @@ If any field is not visible/identifiable, use empty string "".`;
     return `${base}
 Extract clothing/textile/fashion product details. Use exactly this JSON structure:
 {
-  "name": "product type in English (e.g. Men's Cotton Shirt, Ladies Saree, Kids T-Shirt)",
+  "name": "specific product name e.g. Men's Cotton Formal Shirt, Ladies Kancheepuram Silk Saree, Kids Cartoon Print T-Shirt",
   "brand": "brand name if visible",
+  "description": "1-2 sentence description: material, style, occasion, key features visible in the photo",
   "category": "exactly one of: Men's Wear | Women's Wear | Kids' Wear | Accessories | Fabrics | Cosmetics | Hair Accessories | Artificial Jewelry | Toys & Games | Gift Items",
   "unit": "piece",
-  "fabric": "material type e.g. Cotton, Silk, Polyester, Khadi, Linen, Rayon",
+  "fabric": "material type e.g. Cotton, Silk, Polyester, Khadi",
   "color": "primary colour(s) e.g. Navy Blue, Red & White Stripes",
   "sizes": "available sizes if visible e.g. S M L XL or 28-36",
-  "care_instructions": "care instructions if visible e.g. Hand wash, Dry clean",
   "gender": "exactly one of: Men | Women | Kids | Unisex",
   "confidence": "high | medium | low"
 }
@@ -60,8 +61,9 @@ If any field is not visible, use empty string "".`;
     return `${base}
 Extract food/dish details. Use exactly this JSON structure:
 {
-  "name": "dish or food item name in English",
+  "name": "specific dish or food item name",
   "brand": "",
+  "description": "1-2 sentence description: key ingredients, taste profile, serving style",
   "category": "exactly one of: Meals | Snacks | Beverages | Desserts | Special Items | Breads | Cakes & Pastries | Biscuits & Cookies | Savoury Items | Drinks",
   "unit": "piece",
   "is_veg": "exactly one of: Veg | Non-Veg | Egg | Vegan",
@@ -75,8 +77,9 @@ If any field is not visible, use empty string "".`;
     return `${base}
 Extract electronics product details. Use exactly this JSON structure:
 {
-  "name": "product name in English (without brand)",
+  "name": "specific product name including model e.g. boAt Rockerz 255 Pro+ Wireless Earphones",
   "brand": "brand name",
+  "description": "1-2 sentence description: key specs, features, what it does",
   "category": "exactly one of: Mobile Accessories | Cables & Chargers | Headphones | Smart Devices",
   "unit": "piece",
   "model_number": "model number or SKU if visible",
@@ -89,10 +92,11 @@ If any field is not visible, use empty string "".`;
 
   // Default — generic Indian grocery/retail
   return `${base}
-Identify the product and return ONLY valid JSON with exactly this structure:
+Identify the SPECIFIC product — read the label carefully for brand, variant, weight/size. Return ONLY valid JSON:
 {
-  "name": "product name in English (without brand)",
+  "name": "specific product name including variant and size e.g. Parle-G Original Glucose Biscuits 100g or Amul Taaza Homogenised Toned Milk 500ml",
   "brand": "brand name only",
+  "description": "1-2 sentence description of the product: what it is, key features, variant details, weight/size, intended use",
   "category": "exactly one of: Grocery Staples | Beverages | Snacks | Dairy & Eggs | Vegetables | Fruits | Cleaning | Medicines | Chicken | Fish | Breads | Biscuits & Cookies | Mutton | Beef | Prawns & Seafood | Personal Care | Baby Care | General",
   "unit": "exactly one of: piece | kg | g | ml | litre",
   "confidence": "high | medium | low"
