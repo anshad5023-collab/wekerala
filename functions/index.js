@@ -458,7 +458,8 @@ exports.sendDailySalesSummary = onSchedule(
           .where('createdAt', '<=', endUTC)
           .get();
 
-        const bills = billsSnap.docs.map((d) => d.data());
+        const allBills = billsSnap.docs.map((d) => d.data());
+        const bills = allBills.filter((b) => !b.isVoided);
         const billCount = bills.length;
 
         // Skip shops with no sales today
@@ -862,7 +863,8 @@ exports.sendMonthlyReport = onSchedule(
           .where('createdAt', '<=', endUTC)
           .get();
 
-        const bills = billsSnap.docs.map((d) => d.data());
+        const allBillsDocs = billsSnap.docs.map((d) => d.data());
+        const bills = allBillsDocs.filter((b) => !b.isVoided);
         const billCount = bills.length;
 
         let totalRevenue = 0;
@@ -871,6 +873,9 @@ exports.sendMonthlyReport = onSchedule(
         let udharTotal = 0;
         let collectedUdhar = 0;
 
+        // GST breakdown by rate
+        const gstBuckets = {};
+
         for (const bill of bills) {
           const amount = bill.finalAmount || bill.totalAmount || 0;
           totalRevenue += amount;
@@ -878,10 +883,26 @@ exports.sendMonthlyReport = onSchedule(
           if (method === 'cash') cashTotal += amount;
           else if (method === 'upi') upiTotal += amount;
           else if (method === 'udhar') udharTotal += amount;
-          // Collected udhar = bills where paymentMethod was udhar but marked collected,
-          // or separate field — use udhar total as a proxy
+
+          for (const item of (bill.items || [])) {
+            const rate = item.gstRate || 0;
+            if (rate === 0) continue;
+            if (!gstBuckets[rate]) gstBuckets[rate] = { taxable: 0, tax: 0 };
+            const sub = item.subtotal || 0;
+            const taxable = item.priceIncludesGst !== false ? sub / (1 + rate / 100) : sub;
+            const tax = item.priceIncludesGst !== false ? sub - taxable : sub * (rate / 100);
+            gstBuckets[rate].taxable += taxable;
+            gstBuckets[rate].tax += tax;
+          }
         }
         collectedUdhar = udharTotal;
+
+        const gstLines = Object.entries(gstBuckets)
+          .sort(([a], [b]) => Number(a) - Number(b))
+          .map(([rate, { taxable, tax }]) =>
+            `  ${rate}%: ₹${Math.round(taxable)} taxable → ₹${Math.round(tax/2)} CGST + ₹${Math.round(tax/2)} SGST`)
+          .join('\n');
+        const totalGst = Object.values(gstBuckets).reduce((s, b) => s + b.tax, 0);
 
         // Top 3 products
         const top3 = findTopProducts(bills, 3);
@@ -912,14 +933,19 @@ exports.sendMonthlyReport = onSchedule(
           totalOutstanding += credit.outstanding || credit.amount || 0;
         }
 
+        const gstSection = totalGst > 0
+          ? `\n🧾 *GST Summary*\n${gstLines}\n  Total Tax: ₹${Math.round(totalGst)}\n`
+          : '';
+
         const msg =
           `📈 *Monthly Report — ${shopName}*\n` +
           `*${monthName} ${year}*\n\n` +
           `💰 Revenue: ₹${Math.round(totalRevenue)} (${billCount} bills)\n` +
           `💵 Cash: ₹${Math.round(cashTotal)}\n` +
           `📱 UPI: ₹${Math.round(upiTotal)}\n` +
-          `📒 Collected Udhar: ₹${Math.round(collectedUdhar)}\n\n` +
-          `🏆 Top Products:\n` +
+          `📒 Collected Udhar: ₹${Math.round(collectedUdhar)}\n` +
+          gstSection +
+          `\n🏆 Top Products:\n` +
           `1. ${product1}\n` +
           `2. ${product2}\n` +
           `3. ${product3}\n\n` +
@@ -1269,6 +1295,23 @@ exports.addLoyaltyPoints = onDocumentCreated(
         lastOrderDate: FieldValue.serverTimestamp(),
         firstOrderDate: FieldValue.serverTimestamp(),
       });
+
+      // First-order thank-you WhatsApp
+      const shopData = shopDoc.data();
+      if (shopData && shopData.plan !== 'lite' && isPrefOn(shopData, 'firstOrderThanks', true)) {
+        const custName = order.customerName || 'there';
+        const sName = shopData.shopName || 'our shop';
+        const pointsLine = pointsEarned > 0
+          ? `\nYou've earned *${pointsEarned} loyalty points* on this order! 🌟`
+          : '';
+        const thanksMsg =
+          `🎉 *Welcome to ${sName}!*\n\n` +
+          `Hi ${custName}, thank you for your first order! We're so glad to have you as a customer. 🙏` +
+          pointsLine + `\n\n` +
+          `Order again anytime: ${shopData.storeUrl || 'Visit us in store'}\n\n` +
+          `_Reply STOP to opt out._`;
+        await sendWhatsApp(order.customerPhone, thanksMsg, shopData, 2, { shopId, type: 'marketing' }).catch(() => {});
+      }
     } else {
       // Existing customer — increment
       const updates = {
@@ -1779,3 +1822,274 @@ exports.trackUsageFn = onCall({ maxInstances: 10 }, async (request) => {
   await trackUsage(shopId, metric, count);
   return { ok: true };
 });
+
+// ─── S5.2: Expiry Clearance Flash Sale (daily 9:30 AM IST = 04:00 UTC) ───────
+// Scans products expiring within 3 days → auto-creates 20% off flash sale doc
+// → alerts owner via WhatsApp so they can broadcast to customers.
+exports.expiryFlashSaleCheck = onSchedule(
+  { schedule: '0 4 * * *', timeZone: 'UTC' },
+  async () => {
+    const db = getFirestore();
+    const now = new Date();
+    const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+    const todayKey = now.toISOString().slice(0, 10);
+
+    const shopsSnap = await db.collection('shops').get();
+
+    for (const shopDoc of shopsSnap.docs) {
+      try {
+        const shop = shopDoc.data();
+        const shopId = shopDoc.id;
+        if (shop.plan === 'lite') continue;
+        if (!isPrefOn(shop, 'expiryAlerts', true)) continue;
+
+        const ownerPhone = shop.ownerPhone || shop.ownerWhatsApp || '';
+        if (!ownerPhone || ownerPhone.length < 10) continue;
+
+        const expiringSnap = await db
+          .collection('shops').doc(shopId)
+          .collection('products')
+          .where('expiryDate', '>=', Timestamp.fromDate(now))
+          .where('expiryDate', '<=', Timestamp.fromDate(threeDaysFromNow))
+          .get();
+
+        if (expiringSnap.empty) continue;
+
+        const expiringProducts = expiringSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+        // Create flash sale only once per day
+        const saleTodaySnap = await db
+          .collection('shops').doc(shopId)
+          .collection('flashSales')
+          .where('expiryAutoSaleDate', '==', todayKey)
+          .limit(1)
+          .get();
+
+        if (saleTodaySnap.empty) {
+          const endTime = new Date(now);
+          endTime.setUTCHours(18, 30, 0, 0); // midnight IST = 18:30 UTC
+          await db.collection('shops').doc(shopId).collection('flashSales').add({
+            name: 'Near-Expiry Clearance',
+            discountPercent: 20,
+            productIds: expiringProducts.map((p) => p.id),
+            startTime: Timestamp.fromDate(now),
+            endTime: Timestamp.fromDate(endTime),
+            expired: false,
+            broadcastSent: false,
+            expiryAutoSaleDate: todayKey,
+            createdAt: FieldValue.serverTimestamp(),
+          });
+        }
+
+        const names = expiringProducts.slice(0, 5)
+          .map((p) => `• ${p.productName || p.name} (exp: ${formatDate(p.expiryDate)})`)
+          .join('\n');
+        const more = expiringProducts.length > 5 ? `\n+${expiringProducts.length - 5} more` : '';
+
+        const msg =
+          `⏰ *Near-Expiry Alert — ${shop.shopName || 'Your Shop'}*\n\n` +
+          `${expiringProducts.length} item(s) expiring within 3 days:\n` +
+          `${names}${more}\n\n` +
+          `🔥 20% off flash sale auto-created! Open weKerala to review & broadcast.`;
+
+        await sendWhatsApp(ownerPhone, msg, shop, 2, { shopId, type: 'utility' });
+        console.log(`[ExpiryAlert] ${expiringProducts.length} expiring products for shop ${shopId}`);
+      } catch (err) {
+        console.error(`[ExpiryAlert] Error for shop ${shopDoc.id}:`, err.message);
+      }
+    }
+  }
+);
+
+// ─── S5.6: Weekly Restock Velocity Suggestions (Sunday 8 AM IST = 02:30 UTC) ─
+// Analyzes last 30 days of bills per product → sends ranked restock list for
+// any item with < 7 days of stock left at current sales velocity.
+exports.weeklyRestockSuggestions = onSchedule(
+  { schedule: '30 2 * * 0', timeZone: 'UTC' },
+  async () => {
+    const db = getFirestore();
+    const { startUTC } = getTodayISTRange();
+    const thirtyDaysAgo = new Date(startUTC.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const shopsSnap = await db.collection('shops').get();
+
+    for (const shopDoc of shopsSnap.docs) {
+      try {
+        const shop = shopDoc.data();
+        const shopId = shopDoc.id;
+        const ownerPhone = shop.ownerPhone || shop.ownerWhatsApp || '';
+        if (!ownerPhone || ownerPhone.length < 10) continue;
+        if (!isPrefOn(shop, 'restockSuggestions', true)) continue;
+
+        const billsSnap = await db
+          .collection('shops').doc(shopId)
+          .collection('bills')
+          .where('createdAt', '>=', thirtyDaysAgo)
+          .get();
+
+        if (billsSnap.empty) continue;
+
+        // Sales velocity per product over last 30 days
+        const velocityMap = {};
+        for (const billDoc of billsSnap.docs) {
+          const bill = billDoc.data();
+          if (bill.isVoided) continue;
+          for (const item of (bill.items || [])) {
+            const pid = item.productId;
+            if (!pid) continue;
+            if (!velocityMap[pid]) {
+              velocityMap[pid] = { name: item.productName || item.name || pid, totalQty: 0 };
+            }
+            velocityMap[pid].totalQty += (item.qty || item.quantity || 0);
+          }
+        }
+
+        if (Object.keys(velocityMap).length === 0) continue;
+
+        const needRestock = [];
+        for (const [pid, data] of Object.entries(velocityMap)) {
+          const pSnap = await db
+            .collection('shops').doc(shopId)
+            .collection('products').doc(pid)
+            .get();
+          if (!pSnap.exists) continue;
+          const p = pSnap.data();
+          const currentStock = p.stockQty ?? null;
+          if (currentStock === null) continue; // service items have no stock
+
+          const avgDaily = data.totalQty / 30;
+          const daysLeft = avgDaily > 0 ? Math.floor(currentStock / avgDaily) : 999;
+          if (daysLeft <= 7) {
+            needRestock.push({ name: data.name, currentStock, avgDaily: Math.round(avgDaily * 10) / 10, daysLeft });
+          }
+        }
+
+        if (needRestock.length === 0) continue;
+
+        needRestock.sort((a, b) => a.daysLeft - b.daysLeft);
+        const top = needRestock.slice(0, 8);
+        const lines = top.map((p) =>
+          `• ${p.name}: *${p.daysLeft}d left* (stock: ${p.currentStock}, ~${p.avgDaily}/day)`
+        ).join('\n');
+
+        const msg =
+          `📦 *Weekly Restock Alert — ${shop.shopName || 'Your Shop'}*\n\n` +
+          `${needRestock.length} item(s) may run out within 7 days:\n\n` +
+          `${lines}` +
+          (needRestock.length > 8 ? `\n+${needRestock.length - 8} more in app` : '') +
+          `\n\nRestock now in weKerala to avoid lost sales! 🛒`;
+
+        await sendWhatsApp(ownerPhone, msg, shop, 2, { shopId, type: 'utility' });
+        console.log(`[RestockSuggestions] ${needRestock.length} items flagged for shop ${shopId}`);
+      } catch (err) {
+        console.error(`[RestockSuggestions] Error for shop ${shopDoc.id}:`, err.message);
+      }
+    }
+  }
+);
+
+// ─── S5.9: Birthday Greetings (daily 9:00 AM IST = 03:30 UTC) ────────────────
+// Sends birthday wishes to customers whose `birthdayMMDD` field matches today.
+// Customer profile must store birthday as 'MM-DD' string in `birthdayMMDD` field.
+exports.sendBirthdayMessages = onSchedule(
+  { schedule: '30 3 * * *', timeZone: 'UTC' },
+  async () => {
+    const db = getFirestore();
+    const now = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istNow = new Date(now.getTime() + istOffset);
+    const todayMMDD =
+      `${String(istNow.getUTCMonth() + 1).padStart(2, '0')}-${String(istNow.getUTCDate()).padStart(2, '0')}`;
+
+    const shopsSnap = await db.collection('shops').get();
+
+    for (const shopDoc of shopsSnap.docs) {
+      try {
+        const shop = shopDoc.data();
+        const shopId = shopDoc.id;
+        if (shop.plan === 'lite') continue;
+        if (!isPrefOn(shop, 'birthdayMessages', true)) continue;
+
+        const customersSnap = await db
+          .collection('shops').doc(shopId)
+          .collection('customers')
+          .where('birthdayMMDD', '==', todayMMDD)
+          .get();
+
+        for (const custDoc of customersSnap.docs) {
+          const cust = custDoc.data();
+          const phone = cust.phone || cust.customerPhone || custDoc.id;
+          if (!phone || phone.replace(/\D/g, '').length < 10) continue;
+
+          const lastWish = cust.lastBirthdayWish;
+          if (lastWish === now.toISOString().slice(0, 4)) continue; // already sent this year
+
+          const name = cust.name || cust.customerName || 'there';
+          const sName = shop.shopName || 'us';
+          const msg =
+            `🎂 *Happy Birthday, ${name}!*\n\n` +
+            `Wishing you a wonderful birthday from all of us at *${sName}*! 🎉\n\n` +
+            `As a special gift, enjoy *10% off* your next purchase today!\n\n` +
+            `${shop.storeUrl ? `Shop online: ${shop.storeUrl}\n\n` : ''}` +
+            `Have a fantastic day! 🥳\n\n_Reply STOP to opt out._`;
+
+          try {
+            await sendWhatsApp(phone, msg, shop, 2, { shopId, type: 'marketing' });
+            await custDoc.ref.update({ lastBirthdayWish: now.getFullYear().toString() });
+            await trackUsage(shopId, 'waMarketingCount', 1);
+          } catch (err) {
+            console.error(`[Birthday] Failed for ${phone} in shop ${shopId}:`, err.message);
+          }
+        }
+      } catch (err) {
+        console.error(`[Birthday] Error for shop ${shopDoc.id}:`, err.message);
+      }
+    }
+  }
+);
+
+// ─── S5.10: Auto Open/Close Shops by Working Hours (every 30 minutes) ────────
+// Reads shop.workingHours and sets isOpen: true/false based on current IST time.
+// Schema: workingHours: { mon:{open:'09:00',close:'22:00'}, tue:{...}, ... }
+// Set shop.isManualOverride: true to freeze the open/close state.
+exports.autoOpenCloseShops = onSchedule(
+  { schedule: '*/30 * * * *', timeZone: 'Asia/Kolkata' },
+  async () => {
+    const db = getFirestore();
+    const now = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istNow = new Date(now.getTime() + istOffset);
+
+    const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const todayKey = DAY_KEYS[istNow.getUTCDay()];
+    const currentHHMM =
+      `${String(istNow.getUTCHours()).padStart(2, '0')}:${String(istNow.getUTCMinutes()).padStart(2, '0')}`;
+
+    const shopsSnap = await db.collection('shops').get();
+
+    for (const shopDoc of shopsSnap.docs) {
+      try {
+        const shop = shopDoc.data();
+        if (!shop.workingHours) continue;
+        if (shop.isManualOverride === true) continue;
+
+        const todayHours = shop.workingHours[todayKey];
+        if (!todayHours) {
+          if (shop.isOpen !== false) await shopDoc.ref.update({ isOpen: false });
+          continue;
+        }
+
+        const openTime  = todayHours.open  || '09:00';
+        const closeTime = todayHours.close || '22:00';
+        const shouldBeOpen = currentHHMM >= openTime && currentHHMM < closeTime;
+
+        if (shop.isOpen !== shouldBeOpen) {
+          await shopDoc.ref.update({ isOpen: shouldBeOpen });
+          console.log(`[AutoOpenClose] ${shopDoc.id} → isOpen=${shouldBeOpen} at ${currentHHMM} IST`);
+        }
+      } catch (err) {
+        console.error(`[AutoOpenClose] Error for shop ${shopDoc.id}:`, err.message);
+      }
+    }
+  }
+);
