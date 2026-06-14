@@ -19,6 +19,7 @@ import '../../features/orders/screens/orders_list_screen.dart';
 import '../../features/orders/screens/order_detail_screen.dart';
 import '../../features/products/screens/products_list_screen.dart';
 import '../../features/products/screens/add_product_screen.dart';
+import '../../features/products/screens/batch_scan_screen.dart';
 import '../../features/products/screens/import_products_screen.dart';
 import '../../features/products/screens/starter_catalog_screen.dart';
 import '../../features/products/screens/stock_alerts_screen.dart';
@@ -131,6 +132,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/products', builder: (_, __) => const ProductsListScreen()),
       GoRoute(path: '/products/add', builder: (_, __) => const AddProductScreen()),
+      GoRoute(path: '/products/batch', builder: (_, __) => const BatchScanScreen()),
       GoRoute(path: '/products/import', builder: (_, __) => const ImportProductsScreen()),
       GoRoute(path: '/products/catalog', builder: (_, __) => const StarterCatalogScreen()),
       GoRoute(path: '/stock-alerts', builder: (_, __) => const StockAlertsScreen()),

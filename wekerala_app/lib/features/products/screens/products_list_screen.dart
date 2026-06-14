@@ -365,12 +365,31 @@ class _ProductsBody extends ConsumerWidget {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/products/add'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: Text(t('products_add')),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // Batch AI scan — secondary action
+          FloatingActionButton.small(
+            heroTag: 'batch_scan',
+            onPressed: () => context.push('/products/batch'),
+            backgroundColor: Colors.white,
+            foregroundColor: AppColors.primary,
+            elevation: 3,
+            tooltip: 'Batch AI Scan',
+            child: const Icon(Icons.camera_enhance_rounded),
+          ),
+          const SizedBox(height: 10),
+          // Add product — primary action
+          FloatingActionButton.extended(
+            heroTag: 'add_product',
+            onPressed: () => context.push('/products/add'),
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            icon: const Icon(Icons.add),
+            label: Text(t('products_add')),
+          ),
+        ],
       ),
     );
   }

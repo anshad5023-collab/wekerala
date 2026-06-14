@@ -2254,3 +2254,26 @@ exports.autoOpenCloseShops = onSchedule(
     }
   }
 );
+
+// One-time migration: assign shopCode to existing shops that don't have one.
+// Call once via: curl -X POST https://<region>-shoplink-prod.cloudfunctions.net/migrateShopCodes
+// Remove this function after running.
+exports.migrateShopCodes = onRequest({ maxInstances: 1 }, async (req, res) => {
+  const db = getFirestore();
+  const shopsSnap = await db.collection('shops').get();
+  const unassigned = shopsSnap.docs.filter(d => !d.data().shopCode);
+  if (unassigned.length === 0) { res.json({ migrated: 0, message: 'All shops already have shopCode' }); return; }
+  const counterRef = db.collection('counters').doc('shopCode');
+  const results = [];
+  for (const doc of unassigned) {
+    const code = await db.runTransaction(async (tx) => {
+      const counter = await tx.get(counterRef);
+      const next = counter.exists ? (counter.data().next || 1001) : 1001;
+      tx.set(counterRef, { next: next + 1 }, { merge: true });
+      return `W${next}`;
+    });
+    await doc.ref.update({ shopCode: code });
+    results.push({ shopId: doc.id, shopCode: code, name: doc.data().shopName || '' });
+  }
+  res.json({ migrated: results.length, shops: results });
+});
