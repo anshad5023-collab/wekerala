@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const PROJECT_ID = (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? 'shoplink-prod').replace(/^﻿/, '');
-const API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? 'AIzaSyCFB9YZL3_bXjvRMoWaYFv8nTs_ote52GQ';
+const API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '';
 const BASE_REST = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 
 type FVal =
   | { stringValue: string }
   | { integerValue: string }
+  | { doubleValue: number }
   | { booleanValue: boolean }
   | { nullValue: null }
   | { arrayValue: { values?: FVal[] } }
@@ -15,6 +16,7 @@ type FVal =
 function parseValue(v: FVal): unknown {
   if ('stringValue' in v) return v.stringValue;
   if ('integerValue' in v) return Number(v.integerValue);
+  if ('doubleValue' in v) return v.doubleValue;
   if ('booleanValue' in v) return v.booleanValue;
   if ('nullValue' in v) return null;
   if ('arrayValue' in v) return (v.arrayValue.values ?? []).map(parseValue);
@@ -29,7 +31,10 @@ function parseFields(fields: Record<string, FVal>) {
 function toFirestoreValue(v: unknown): FVal {
   if (v === null || v === undefined) return { nullValue: null };
   if (typeof v === 'boolean') return { booleanValue: v };
-  if (typeof v === 'number') return { stringValue: String(v) };
+  if (typeof v === 'number') {
+    // This ensures prices are saved as numbers so the Home Page doesn't crash
+    return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+  }
   if (typeof v === 'string') return { stringValue: v };
   if (Array.isArray(v)) return { arrayValue: { values: v.map(toFirestoreValue) } };
   if (typeof v === 'object') {
@@ -95,6 +100,10 @@ export async function GET(req: NextRequest) {
   const json = await res.json();
   const fields = parseFields(json.fields ?? {}) as Record<string, unknown>;
 
+  // Fix: Trigger migration so legacy shops are moved to the versioned system
+  const legacyWebsite = fields['website'] as Record<string, unknown> | null;
+  await ensureMigrated(shopId, legacyWebsite, API_KEY);
+
   // Try versions/published first; fall back to shops/{shopId}.website
   let websiteConfig: unknown = null;
   try {
@@ -138,34 +147,47 @@ function toSlug(name: string, fallback: string): string {
 }
 
 // POST /api/website — save + publish website config via Admin SDK (bypasses security rules)
-// Body: { shopId, uid, config: WebsiteConfig, draft?: boolean }
+// Headers: Authorization: Bearer <session-token>
+// Body: { shopId, config: WebsiteConfig, draft?: boolean }
 export async function POST(req: NextRequest) {
+  // Verify session token first
+  const { authFromRequest } = await import('@/lib/session-token');
+  const session = authFromRequest(req);
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   // Read raw text first so we can sanitize raw control chars that corrupt JSON.parse.
   // JSON structure whitespace is redundant — stripping all 0x00-0x1F is safe because
   // legitimate \n / \t in string values are already escaped as \n \t (two chars), not raw bytes.
   const rawText = await req.text();
   const sanitized = rawText.replace(/[\x00-\x1F]/g, '');
-  let body: { shopId: string; uid: string; config: Record<string, unknown>; draft?: boolean };
+  let body: { shopId: string; config: Record<string, unknown>; draft?: boolean };
   try {
     body = JSON.parse(sanitized);
   } catch (parseErr) {
     return NextResponse.json({ error: `Invalid request body: ${(parseErr as Error).message}` }, { status: 400 });
   }
-  const { shopId, uid, config, draft } = body;
+  const { shopId, config, draft } = body;
 
-  if (!shopId || !uid || !config) {
-    return NextResponse.json({ error: 'Missing shopId, uid, or config' }, { status: 400 });
+  if (!shopId || !config) {
+    return NextResponse.json({ error: 'Missing shopId or config' }, { status: 400 });
+  }
+
+  // Session must match requested shopId
+  if (session.shopId !== shopId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   try {
     const { getAdminDb } = await import('@/lib/firebase-admin');
     const db = getAdminDb();
 
-    // Verify ownership
+    // Verify ownership via Admin SDK (session already checked, this is a belt-and-suspenders check)
     const shopDoc = await db.collection('shops').doc(shopId).get();
     if (!shopDoc.exists) return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
     const shopData = shopDoc.data()!;
-    if (shopData['ownerId'] !== uid) {
+    if (shopData['ownerId'] !== session.uid) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

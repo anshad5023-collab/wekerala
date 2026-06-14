@@ -115,19 +115,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
   }
 
-  let shopId: string;
-  let uid: string;
+  // Verify session token — no client-supplied uid trusted
+  const { authFromRequest } = await import('@/lib/session-token');
+  const session = authFromRequest(req);
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
+  let shopId: string;
   try {
-    const body = (await req.json()) as { shopId?: string; uid?: string };
+    const body = (await req.json()) as { shopId?: string };
     shopId = body.shopId ?? '';
-    uid = body.uid ?? '';
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  if (!shopId || !uid) {
-    return NextResponse.json({ error: 'Missing shopId or uid' }, { status: 400 });
+  if (!shopId) {
+    return NextResponse.json({ error: 'Missing shopId' }, { status: 400 });
+  }
+
+  if (session.shopId !== shopId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   // ── 1. Verify ownership ──────────────────────────────────────────────────────
@@ -141,7 +149,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch shop' }, { status: 500 });
   }
 
-  if (shopFields['ownerId'] !== uid) {
+  if (shopFields['ownerId'] !== session.uid) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

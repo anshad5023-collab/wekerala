@@ -149,6 +149,20 @@ function BuilderContent() {
   const [previewKey, setPreviewKey] = useState(0);
   const [iframePreviewToken, setIframePreviewToken] = useState<string>('');
 
+  // ── Session token (server-signed, replaces raw uid in API calls) ──────────
+  const [sessionToken, setSessionToken] = useState<string>('');
+  useEffect(() => {
+    if (!shopId || !uid) return;
+    fetch('/api/auth/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shopId, uid }),
+    })
+      .then(r => r.json())
+      .then((d: { token?: string }) => { if (d.token) setSessionToken(d.token); })
+      .catch(() => { /* session will fail gracefully — server returns 401 */ });
+  }, [shopId, uid]);
+
   const setC = (partial: Partial<WebsiteConfig>) => { setConfig(prev => ({ ...prev, ...partial })); setDraftSaved(false); };
 
   // Strip raw control chars (0x00-0x1F) from all strings in a config before sending to API
@@ -239,11 +253,11 @@ function BuilderContent() {
 
   // Fetch preview token for iframe (so draft shows instead of "coming soon")
   useEffect(() => {
-    if (!shopId || !uid) return;
+    if (!shopId || !sessionToken) return;
     fetch('/api/website/preview-token', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shopId, uid }),
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionToken}` },
+      body: JSON.stringify({ shopId }),
     })
       .then(r => r.json())
       .then(d => { if (d.previewUrl) { const url = new URL(d.previewUrl); setIframePreviewToken(url.searchParams.get('preview') || ''); } })
@@ -257,8 +271,8 @@ function BuilderContent() {
       try {
         await fetch('/api/website', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ shopId, uid, config: sanitizeConfig(config), draft: true }),
+          headers: { 'Content-Type': 'application/json', ...(sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {}) },
+          body: JSON.stringify({ shopId, config: sanitizeConfig(config), draft: true }),
         });
         setDraftSaved(true);
         setPreviewKey(k => k + 1); // refresh iframe to show new font/colors
@@ -274,7 +288,7 @@ function BuilderContent() {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('shopId', shopId);
-      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const res = await fetch('/api/upload', { method: 'POST', headers: sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {}, body: formData });
       const data = await res.json();
       if (data.url) setC({ [field]: data.url });
     } catch (e) {
@@ -290,7 +304,7 @@ function BuilderContent() {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('shopId', shopId);
-      const res = await fetch('/api/upload', { method: 'POST', body: formData });
+      const res = await fetch('/api/upload', { method: 'POST', headers: sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {}, body: formData });
       const data = await res.json();
       if (data.url) setC({ banners: [...(config.banners || []), data.url] });
     } catch (e) {
@@ -310,8 +324,8 @@ function BuilderContent() {
     try {
       const res = await fetch('/api/website/preview-token', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shopId, uid }),
+        headers: { 'Content-Type': 'application/json', ...(sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {}) },
+        body: JSON.stringify({ shopId }),
       });
       const data = await res.json();
       window.open(data.previewUrl, '_blank');
@@ -327,8 +341,8 @@ function BuilderContent() {
     try {
       const res = await fetch('/api/website', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shopId, uid, config: sanitizeConfig(config) }),
+        headers: { 'Content-Type': 'application/json', ...(sessionToken ? { 'Authorization': `Bearer ${sessionToken}` } : {}) },
+        body: JSON.stringify({ shopId, config: sanitizeConfig(config) }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));

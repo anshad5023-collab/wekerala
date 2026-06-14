@@ -1561,16 +1561,21 @@ exports.razorpayWebhook = onRequest({ cors: true }, async (req, res) => {
   if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
 
   const secret = RAZORPAY_WEBHOOK_SECRET.value();
-  if (secret) {
-    const crypto = require('crypto');
-    const signature = req.headers['x-razorpay-signature'] || '';
-    const body = JSON.stringify(req.body);
-    const expected = crypto.createHmac('sha256', secret).update(body).digest('hex');
-    if (signature !== expected) {
-      console.error('[Razorpay Webhook] Invalid signature');
-      res.status(400).send('Invalid signature');
-      return;
-    }
+  // Always enforce HMAC — reject if secret is not configured to prevent
+  // accepting fake payment events when the env var is missing.
+  if (!secret) {
+    console.error('[Razorpay Webhook] RAZORPAY_WEBHOOK_SECRET not set — rejecting request');
+    res.status(400).send('Webhook not configured');
+    return;
+  }
+  const crypto = require('crypto');
+  const signature = req.headers['x-razorpay-signature'] || '';
+  const body = JSON.stringify(req.body);
+  const expected = crypto.createHmac('sha256', secret).update(body).digest('hex');
+  if (signature !== expected) {
+    console.error('[Razorpay Webhook] Invalid signature');
+    res.status(400).send('Invalid signature');
+    return;
   }
 
   const event = req.body.event;

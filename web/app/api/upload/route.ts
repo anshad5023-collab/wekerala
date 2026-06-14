@@ -105,14 +105,22 @@ async function getAccessToken(): Promise<string> {
 
 // ---------------------------------------------------------------------------
 // POST /api/upload
+// Headers:
+//   Authorization: Bearer <session-token>  (from /api/auth/session)
 // multipart/form-data fields:
 //   file    — the image File (required)
 //   shopId  — shop document ID used to build the storage path (required)
-//   uid     — Firebase Auth UID of the caller (required for ownership check)
 // ---------------------------------------------------------------------------
 
 export async function POST(request: NextRequest) {
-  // 1. Parse multipart form data
+  // 1. Verify session token (server-signed, not client-supplied uid)
+  const { authFromRequest } = await import('@/lib/session-token');
+  const session = authFromRequest(request);
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // 2. Parse multipart form data
   let formData: FormData
   try {
     formData = await request.formData()
@@ -122,31 +130,14 @@ export async function POST(request: NextRequest) {
 
   const file = formData.get('file') as File | null
   const shopId = (formData.get('shopId') as string | null)?.trim()
-  const uid = (formData.get('uid') as string | null)?.trim()
 
-  // 2. Validate required fields
+  // 3. Validate required fields
   if (!file || !shopId) {
     return NextResponse.json({ error: 'Missing file or shopId' }, { status: 400 })
   }
 
-  if (!uid) {
-    return NextResponse.json({ error: 'Missing uid' }, { status: 400 })
-  }
-
-  // 3. Verify the caller owns this shop (Firestore REST — same pattern as other routes)
-  const API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY
-  if (!API_KEY) {
-    return NextResponse.json({ error: 'API key not configured' }, { status: 500 })
-  }
-
-  const BASE_REST = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`
-  const shopRes = await fetch(`${BASE_REST}/shops/${shopId}?key=${API_KEY}`, { cache: 'no-store' })
-  if (!shopRes.ok) {
-    return NextResponse.json({ error: 'Shop not found' }, { status: 404 })
-  }
-  const shopJson = (await shopRes.json()) as { fields?: Record<string, { stringValue?: string }> }
-  const ownerId = shopJson.fields?.['ownerId']?.stringValue ?? ''
-  if (ownerId !== uid) {
+  // 4. Verify the session's shopId matches the requested shopId
+  if (session.shopId !== shopId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

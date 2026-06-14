@@ -32,33 +32,30 @@ function parseFields(fields: Record<string, FVal>): Record<string, unknown> {
 }
 
 // POST /api/website/preview-token
-// Body: { shopId: string, uid: string }
+// Headers: Authorization: Bearer <session-token>
+// Body: { shopId: string }
 // Returns: { previewUrl: string, expiresAt: string }
 export async function POST(req: NextRequest) {
-  let shopId: string;
-  let uid: string;
+  // Verify session token
+  const { authFromRequest } = await import('@/lib/session-token');
+  const session = authFromRequest(req);
+  if (!session) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
+  let shopId: string;
   try {
-    const body = (await req.json()) as { shopId?: string; uid?: string };
+    const body = (await req.json()) as { shopId?: string };
     shopId = body.shopId ?? '';
-    uid = body.uid ?? '';
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  if (!shopId || !uid) {
-    return NextResponse.json({ error: 'Missing shopId or uid' }, { status: 400 });
+  if (!shopId) {
+    return NextResponse.json({ error: 'Missing shopId' }, { status: 400 });
   }
 
-  // Verify ownership via Firestore REST
-  const shopRes = await fetch(`${BASE_REST}/shops/${shopId}?key=${API_KEY}`, { cache: 'no-store' });
-  if (!shopRes.ok) {
-    return NextResponse.json({ error: 'Shop not found' }, { status: 404 });
-  }
-  const shopJson = await shopRes.json();
-  const shopFields = parseFields((shopJson.fields ?? {}) as Record<string, FVal>) as Record<string, unknown>;
-
-  if (shopFields['ownerId'] !== uid) {
+  if (session.shopId !== shopId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
