@@ -134,6 +134,11 @@ export async function GET(req: NextRequest) {
     logoUrl: fields['logoUrl'] ?? '',
     bannerImageUrl: fields['bannerImageUrl'] ?? '',
     website: websiteConfig,
+  }, {
+    headers: {
+      // Private (per-user) browser cache for 60 s; CDN must not cache (auth-gated builder data)
+      'Cache-Control': 'private, max-age=60, stale-while-revalidate=120',
+    },
   });
 }
 

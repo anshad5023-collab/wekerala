@@ -56,11 +56,11 @@ class ProductRepository {
 
   static Future<void> add(String shopId, ProductModel p) async {
     await _col(shopId).doc(p.productId).set(p.toFirestore());
+    final shopUpdate = <String, dynamic>{'productCount': FieldValue.increment(1)};
     if (p.category.isNotEmpty) {
-      await FirebaseFirestore.instance.collection('shops').doc(shopId).update({
-        'categories': FieldValue.arrayUnion([p.category]),
-      });
+      shopUpdate['categories'] = FieldValue.arrayUnion([p.category]);
     }
+    await FirebaseFirestore.instance.collection('shops').doc(shopId).update(shopUpdate);
   }
 
   static Future<void> update(String shopId, ProductModel p) async {
@@ -72,8 +72,12 @@ class ProductRepository {
     }
   }
 
-  static Future<void> delete(String shopId, String productId) =>
-      _col(shopId).doc(productId).delete();
+  static Future<void> delete(String shopId, String productId) async {
+    await _col(shopId).doc(productId).delete();
+    await FirebaseFirestore.instance.collection('shops').doc(shopId).update({
+      'productCount': FieldValue.increment(-1),
+    });
+  }
 
   static Future<void> setHidden(String shopId, String productId, bool v) =>
       _col(shopId).doc(productId).update({
@@ -99,13 +103,13 @@ class ProductRepository {
       batch.set(_col(shopId).doc(p.productId), p.toFirestore());
     }
     await batch.commit();
-    // Auto-register all new categories into shop.categories
+    // Denormalize count + auto-register categories in a single write
     final newCategories = products.map((p) => p.category).where((c) => c.isNotEmpty).toSet().toList();
+    final shopUpdate = <String, dynamic>{'productCount': FieldValue.increment(products.length)};
     if (newCategories.isNotEmpty) {
-      await FirebaseFirestore.instance.collection('shops').doc(shopId).update({
-        'categories': FieldValue.arrayUnion(newCategories),
-      });
+      shopUpdate['categories'] = FieldValue.arrayUnion(newCategories);
     }
+    await FirebaseFirestore.instance.collection('shops').doc(shopId).update(shopUpdate);
   }
 }
 
