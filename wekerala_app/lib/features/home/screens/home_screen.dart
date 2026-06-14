@@ -1097,7 +1097,13 @@ class _OpenCloseToggleState extends State<_OpenCloseToggle> {
           .doc(widget.shopId)
           .update({'isOpen': value});
       widget.onChanged(value);
-    } catch (_) {} finally {
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update shop status: $e')),
+        );
+      }
+    } finally {
       if (mounted) setState(() => _saving = false);
     }
   }
@@ -1714,7 +1720,7 @@ class _ExpiryAlertsCard extends ConsumerWidget {
     if (expiring.isEmpty) return const SizedBox.shrink();
 
     final now = DateTime.now();
-    final expired = expiring.where((p) => p.expiryDate!.isBefore(now)).toList();
+    final expired = expiring.where((p) => p.expiryDate?.isBefore(now) == true).toList();
     final soonCount = expiring.length - expired.length;
 
     return Container(

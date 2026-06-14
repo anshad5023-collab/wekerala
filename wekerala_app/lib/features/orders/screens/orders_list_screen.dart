@@ -105,6 +105,7 @@ class _OrdersBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final ordersAsync = ref.watch(ordersStreamProvider(shopId));
+    final currentOrderLimit = ref.watch(orderLimitProvider(shopId));
     final allOrders = ordersAsync.value ?? [];
     final countByStatus = {
       for (final s in _kStatuses) s: allOrders.where((o) => o.status == s).length,
@@ -270,6 +271,9 @@ class _OrdersBody extends ConsumerWidget {
                     );
                   }
 
+                  final showLoadMore = q.isEmpty && !showTodayOnly &&
+                      orders.length >= currentOrderLimit;
+
                   final mobileList = RefreshIndicator(
                     color: AppColors.primary,
                     onRefresh: () async {
@@ -277,8 +281,22 @@ class _OrdersBody extends ConsumerWidget {
                     },
                     child: ListView.builder(
                       padding: const EdgeInsets.all(12),
-                      itemCount: filtered.length,
+                      itemCount: filtered.length + (showLoadMore ? 1 : 0),
                       itemBuilder: (ctx, i) {
+                      if (showLoadMore && i == filtered.length) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          child: Center(
+                            child: OutlinedButton.icon(
+                              onPressed: () => ref
+                                  .read(orderLimitProvider(shopId).notifier)
+                                  .state = currentOrderLimit + 100,
+                              icon: const Icon(Icons.expand_more),
+                              label: Text('Load more orders (showing $currentOrderLimit)'),
+                            ),
+                          ),
+                        );
+                      }
                       final order = filtered[i];
                       return Dismissible(
                         key: Key(order.orderId),

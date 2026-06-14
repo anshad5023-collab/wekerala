@@ -199,6 +199,7 @@ class _KotScreenState extends ConsumerState<KotScreen>
 
   @override
   Widget build(BuildContext context) {
+    final shopId = ref.watch(activeShopIdProvider).valueOrNull ?? '';
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -235,25 +236,22 @@ class _KotScreenState extends ConsumerState<KotScreen>
         icon: const Icon(Icons.add),
         label: const Text('New KOT'),
       ),
-      body: Builder(builder: (ctx) {
-        final shopId = ref.watch(activeShopIdProvider).valueOrNull ?? '';
-        return TabBarView(
-          controller: _tabController,
-          children: [
-            _OrderList(
-              orders: _activeOrders,
-              onStatusChange: _updateStatus,
-              shopId: shopId,
-            ),
-            _OrderList(
-              orders: _servedOrders,
-              onStatusChange: _updateStatus,
-              readOnly: true,
-              shopId: shopId,
-            ),
-          ],
-        );
-      }),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          _OrderList(
+            orders: _activeOrders,
+            onStatusChange: _updateStatus,
+            shopId: shopId,
+          ),
+          _OrderList(
+            orders: _servedOrders,
+            onStatusChange: _updateStatus,
+            readOnly: true,
+            shopId: shopId,
+          ),
+        ],
+      ),
     );
   }
 }

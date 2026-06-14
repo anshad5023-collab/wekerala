@@ -4,8 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/order_model.dart';
 import '../models/customer_model.dart';
 
+// Tracks how many orders to load — starts at 100, expandable via "Load More".
+final orderLimitProvider =
+    StateProvider.family<int, String>((ref, shopId) => 100);
+
 final ordersStreamProvider =
     StreamProvider.family<List<OrderModel>, String>((ref, shopId) {
+  final limit = ref.watch(orderLimitProvider(shopId));
   // Limit to last 90 days to prevent loading thousands of old orders
   final since = Timestamp.fromDate(
       DateTime.now().subtract(const Duration(days: 90)));
@@ -15,6 +20,7 @@ final ordersStreamProvider =
       .collection('orders')
       .where('createdAt', isGreaterThanOrEqualTo: since)
       .orderBy('createdAt', descending: true)
+      .limit(limit)
       .snapshots()
       .map((s) => s.docs.map(OrderModel.fromFirestore).toList());
 });

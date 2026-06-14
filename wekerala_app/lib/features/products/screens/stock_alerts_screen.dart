@@ -432,8 +432,11 @@ class _ExpiryTile extends StatelessWidget {
   final ProductModel product;
   const _ExpiryTile({required this.product});
 
+  int get _daysLeft =>
+      product.expiryDate?.difference(DateTime.now()).inDays ?? 0;
+
   String _daysUntilExpiry() {
-    final days = product.expiryDate!.difference(DateTime.now()).inDays;
+    final days = _daysLeft;
     if (days < 0) return 'EXPIRED ${-days} day${-days == 1 ? '' : 's'} ago!';
     if (days == 0) return 'Expires today!';
     if (days == 1) return 'Expires tomorrow';
@@ -441,7 +444,7 @@ class _ExpiryTile extends StatelessWidget {
   }
 
   Color _urgencyColor() {
-    final days = product.expiryDate!.difference(DateTime.now()).inDays;
+    final days = _daysLeft;
     if (days < 0) return AppColors.error;
     if (days <= 3) return AppColors.error;
     if (days <= 7) return const Color(0xFFF57C00);
@@ -451,7 +454,7 @@ class _ExpiryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _urgencyColor();
-    final days = product.expiryDate!.difference(DateTime.now()).inDays;
+    final days = _daysLeft;
     return ListTile(
       leading: Container(
         width: 44,
