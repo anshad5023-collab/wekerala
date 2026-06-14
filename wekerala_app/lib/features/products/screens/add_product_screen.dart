@@ -710,6 +710,18 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                     onChanged: (v) => setState(() => _variants = v),
                   ),
                 ],
+                // Stock tracking always visible — this is a basic feature every shop needs
+                const SizedBox(height: 16),
+                _StockExpirySection(
+                  trackStock: _trackStock,
+                  stockQtyCtrl: _stockQtyCtrl,
+                  lowStockThresholdCtrl: _lowStockThresholdCtrl,
+                  expiryDate: _expiryDate,
+                  batchNumberCtrl: _batchNumberCtrl,
+                  onTrackStockChanged: (v) => setState(() => _trackStock = v),
+                  onExpiryDateChanged: (d) => setState(() => _expiryDate = d),
+                  inputDecoration: _inputDecoration,
+                ),
                 if (!_quickMode) ...[
                 const SizedBox(height: 16),
                 Text('GST & Advanced', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
@@ -761,17 +773,6 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                       style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
                   activeColor: AppColors.primary,
                   contentPadding: EdgeInsets.zero,
-                ),
-                const SizedBox(height: 16),
-                _StockExpirySection(
-                  trackStock: _trackStock,
-                  stockQtyCtrl: _stockQtyCtrl,
-                  lowStockThresholdCtrl: _lowStockThresholdCtrl,
-                  expiryDate: _expiryDate,
-                  batchNumberCtrl: _batchNumberCtrl,
-                  onTrackStockChanged: (v) => setState(() => _trackStock = v),
-                  onExpiryDateChanged: (d) => setState(() => _expiryDate = d),
-                  inputDecoration: _inputDecoration,
                 ),
                 ], // end if (!_quickMode)
                 const SizedBox(height: 24),

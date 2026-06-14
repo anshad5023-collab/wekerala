@@ -825,7 +825,7 @@ void _showCreateOrderSheet(BuildContext context, String shopId, WidgetRef ref) {
   final nameCtrl = TextEditingController();
   final phoneCtrl = TextEditingController();
   final noteCtrl = TextEditingController();
-  DateTime? scheduledFor;
+  DateTime scheduledFor = DateTime.now().add(const Duration(hours: 2));
   String deliveryType = 'pickup';
   final Map<String, int> selectedQty = {}; // productId → qty
   List<ProductModel> products = ref.read(productsStreamProvider(shopId)).valueOrNull ?? [];
@@ -921,29 +921,17 @@ void _showCreateOrderSheet(BuildContext context, String shopId, WidgetRef ref) {
                       ],
                     ),
                     const SizedBox(height: 10),
-                    // Scheduled for
+                    // Scheduled for — defaults to +2 hours, always shown
                     OutlinedButton.icon(
-                      icon: Icon(
-                        Icons.schedule_outlined,
-                        color: scheduledFor != null
-                            ? Colors.deepPurple
-                            : AppColors.textSecondary,
-                      ),
+                      icon: const Icon(Icons.schedule_outlined, color: Colors.deepPurple),
                       label: Text(
-                        scheduledFor != null
-                            ? 'Due: ${DateFormat('d MMM, hh:mm a').format(scheduledFor!)}'
-                            : 'Set delivery date/time (optional)',
-                        style: TextStyle(
-                          color: scheduledFor != null
-                              ? Colors.deepPurple
-                              : AppColors.textSecondary,
-                        ),
+                        'Due: ${DateFormat('d MMM, hh:mm a').format(scheduledFor)}',
+                        style: const TextStyle(color: Colors.deepPurple),
                       ),
                       onPressed: () async {
                         final d = await showDatePicker(
                           context: ctx,
-                          initialDate:
-                              DateTime.now().add(const Duration(hours: 2)),
+                          initialDate: scheduledFor,
                           firstDate: DateTime.now(),
                           lastDate:
                               DateTime.now().add(const Duration(days: 30)),
@@ -951,7 +939,7 @@ void _showCreateOrderSheet(BuildContext context, String shopId, WidgetRef ref) {
                         if (d == null || !ctx.mounted) return;
                         final t = await showTimePicker(
                           context: ctx,
-                          initialTime: TimeOfDay.now(),
+                          initialTime: TimeOfDay.fromDateTime(scheduledFor),
                         );
                         if (t != null) {
                           setS(() => scheduledFor = DateTime(
@@ -1020,9 +1008,10 @@ void _showCreateOrderSheet(BuildContext context, String shopId, WidgetRef ref) {
                   ],
                 ),
               ),
-              // Bottom: total + save
+              // Bottom: total + save — padding accounts for keyboard so button stays visible
               Container(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                padding: EdgeInsets.fromLTRB(
+                    16, 12, 16, MediaQuery.of(ctx2).viewInsets.bottom + 24),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   boxShadow: [
@@ -1094,9 +1083,7 @@ void _showCreateOrderSheet(BuildContext context, String shopId, WidgetRef ref) {
                                 'cancelReason': '',
                                 'createdAt': Timestamp.fromDate(now),
                                 'updatedAt': Timestamp.fromDate(now),
-                                if (scheduledFor != null)
-                                  'scheduledFor':
-                                      Timestamp.fromDate(scheduledFor!),
+                                'scheduledFor': Timestamp.fromDate(scheduledFor),
                               };
 
                               await FirebaseFirestore.instance

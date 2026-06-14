@@ -473,36 +473,7 @@ class _BannerChip extends StatelessWidget {
 
 Future<void> _showQuickStockUpdate(
     BuildContext context, String shopId, ProductModel product) async {
-  if (product.stockQty == null) {
-    await showModalBottomSheet(
-      context: context,
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(product.nameEn,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            const SizedBox(height: 12),
-            const Text('Stock tracking is not enabled for this product.',
-                style: TextStyle(color: AppColors.textSecondary)),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary, foregroundColor: Colors.white),
-              onPressed: () {
-                Navigator.pop(context);
-                context.push('/products/${product.productId}');
-              },
-              child: const Text('Edit Product to Enable'),
-            ),
-          ],
-        ),
-      ),
-    );
-    return;
-  }
-
+  // If stock tracking was never enabled, treat current qty as 0 and enable it on save
   final currentQty = product.stockQty ?? 0;
   int newQty = currentQty;
   final ctrl = TextEditingController(text: currentQty.toString());
