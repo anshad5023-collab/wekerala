@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
@@ -367,7 +368,10 @@ class _ProductsBody extends ConsumerWidget {
                                     }
                                     return _ProductTile(
                                         shopId: shopId,
-                                        product: filtered[i]);
+                                        product: filtered[i])
+                                      .animate(delay: (i * 40).ms)
+                                      .fadeIn(duration: 250.ms)
+                                      .slideY(begin: 0.08, curve: Curves.easeOut);
                                   },
                                 ),
                               ),

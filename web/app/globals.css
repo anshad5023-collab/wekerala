@@ -192,3 +192,38 @@ html {
   object-fit: cover;
   display: block;
 }
+
+/* ── Staggered entrance animation ─────────────────────── */
+@keyframes wk-fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
+.wk-fade-up {
+  animation: wk-fade-up 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── Skeleton shimmer ─────────────────────────────────── */
+@keyframes wk-shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position:  200% 0; }
+}
+.wk-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--card) 25%,
+    oklch(0.96 0.03 100) 50%,
+    var(--card) 75%
+  );
+  background-size: 200% 100%;
+  animation: wk-shimmer 1.4s ease infinite;
+  border-radius: var(--radius-md);
+}
+
+/* ── Button press utility ─────────────────────────────── */
+.wk-btn-press {
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+.wk-btn-press:active {
+  transform: scale(0.95) translateY(1px);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+}

@@ -251,6 +251,8 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
 
       if (!mounted) return;
 
+      HapticFeedback.mediumImpact();
+
       // Show success snackbar with bill number immediately after saving.
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

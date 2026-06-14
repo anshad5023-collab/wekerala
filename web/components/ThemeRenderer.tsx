@@ -320,11 +320,11 @@ function CleanLayout({ config, shop, products, shopId, language = 'en' }: Props)
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-                  {visible.map(pr => {
+                  {visible.map((pr, idx) => {
                     const hasOffer = pr.offerPrice > 0 && pr.offerPrice < pr.price;
                     const discPct = hasOffer ? Math.round((pr.price - pr.offerPrice) / pr.price * 100) : 0;
                     return (
-                      <div key={pr.productId} className="wk-card bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                      <div key={pr.productId} className="wk-card wk-fade-up bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow" style={{ animationDelay: `${idx * 40}ms` }}>
                         <div className="relative">
                           {pr.imageUrl
                             ? <img src={pr.imageUrl} alt={pr.name} className="wk-product-img" />
@@ -1350,17 +1350,6 @@ function ReviewsSection({ config }: { config: WebsiteConfig }) {
       </div>
     </section>
   )
-}
-
-// ── ANNOUNCEMENT BAR ─────────────────────────────────────────────────────────────
-function AnnouncementBar({ config }: { config: WebsiteConfig }) {
-  if (!config.announcementBarEnabled || !config.announcementBar) return null;
-  const bg = config.announcementBarColor || config.primaryColor;
-  return (
-    <div style={{ backgroundColor: bg }} className="w-full py-2 px-4 text-center text-white text-xs font-semibold tracking-wide sticky top-0 z-50">
-      {config.announcementBar}
-    </div>
-  );
 }
 
 // ── POLICY FOOTER ─────────────────────────────────────────────────────────────────
