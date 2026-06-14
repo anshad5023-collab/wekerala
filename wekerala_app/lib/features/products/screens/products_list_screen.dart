@@ -230,39 +230,20 @@ class _ProductsBody extends ConsumerWidget {
               // ── Product list / empty state ────────────────────────────
               Expanded(
                 child: filtered.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(32),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 80,
-                                height: 80,
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary.withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: const Icon(Icons.inventory_2_outlined,
-                                    size: 40, color: AppColors.primary),
-                              ),
-                              const SizedBox(height: 16),
-                              const Text(
-                                'No products found',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              const Text(
-                                'Add your first product to get started',
-                                style: TextStyle(
-                                    fontSize: 13, color: AppColors.textSecondary),
-                                textAlign: TextAlign.center,
-                              ),
-                              const SizedBox(height: 20),
+                    ? LottieEmptyState(
+                        title: search.isNotEmpty
+                            ? 'No products match "$search"'
+                            : 'No products yet',
+                        subtitle: search.isNotEmpty
+                            ? null
+                            : 'Add your first product to get started',
+                        actions: [
+                          if (search.isNotEmpty)
+                            TextButton(
+                              onPressed: () => onSearchChanged(''),
+                              child: const Text('Clear search'),
+                            )
+                          else ...[
                               ElevatedButton.icon(
                                 onPressed: () => context.push('/products/add'),
                                 icon: const Icon(Icons.add, size: 18),
@@ -288,9 +269,8 @@ class _ProductsBody extends ConsumerWidget {
                                       borderRadius: BorderRadius.circular(10)),
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
+                          ],
+                        ],
                       )
                     : AdaptiveLayout(
                         mobile: Column(

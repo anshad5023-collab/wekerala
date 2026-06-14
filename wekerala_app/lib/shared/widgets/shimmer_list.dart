@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:lottie/lottie.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../core/constants/app_colors.dart';
+
+// ── Shimmer skeleton list ─────────────────────────────────────────────────────
 
 class ShimmerList extends StatelessWidget {
   final int itemCount;
@@ -63,6 +66,102 @@ class _ShimmerItem extends StatelessWidget {
   }
 }
 
+// ── Shimmer card grid ─────────────────────────────────────────────────────────
+
+class ShimmerGrid extends StatelessWidget {
+  final int itemCount;
+  final int crossAxisCount;
+
+  const ShimmerGrid({super.key, this.itemCount = 6, this.crossAxisCount = 2});
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade200,
+      highlightColor: Colors.grey.shade100,
+      child: GridView.builder(
+        padding: const EdgeInsets.all(12),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: crossAxisCount,
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          childAspectRatio: 0.75,
+        ),
+        itemCount: itemCount,
+        itemBuilder: (_, __) => Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Lottie empty state ────────────────────────────────────────────────────────
+
+class LottieEmptyState extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final List<Widget>? actions;
+
+  const LottieEmptyState({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.actions,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Lottie.asset(
+              'assets/animations/empty_box.json',
+              width: 180,
+              height: 180,
+              repeat: true,
+              frameRate: FrameRate.max,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            if (subtitle != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                subtitle!,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+            if (actions != null && actions!.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              ...actions!,
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── No Internet widget with Lottie ────────────────────────────────────────────
+
 class NoInternetWidget extends StatelessWidget {
   final VoidCallback onRetry;
 
@@ -76,11 +175,21 @@ class NoInternetWidget extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.wifi_off_rounded, size: 64, color: AppColors.textSecondary),
-            const SizedBox(height: 16),
+            Lottie.asset(
+              'assets/animations/no_internet.json',
+              width: 200,
+              height: 200,
+              repeat: true,
+              frameRate: FrameRate.max,
+            ),
+            const SizedBox(height: 8),
             const Text(
               'No Internet Connection',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -96,10 +205,68 @@ class NoInternetWidget extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                minimumSize: const Size(140, 44),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Bill saved Lottie overlay ─────────────────────────────────────────────────
+// Show via: showBillSavedOverlay(context)
+
+Future<void> showBillSavedOverlay(BuildContext context) async {
+  showGeneralDialog(
+    context: context,
+    barrierDismissible: false,
+    barrierColor: Colors.black38,
+    transitionDuration: const Duration(milliseconds: 180),
+    transitionBuilder: (_, anim, __, child) =>
+        FadeTransition(opacity: anim, child: child),
+    pageBuilder: (ctx, _, __) => const _BillSavedOverlay(),
+  );
+  await Future.delayed(const Duration(milliseconds: 1700));
+  if (context.mounted) {
+    Navigator.of(context, rootNavigator: true).pop();
+  }
+}
+
+class _BillSavedOverlay extends StatelessWidget {
+  const _BillSavedOverlay();
+
+  @override
+  Widget build(BuildContext context) {
+    return PopScope(
+      canPop: false,
+      child: Center(
+        child: Material(
+          color: Colors.transparent,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Lottie.asset(
+                'assets/animations/success.json',
+                width: 180,
+                height: 180,
+                repeat: false,
+                frameRate: FrameRate.max,
+              ),
+              const Text(
+                'Bill Saved!',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  decoration: TextDecoration.none,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

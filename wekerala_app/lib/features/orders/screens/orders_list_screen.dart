@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
@@ -263,17 +264,9 @@ class _OrdersBody extends ConsumerWidget {
                         }).toList();
 
                   if (filtered.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.receipt_long_outlined,
-                              size: 64, color: AppColors.textSecondary),
-                          const SizedBox(height: 12),
-                          Text(t('orders_empty'),
-                              style: const TextStyle(color: AppColors.textSecondary)),
-                        ],
-                      ),
+                    return LottieEmptyState(
+                      title: t('orders_empty'),
+                      subtitle: q.isNotEmpty ? 'Try a different search term' : null,
                     );
                   }
 
@@ -400,7 +393,9 @@ class _OrdersBody extends ConsumerWidget {
                           }
                         },
                         child: _OrderTile(order: order, shopId: shopId, t: t),
-                      );
+                      ).animate(delay: (i * 40).ms)
+                          .fadeIn(duration: 250.ms)
+                          .slideY(begin: 0.06, curve: Curves.easeOut);
                     },
                   ),
                   );

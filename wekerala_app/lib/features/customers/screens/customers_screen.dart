@@ -977,44 +977,13 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              hasCustomers
-                  ? Icons.search_off_rounded
-                  : Icons.people_outline_rounded,
-              size: 72,
-              color: AppColors.textSecondary,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              hasCustomers
-                  ? 'No customers match your search.'
-                  : 'No customers yet.',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            if (!hasCustomers)
-              const Text(
-                'Customers will appear here when they place orders.',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textSecondary,
-                ),
-                textAlign: TextAlign.center,
-              ),
-          ],
-        ),
-      ),
+    return LottieEmptyState(
+      title: hasCustomers
+          ? 'No customers match your search.'
+          : 'No customers yet.',
+      subtitle: hasCustomers
+          ? 'Try a different name or phone number.'
+          : 'Customers will appear here when they place orders.',
     );
   }
 }
