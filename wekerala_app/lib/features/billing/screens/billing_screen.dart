@@ -1709,39 +1709,33 @@ class _ProductPanelState extends ConsumerState<_ProductPanel> {
                           ),
                         );
                         if (barcode != null && barcode.isNotEmpty) {
-                          final product = ref.read(
-                            productByBarcodeProvider(
-                                (shopId: shopId, barcode: barcode)),
-                          );
+                          // Use helper: in-memory first, then Firestore fallback
+                          final product = await _lookupByBarcode(shopId, barcode, ref);
+                          if (!context.mounted) return;
                           if (product != null && !product.isOutOfStock) {
                             ref
                                 .read(billingProvider.notifier)
                                 .addItem(product);
                           } else if (product != null && product.isOutOfStock) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                      '${product.nameEn} is out of stock.'),
-                                  backgroundColor: Colors.orange,
-                                ),
-                              );
-                            }
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                    '${product.nameEn} is out of stock.'),
+                                backgroundColor: Colors.orange,
+                              ),
+                            );
                           } else {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                      'Barcode $barcode not in catalog'),
-                                  action: SnackBarAction(
-                                    label: 'Add Product',
-                                    onPressed: () => context.push(
-                                        '/products/add'),
-                                  ),
-                                  duration: const Duration(seconds: 6),
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                    'Barcode $barcode not in catalog — add the product first'),
+                                action: SnackBarAction(
+                                  label: 'Add Product',
+                                  onPressed: () => context.push('/products/add'),
                                 ),
-                              );
-                            }
+                                duration: const Duration(seconds: 6),
+                              ),
+                            );
                           }
                         }
                       },
@@ -2893,6 +2887,44 @@ class _SummaryRow extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Barcode lookup helper
+// ---------------------------------------------------------------------------
+// 1. Checks in-memory productsStreamProvider list (instant, covers 300 newest).
+// 2. If not found, falls back to a direct Firestore query so products added
+//    earlier (beyond the 300-limit) are still matched.
+// 3. Normalises leading-zero mismatch (EAN-13 scanners may include/omit leading 0).
+Future<ProductModel?> _lookupByBarcode(
+    String shopId, String barcode, WidgetRef ref) async {
+  final trimmed = barcode.trim();
+  if (trimmed.isEmpty) return null;
+
+  // Fast path — in-memory search
+  ProductModel? found = ref.read(
+      productByBarcodeProvider((shopId: shopId, barcode: trimmed)));
+  if (found != null) return found;
+
+  // Leading-zero normalisation
+  final alt = trimmed.startsWith('0') ? trimmed.substring(1) : '0$trimmed';
+  found = ref.read(
+      productByBarcodeProvider((shopId: shopId, barcode: alt)));
+  if (found != null) return found;
+
+  // Firestore fallback — queries ALL products, not just the cached 300
+  try {
+    final col = FirebaseFirestore.instance
+        .collection('shops').doc(shopId).collection('products');
+
+    final snap = await col.where('barcode', isEqualTo: trimmed).limit(1).get();
+    if (snap.docs.isNotEmpty) return ProductModel.fromFirestore(snap.docs.first);
+
+    final snapAlt = await col.where('barcode', isEqualTo: alt).limit(1).get();
+    if (snapAlt.docs.isNotEmpty) return ProductModel.fromFirestore(snapAlt.docs.first);
+  } catch (_) {}
+
+  return null;
+}
+
 // Desktop barcode text-entry field (Windows — USB scanners send Enter on scan)
 // ---------------------------------------------------------------------------
 
@@ -2921,18 +2953,16 @@ class _DesktopBarcodeFieldState extends ConsumerState<_DesktopBarcodeField> {
     super.dispose();
   }
 
-  void _onSubmitted(String barcode) {
+  Future<void> _onSubmitted(String barcode) async {
     if (barcode.trim().isEmpty) return;
-    final product = ref.read(
-      productByBarcodeProvider(
-          (shopId: widget.shopId, barcode: barcode.trim())),
-    );
+    _ctrl.clear(); // clear immediately so next scan can start
+    final product = await _lookupByBarcode(widget.shopId, barcode, ref);
+    if (!mounted) return;
     if (product != null) {
       widget.onProductFound(product);
     } else {
       widget.onNotFound(barcode.trim());
     }
-    _ctrl.clear();
   }
 
   @override
