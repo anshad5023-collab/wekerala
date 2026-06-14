@@ -147,12 +147,26 @@ class ProductLookupService {
         // imageUrl is now returned by the API (fetched from Open Food Facts after identification)
         final imageUrl = (data['imageUrl'] as String? ?? '').trim();
 
-        final category = shopCategories.firstWhere(
+        // Match Gemini category against shop's category list.
+        // Strategy: substring match first, then word-overlap fallback.
+        String category = shopCategories.firstWhere(
           (c) =>
               c.toLowerCase().contains(rawCat.toLowerCase()) ||
               rawCat.toLowerCase().contains(c.toLowerCase()),
           orElse: () => '',
         );
+        if (category.isEmpty && rawCat.isNotEmpty) {
+          // Word-overlap: pick the shop category sharing the most words with Gemini's category
+          final geminiWords = rawCat.toLowerCase().split(RegExp(r'[\s&/,]+'));
+          String bestMatch = '';
+          int bestScore = 0;
+          for (final c in shopCategories) {
+            final shopWords = c.toLowerCase().split(RegExp(r'[\s&/,]+'));
+            final score = geminiWords.where((w) => w.length > 2 && shopWords.contains(w)).length;
+            if (score > bestScore) { bestScore = score; bestMatch = c; }
+          }
+          if (bestScore > 0) category = bestMatch;
+        }
 
         final fullName = (brand.isNotEmpty &&
                 name.isNotEmpty &&

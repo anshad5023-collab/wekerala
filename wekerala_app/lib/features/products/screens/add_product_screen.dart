@@ -284,6 +284,13 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     );
     if (!mounted) return;
     if (data != null && data.hasData) {
+      // Always use the photo the owner took as the product image —
+      // Open Food Facts rarely has Indian products so the scanned photo is best.
+      setState(() {
+        _imageFile = XFile(file.path);
+        _imageUrl = '';
+        _imageSource = 'owner';
+      });
       _applyLookup(data);
     } else {
       setState(() => _loadingImage = false);
