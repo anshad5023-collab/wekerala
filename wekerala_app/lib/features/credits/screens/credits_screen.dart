@@ -1160,19 +1160,28 @@ class _DesktopCreditsTable extends ConsumerWidget {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      if (credit.status != 'paid') ...[
+                        IconButton(
+                          icon: const Icon(Icons.payments_outlined,
+                              color: AppColors.accent),
+                          tooltip: 'Partial Pay',
+                          onPressed: () =>
+                              _showPartialPayDialog(context, ref, credit, shopId),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.check_circle_outline,
+                              color: AppColors.success),
+                          tooltip: 'Mark Paid',
+                          onPressed: () =>
+                              _confirmMarkPaid(context, ref, credit, shopId),
+                        ),
+                      ],
                       IconButton(
                         icon: const Icon(Icons.chat,
                             color: Color(0xFF25D366)),
                         tooltip: 'Send Monthly Statement',
                         onPressed: () => _sendWhatsApp(
                             context, credit, shopName),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.check_circle_outline,
-                            color: AppColors.primary),
-                        tooltip: 'Mark Paid',
-                        onPressed: () =>
-                            _confirmMarkPaid(context, ref, credit, shopId),
                       ),
                     ],
                   ),
@@ -1283,6 +1292,116 @@ class _DesktopCreditsTable extends ConsumerWidget {
         }
       }
     }
+  }
+
+  Future<void> _showPartialPayDialog(
+    BuildContext context,
+    WidgetRef ref,
+    CreditModel credit,
+    String shopId,
+  ) async {
+    final ctrl = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final fmt = NumberFormat('#,##,##0.00', 'en_IN');
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Record Payment',
+            style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Outstanding: ₹${fmt.format(credit.outstanding)}',
+                style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: ctrl,
+                autofocus: true,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  labelText: 'Amount Received (₹)',
+                  prefixText: '₹ ',
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: AppColors.primary),
+                  ),
+                ),
+                validator: (v) {
+                  final val = double.tryParse(v ?? '');
+                  if (val == null || val <= 0) return 'Enter a valid amount';
+                  if (val > credit.outstanding) {
+                    return 'Cannot exceed ₹${fmt.format(credit.outstanding)}';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel',
+                style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) Navigator.pop(ctx, true);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && context.mounted) {
+      final amount = double.tryParse(ctrl.text) ?? 0;
+      if (amount <= 0) {
+        ctrl.dispose();
+        return;
+      }
+      try {
+        await CreditsRepository.recordPartialPayment(
+            shopId, credit.creditId, amount);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  'Payment of ₹${fmt.format(amount)} recorded.'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    }
+    ctrl.dispose();
   }
 }
 

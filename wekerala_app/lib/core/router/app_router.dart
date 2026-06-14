@@ -57,9 +57,11 @@ import '../../features/marketing/screens/flash_sale_screen.dart';
 import '../../features/marketing/screens/loyalty_screen.dart';
 import '../../features/marketing/screens/udhar_screen.dart';
 import '../../features/products/screens/bulk_import_screen.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/bill_model.dart';
 import '../../models/supplier_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/shop_provider.dart';
 
 // Routes that do NOT require Firebase auth
 const _publicRoutes = {
@@ -162,13 +164,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/kot', builder: (_, __) => const KotScreen()),
       GoRoute(
         path: '/bills/:billId',
-        builder: (_, state) {
+        builder: (context, state) {
           final bill = state.extra;
-          if (bill is! BillModel) {
-            // Deep link without data object: fall back to bill history
-            return const BillHistoryScreen();
-          }
-          return BillDetailScreen(bill: bill);
+          if (bill is BillModel) return BillDetailScreen(bill: bill);
+          // Deep link (notification/cold start): load bill from Firestore
+          final billId = state.pathParameters['billId'] ?? '';
+          return _BillDeepLinkLoader(billId: billId);
         },
       ),
       GoRoute(path: '/customers', builder: (_, __) => const CustomersScreen()),
@@ -230,3 +231,51 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ),
   );
 });
+
+// Loads a bill by ID from Firestore for deep links / notification taps.
+// Falls back to BillHistoryScreen if the bill cannot be fetched.
+class _BillDeepLinkLoader extends ConsumerWidget {
+  final String billId;
+  const _BillDeepLinkLoader({required this.billId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final shopIdAsync = ref.watch(activeShopIdProvider);
+
+    return shopIdAsync.when(
+      loading: () => const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      ),
+      error: (_, __) => const BillHistoryScreen(),
+      data: (shopId) {
+        if (shopId == null || shopId.isEmpty || billId.isEmpty) {
+          return const BillHistoryScreen();
+        }
+        return FutureBuilder<DocumentSnapshot>(
+          future: FirebaseFirestore.instance
+              .collection('shops')
+              .doc(shopId)
+              .collection('bills')
+              .doc(billId)
+              .get(),
+          builder: (ctx, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              );
+            }
+            if (snap.hasError || !snap.hasData || !snap.data!.exists) {
+              return const BillHistoryScreen();
+            }
+            try {
+              final bill = BillModel.fromFirestore(snap.data!);
+              return BillDetailScreen(bill: bill);
+            } catch (_) {
+              return const BillHistoryScreen();
+            }
+          },
+        );
+      },
+    );
+  }
+}
