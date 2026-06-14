@@ -192,21 +192,50 @@ export async function POST(req: NextRequest) {
       parsed = JSON.parse(match[0]);
     }
 
-    // After Gemini identifies name+brand, try to fetch an actual product image
-    // from Open Food Facts by searching the product name — completely free
+    // After Gemini identifies name+brand, search for a product image.
+    // Pipeline: 1) Open Food Facts (food), 2) DuckDuckGo image search (all products, free, no key)
     if (parsed.name || parsed.brand) {
       const query = [parsed.brand, parsed.name].filter(Boolean).join(' ');
+
+      // 1 — Open Food Facts (best for packaged food with barcode data)
       try {
         const offRes = await fetch(
           `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=1&lc=en`,
-          { headers: { 'User-Agent': 'Oratas/1.0 (oratas4ai@gmail.com)' } }
+          { headers: { 'User-Agent': 'Oratas/1.0 (oratas4ai@gmail.com)' }, signal: AbortSignal.timeout(4000) }
         );
         if (offRes.ok) {
           const offData = await offRes.json() as { products?: Array<{ image_front_url?: string }> };
           const imgUrl = offData.products?.[0]?.image_front_url;
           if (imgUrl) parsed.imageUrl = imgUrl;
         }
-      } catch { /* image fetch is best-effort */ }
+      } catch { /* best-effort */ }
+
+      // 2 — DuckDuckGo image search if Open Food Facts had no result
+      // Uses DDG's unofficial vqd-token flow — free, no API key, searches entire web
+      if (!parsed.imageUrl) {
+        try {
+          // Step A: get vqd token
+          const ddgHtml = await fetch(
+            `https://duckduckgo.com/?q=${encodeURIComponent(query + ' product')}&iax=images&ia=images`,
+            { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' }, signal: AbortSignal.timeout(5000) }
+          );
+          const html = await ddgHtml.text();
+          const vqdMatch = html.match(/vqd=['"]([^'"]+)['"]/);
+          if (vqdMatch) {
+            // Step B: fetch image results
+            const imgRes = await fetch(
+              `https://duckduckgo.com/i.js?q=${encodeURIComponent(query)}&vqd=${vqdMatch[1]}&o=json&p=1&s=0&u=bing&f=,,,`,
+              { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)', 'Referer': 'https://duckduckgo.com/' }, signal: AbortSignal.timeout(5000) }
+            );
+            if (imgRes.ok) {
+              const imgData = await imgRes.json() as { results?: Array<{ image?: string; thumbnail?: string }> };
+              // Pick first result that looks like a real product image URL (not a tiny icon)
+              const hit = imgData.results?.find(r => r.image && r.image.startsWith('http'));
+              if (hit?.image) parsed.imageUrl = hit.image;
+            }
+          }
+        } catch { /* best-effort */ }
+      }
     }
 
     return NextResponse.json(parsed);
