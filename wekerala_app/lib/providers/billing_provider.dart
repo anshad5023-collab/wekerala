@@ -154,6 +154,22 @@ class BillingNotifier extends Notifier<BillingState> {
   }
 
   /// Add one unit of [product] to the cart. If already present, increment qty.
+  /// Decrement qty by the item's natural step (0.25 for weight-based, 1 otherwise).
+  void decrementItem(String productId) {
+    final items = List<BillItemModel>.from(state.cartItems);
+    final idx = items.indexWhere((i) => i.productId == productId);
+    if (idx < 0) return;
+    final item = items[idx];
+    final newQty = (item.qty - item.qtyStep).clamp(0.0, double.infinity);
+    if (newQty <= 0) {
+      items.removeAt(idx);
+    } else {
+      items[idx] = item.copyWith(qty: newQty, subtotal: newQty * item.price);
+    }
+    state = state.copyWith(cartItems: items);
+    _persistCart(items);
+  }
+
   void addItem(ProductModel product, {VariantModel? variant}) {
     final items = List<BillItemModel>.from(state.cartItems);
     // Use variant-specific ID so each variant is a separate cart line
@@ -172,7 +188,7 @@ class BillingNotifier extends Notifier<BillingState> {
 
     if (idx >= 0) {
       final existing = items[idx];
-      final newQty = existing.qty + 1;
+      final newQty = existing.qty + existing.qtyStep;
       items[idx] = existing.copyWith(
         qty: newQty,
         subtotal: newQty * existing.price,
@@ -252,6 +268,26 @@ class BillingNotifier extends Notifier<BillingState> {
   void clearFlashSale() {
     state = state.copyWith(
         flashSalePercent: 0, flashSaleName: '', flashSaleCategory: '');
+  }
+
+  /// Set modifier add-ons for a cart item (Bakery / Hotel).
+  void setItemModifiers(String productId, List<String> modifiers) {
+    final items = List<BillItemModel>.from(state.cartItems);
+    final idx = items.indexWhere((i) => i.productId == productId);
+    if (idx < 0) return;
+    items[idx] = items[idx].copyWith(modifiers: modifiers);
+    state = state.copyWith(cartItems: items);
+    _persistCart(items);
+  }
+
+  /// Set a per-item free-text note (e.g. Rx# for pharmacy, special instructions).
+  void setItemNote(String productId, String note) {
+    final items = List<BillItemModel>.from(state.cartItems);
+    final idx = items.indexWhere((i) => i.productId == productId);
+    if (idx < 0) return;
+    items[idx] = items[idx].copyWith(itemNote: note.isEmpty ? null : note);
+    state = state.copyWith(cartItems: items);
+    _persistCart(items);
   }
 
   /// Reset the cart to empty.

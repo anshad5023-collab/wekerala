@@ -775,10 +775,15 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
       });
     }
 
+    final shopType = shopId != null
+        ? (ref.watch(shopStreamProvider(shopId)).valueOrNull?.shopType ?? '')
+        : '';
+
     final cartPanel = _CartPanel(
       discountCtrl: _discountCtrl,
       onDiscountChanged: _onDiscountChanged,
       onUdhar: () => _onPaymentTap('udhar'),
+      shopType: shopType,
     );
 
     final productPanel = shopIdAsync.when(
@@ -947,11 +952,13 @@ class _CartPanel extends ConsumerWidget {
   final TextEditingController discountCtrl;
   final ValueChanged<String> onDiscountChanged;
   final VoidCallback onUdhar;
+  final String shopType;
 
   const _CartPanel({
     required this.discountCtrl,
     required this.onDiscountChanged,
     required this.onUdhar,
+    this.shopType = '',
   });
 
   @override
@@ -1022,12 +1029,14 @@ class _CartPanel extends ConsumerWidget {
                     final item = state.cartItems[index];
                     return _CartItemRow(
                       item: item,
-                      onIncrement: () =>
-                          notifier.updateQty(item.productId, item.qty + 1),
-                      onDecrement: () =>
-                          notifier.updateQty(item.productId, item.qty - 1),
+                      shopType: shopType,
+                      onIncrement: () => notifier.updateQty(
+                          item.productId, item.qty + item.qtyStep),
+                      onDecrement: () => notifier.decrementItem(item.productId),
                       onDelete: () => notifier.removeItem(item.productId),
                       onSetQty: (qty) => notifier.updateQty(item.productId, qty),
+                      onSetModifiers: (mods) =>
+                          notifier.setItemModifiers(item.productId, mods),
                     ).animate().fadeIn(duration: 200.ms);
                   },
                 ),
@@ -1204,12 +1213,33 @@ class _CartPanel extends ConsumerWidget {
 // Cart item row
 // ---------------------------------------------------------------------------
 
+/// Preset modifier chips by shop type — shown in the modifier bottom sheet.
+const _kModifierPresets = <String, List<String>>{
+  'Hotel / Restaurant': [
+    'Extra spicy', 'Less spicy', 'No spice',
+    'Extra gravy', 'No onion', 'No garlic',
+    'Half portion', 'Extra portion',
+  ],
+  'Bakery': [
+    'Less sweet', 'Extra sweet', 'No sugar',
+    'Eggless', 'Extra cream', 'No cream',
+    'Warm', 'Well done',
+  ],
+  'Café': [
+    'Extra shot', 'Less sugar', 'No sugar',
+    'Oat milk', 'Cold', 'No ice',
+    'Extra hot',
+  ],
+};
+
 class _CartItemRow extends StatelessWidget {
   final BillItemModel item;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
   final VoidCallback onDelete;
   final ValueChanged<double>? onSetQty;
+  final ValueChanged<List<String>>? onSetModifiers;
+  final String shopType;
 
   const _CartItemRow({
     required this.item,
@@ -1217,10 +1247,170 @@ class _CartItemRow extends StatelessWidget {
     required this.onDecrement,
     required this.onDelete,
     this.onSetQty,
+    this.onSetModifiers,
+    this.shopType = '',
   });
+
+  String get _qtyLabel {
+    if (item.qty % 1 == 0) return item.qty.toInt().toString();
+    return item.qty.toStringAsFixed(item.isWeightBased ? 2 : 1);
+  }
+
+  String get _priceLabel {
+    final suffix = item.isWeightBased ? '/ ${item.unit}' : '/ unit';
+    return '₹${item.price.toStringAsFixed(2)} $suffix';
+  }
+
+  Future<void> _showQtyDialog(BuildContext ctx) async {
+    final ctrl = TextEditingController(text: _qtyLabel);
+    final val = await showDialog<double>(
+      context: ctx,
+      builder: (_) => AlertDialog(
+        title: Text(item.productName, style: const TextStyle(fontSize: 14)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,3}'))
+          ],
+          decoration: InputDecoration(
+            suffixText: item.unit,
+            hintText: 'Enter quantity',
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, double.tryParse(ctrl.text.trim())),
+            child: const Text('Set'),
+          ),
+        ],
+      ),
+    );
+    if (val != null && val > 0 && onSetQty != null) onSetQty!(val);
+  }
+
+  Future<void> _showModifierSheet(BuildContext ctx) async {
+    final presets = _kModifierPresets[shopType] ?? [];
+    final current = List<String>.from(item.modifiers);
+    final customCtrl = TextEditingController();
+
+    await showModalBottomSheet(
+      context: ctx,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (_, setSheetState) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(sheetCtx).viewInsets.bottom + 16,
+            top: 20,
+            left: 16,
+            right: 16,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Add-ons for ${item.productName}',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              ),
+              const SizedBox(height: 12),
+              if (presets.isNotEmpty) ...[
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: presets.map((p) {
+                    final selected = current.contains(p);
+                    return FilterChip(
+                      label: Text(p, style: const TextStyle(fontSize: 12)),
+                      selected: selected,
+                      onSelected: (v) => setSheetState(() {
+                        if (v) {
+                          current.add(p);
+                        } else {
+                          current.remove(p);
+                        }
+                      }),
+                      selectedColor: AppColors.primary.withValues(alpha: 0.15),
+                      checkmarkColor: AppColors.primary,
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 12),
+                const Divider(),
+              ],
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: customCtrl,
+                      decoration: const InputDecoration(
+                        hintText: 'Custom instruction…',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        isDense: true,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: () {
+                      final v = customCtrl.text.trim();
+                      if (v.isNotEmpty) {
+                        setSheetState(() {
+                          current.add(v);
+                          customCtrl.clear();
+                        });
+                      }
+                    },
+                    child: const Text('Add'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (current.isNotEmpty) ...[
+                Wrap(
+                  spacing: 6,
+                  children: current.map((m) => Chip(
+                    label: Text(m, style: const TextStyle(fontSize: 11)),
+                    onDeleted: () => setSheetState(() => current.remove(m)),
+                    deleteIconColor: AppColors.error,
+                    padding: EdgeInsets.zero,
+                  )).toList(),
+                ),
+                const SizedBox(height: 8),
+              ],
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(sheetCtx);
+                    if (onSetModifiers != null) onSetModifiers!(List.from(current));
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Done'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final hasModifiers = item.modifiers.isNotEmpty;
+    final hasBatch = item.batchNumber != null && item.batchNumber!.isNotEmpty;
+    final hasNote = item.itemNote != null && item.itemNote!.isNotEmpty;
+    final showModifierBtn = _kModifierPresets.containsKey(shopType) || onSetModifiers != null;
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 3),
       color: Colors.white,
@@ -1231,106 +1421,164 @@ class _CartItemRow extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Product name + unit price
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    item.productName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                      color: AppColors.textPrimary,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    '₹${item.price.toStringAsFixed(2)} / unit',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Qty stepper — long-press qty to type decimal value
             Row(
-              mainAxisSize: MainAxisSize.min,
               children: [
-                _QtyButton(icon: Icons.remove, onTap: onDecrement),
-                GestureDetector(
-                  onLongPress: onSetQty == null ? null : () async {
-                    final ctrl = TextEditingController(
-                        text: item.qty % 1 == 0
-                            ? item.qty.toInt().toString()
-                            : item.qty.toStringAsFixed(2));
-                    final context2 = context;
-                    final val = await showDialog<double>(
-                      context: context2,
-                      builder: (_) => AlertDialog(
-                        title: Text(item.productName, style: const TextStyle(fontSize: 14)),
-                        content: TextField(
-                          controller: ctrl,
-                          autofocus: true,
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,3}'))],
-                          decoration: InputDecoration(suffix: Text(item.unit)),
+                // Product name + unit price
+                Expanded(
+                  child: GestureDetector(
+                    onLongPress: showModifierBtn
+                        ? () => _showModifierSheet(context)
+                        : null,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                item.productName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  color: AppColors.textPrimary,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (showModifierBtn) ...[
+                              const SizedBox(width: 4),
+                              GestureDetector(
+                                onTap: () => _showModifierSheet(context),
+                                child: Icon(
+                                  Icons.tune_rounded,
+                                  size: 14,
+                                  color: hasModifiers
+                                      ? AppColors.primary
+                                      : AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
-                        actions: [
-                          TextButton(onPressed: () => Navigator.pop(context2), child: const Text('Cancel')),
-                          TextButton(
-                            onPressed: () => Navigator.pop(context2, double.tryParse(ctrl.text.trim())),
-                            child: const Text('Set'),
+                        Text(
+                          _priceLabel,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
                           ),
-                        ],
-                      ),
-                    );
-                    if (val != null && val > 0) onSetQty!(val);
-                  },
-                  child: SizedBox(
-                    width: 38,
-                    child: Center(
-                      child: Text(
-                        item.qty % 1 == 0
-                            ? item.qty.toInt().toString()
-                            : item.qty.toStringAsFixed(2),
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                      ),
+                        ),
+                        // Batch number badge for pharmacy
+                        if (hasBatch)
+                          Container(
+                            margin: const EdgeInsets.only(top: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF0EA5E9).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'Batch: ${item.batchNumber}',
+                              style: const TextStyle(
+                                  fontSize: 9, color: Color(0xFF0369A1)),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),
-                _QtyButton(icon: Icons.add, onTap: onIncrement),
+                // Qty stepper — tap qty to type, +/- by qtyStep
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _QtyButton(icon: Icons.remove, onTap: onDecrement),
+                    GestureDetector(
+                      onTap: onSetQty == null
+                          ? null
+                          : () => _showQtyDialog(context),
+                      child: SizedBox(
+                        width: 42,
+                        child: Center(
+                          child: Text(
+                            item.isWeightBased
+                                ? '${_qtyLabel} ${item.unit}'
+                                : _qtyLabel,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 13),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                    ),
+                    _QtyButton(icon: Icons.add, onTap: onIncrement),
+                  ],
+                ),
+                const SizedBox(width: 8),
+                // Subtotal
+                SizedBox(
+                  width: 60,
+                  child: Text(
+                    '₹${item.subtotal.toStringAsFixed(2)}',
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+                // Delete
+                GestureDetector(
+                  onTap: onDelete,
+                  child: const SizedBox(
+                    width: 32,
+                    height: 40,
+                    child: Icon(Icons.close, size: 16, color: AppColors.error),
+                  ),
+                ),
               ],
             ),
-            const SizedBox(width: 8),
-            // Subtotal
-            SizedBox(
-              width: 60,
-              child: Text(
-                '₹${item.subtotal.toStringAsFixed(2)}',
-                textAlign: TextAlign.right,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                  color: AppColors.primary,
+            // Modifier chips row
+            if (hasModifiers)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Wrap(
+                  spacing: 4,
+                  runSpacing: 2,
+                  children: item.modifiers.map((m) => Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.25),
+                          width: 0.5),
+                    ),
+                    child: Text(
+                      m,
+                      style: const TextStyle(
+                          fontSize: 10, color: AppColors.primary),
+                    ),
+                  )).toList(),
                 ),
               ),
-            ),
-            // Delete
-            GestureDetector(
-              onTap: onDelete,
-              child: const SizedBox(
-                width: 32,
-                height: 40,
-                child: Icon(Icons.close, size: 16, color: AppColors.error),
+            // Item note
+            if (hasNote)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  '📝 ${item.itemNote}',
+                  style: const TextStyle(
+                      fontSize: 10, color: AppColors.textSecondary),
+                ),
               ),
-            ),
           ],
         ),
       ),

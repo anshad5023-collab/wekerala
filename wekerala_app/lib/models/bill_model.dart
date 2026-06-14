@@ -11,8 +11,10 @@ class BillItemModel {
   final int gstRate;
   final String? hsnCode;
   final bool priceIncludesGst;
-  final String? batchNumber; // pharmacy dispensing record
-  final bool tracksStock; // false for services — skip stock decrement on billing
+  final String? batchNumber;       // pharmacy dispensing record
+  final bool tracksStock;          // false for services — skip stock decrement
+  final List<String> modifiers;    // Bakery/Hotel add-ons: ["Extra cheese", "No spice"]
+  final String? itemNote;          // per-item free-text note (Rx#, special instructions)
 
   const BillItemModel({
     required this.productId,
@@ -27,7 +29,18 @@ class BillItemModel {
     this.priceIncludesGst = true,
     this.batchNumber,
     this.tracksStock = true,
+    this.modifiers = const [],
+    this.itemNote,
   });
+
+  /// True when this item is sold by weight (kg / g / gram).
+  bool get isWeightBased {
+    final u = unit.toLowerCase();
+    return u == 'kg' || u == 'g' || u == 'gram' || u == 'grams' || u == 'gm';
+  }
+
+  /// Step size for qty increment: 0.25 kg for weight-based, 1 otherwise.
+  double get qtyStep => isWeightBased ? 0.25 : 1.0;
 
   BillItemModel copyWith({
     String? productId,
@@ -42,6 +55,8 @@ class BillItemModel {
     bool? priceIncludesGst,
     Object? batchNumber = _billSentinel,
     bool? tracksStock,
+    List<String>? modifiers,
+    Object? itemNote = _billSentinel,
   }) {
     return BillItemModel(
       productId: productId ?? this.productId,
@@ -56,6 +71,8 @@ class BillItemModel {
       priceIncludesGst: priceIncludesGst ?? this.priceIncludesGst,
       batchNumber: batchNumber == _billSentinel ? this.batchNumber : batchNumber as String?,
       tracksStock: tracksStock ?? this.tracksStock,
+      modifiers: modifiers ?? this.modifiers,
+      itemNote: itemNote == _billSentinel ? this.itemNote : itemNote as String?,
     );
   }
 
@@ -73,6 +90,8 @@ class BillItemModel {
       priceIncludesGst: (map['priceIncludesGst'] as bool?) ?? true,
       batchNumber: map['batchNumber'] as String?,
       tracksStock: (map['tracksStock'] as bool?) ?? true,
+      modifiers: (map['modifiers'] as List<dynamic>?)?.cast<String>() ?? const [],
+      itemNote: map['itemNote'] as String?,
     );
   }
 
@@ -90,6 +109,8 @@ class BillItemModel {
     };
     if (hsnCode != null) m['hsnCode'] = hsnCode;
     if (batchNumber != null && batchNumber!.isNotEmpty) m['batchNumber'] = batchNumber;
+    if (modifiers.isNotEmpty) m['modifiers'] = modifiers;
+    if (itemNote != null && itemNote!.isNotEmpty) m['itemNote'] = itemNote;
     return m;
   }
 }
