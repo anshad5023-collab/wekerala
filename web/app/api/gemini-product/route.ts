@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export const runtime = 'nodejs';
 
@@ -133,18 +132,46 @@ export async function POST(req: NextRequest) {
   // Strip base64 data URL prefix if present (e.g. "data:image/jpeg;base64,...")
   const base64 = image.includes(',') ? image.split(',')[1] : image;
 
+  const prompt = buildPrompt(shopType);
+
+  let text = '';
+
   try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+    const res = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-goog-api-key': apiKey,
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: prompt },
+              { inline_data: { mime_type: 'image/jpeg', data: base64 } },
+            ],
+          }],
+        }),
+      }
+    );
+    if (!res.ok) {
+      const errBody = await res.text();
+      return NextResponse.json({ error: `Gemini error: ${res.status} ${errBody.slice(0, 300)}` }, { status: 500 });
+    }
+    const json = await res.json() as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    };
+    text = json.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? '';
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+  }
 
-    const prompt = buildPrompt(shopType);
+  if (!text) {
+    return NextResponse.json({ error: 'Empty response from Gemini' }, { status: 500 });
+  }
 
-    const result = await model.generateContent([
-      prompt,
-      { inlineData: { data: base64, mimeType: 'image/jpeg' } },
-    ]);
-
-    const text = result.response.text().trim();
+  try {
 
     // Try direct parse first, then extract JSON from response
     let parsed: Record<string, string>;
