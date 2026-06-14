@@ -1,0 +1,22 @@
+[
+  {"nameEn":"Whole Chicken (Live Weight)","nameMl":"ഒട്ടൻ കോഴി (ജീവനോടെ)","category":"Chicken","unit":"kg","gstRate":0,"attributes":{"cut_type":"Full","is_cleaned":"No"}},
+  {"nameEn":"Chicken (Cleaned & Cut)","nameMl":"ചിക്കൻ (ക്ലീൻ ചെയ്‌ത്)","category":"Chicken","unit":"kg","gstRate":0,"attributes":{"cut_type":"Curry Cut","is_cleaned":"Yes"}},
+  {"nameEn":"Boneless Chicken","nameMl":"ബോൺലസ് ചിക്കൻ","category":"Chicken","unit":"kg","gstRate":0,"attributes":{"cut_type":"Boneless","is_cleaned":"Yes"}},
+  {"nameEn":"Chicken Liver","nameMl":"ചിക്കൻ ലിവർ","category":"Chicken","unit":"kg","gstRate":0,"attributes":{"is_cleaned":"Yes"}},
+  {"nameEn":"Country Chicken (Naadan)","nameMl":"നാടൻ കോഴി","category":"Chicken","unit":"kg","gstRate":0,"attributes":{"cut_type":"Full","source":"Local Farm"}},
+  {"nameEn":"Beef (Kerala Cut)","nameMl":"ബീഫ് (കേരള കട്ട്)","category":"Beef","unit":"kg","gstRate":0,"attributes":{"cut_type":"Curry Cut","is_cleaned":"Yes"}},
+  {"nameEn":"Beef Boneless","nameMl":"ബോൺലസ് ബീഫ്","category":"Beef","unit":"kg","gstRate":0,"attributes":{"cut_type":"Boneless","is_cleaned":"Yes"}},
+  {"nameEn":"Mutton (With Bone)","nameMl":"മട്ടൻ (എല്ലോടെ)","category":"Mutton","unit":"kg","gstRate":0,"attributes":{"cut_type":"Curry Cut","is_cleaned":"Yes"}},
+  {"nameEn":"Mutton Boneless","nameMl":"ബോൺലസ് മട്ടൻ","category":"Mutton","unit":"kg","gstRate":0,"attributes":{"cut_type":"Boneless","is_cleaned":"Yes"}},
+  {"nameEn":"Karimeen (Pearl Spot Fish)","nameMl":"കരിമീൻ","category":"Fish","unit":"kg","gstRate":0,"attributes":{"cut_type":"Full","source":"Kerala Backwaters"}},
+  {"nameEn":"Mathi (Sardine)","nameMl":"മത്തി (ചാള)","category":"Fish","unit":"kg","gstRate":0,"attributes":{"cut_type":"Full","is_cleaned":"No"}},
+  {"nameEn":"Rohu Fish","nameMl":"റോഹു മീൻ","category":"Fish","unit":"kg","gstRate":0,"attributes":{"cut_type":"Curry Cut","is_cleaned":"Yes"}},
+  {"nameEn":"King Fish (Neimeen)","nameMl":"നെയ്മീൻ (കിംഗ്ഫിഷ്)","category":"Fish","unit":"kg","gstRate":0,"attributes":{"cut_type":"Curry Cut","is_cleaned":"Yes"}},
+  {"nameEn":"Pomfret (Avoli)","nameMl":"ആവോലി (പോംഫ്രെറ്റ്)","category":"Fish","unit":"kg","gstRate":0,"attributes":{"cut_type":"Full","is_cleaned":"Yes"}},
+  {"nameEn":"Seer Fish (Ayala/Mackerel)","nameMl":"ആയല/അയ്‌ക്കൂര","category":"Fish","unit":"kg","gstRate":0,"attributes":{"cut_type":"Curry Cut","is_cleaned":"Yes"}},
+  {"nameEn":"Tiger Prawns (Large)","nameMl":"വൻ ചെമ്മീൻ","category":"Prawns & Seafood","unit":"kg","gstRate":5,"attributes":{"is_cleaned":"Yes","cut_type":"Cleaned"}},
+  {"nameEn":"Medium Prawns","nameMl":"ഇടത്തരം ചെമ്മീൻ","category":"Prawns & Seafood","unit":"kg","gstRate":5,"attributes":{"is_cleaned":"Yes"}},
+  {"nameEn":"Crab (Kerala)","nameMl":"ഞണ്ട്","category":"Prawns & Seafood","unit":"kg","gstRate":5,"attributes":{"cut_type":"Full","is_cleaned":"No"}},
+  {"nameEn":"Squid (Koonthal)","nameMl":"കൂന്തൾ","category":"Prawns & Seafood","unit":"kg","gstRate":5,"attributes":{"is_cleaned":"Yes"}},
+  {"nameEn":"Eggs (Country)","nameMl":"നാടൻ മുട്ട","category":"Eggs","unit":"piece","gstRate":0,"attributes":{"source":"Local Farm"}}
+]

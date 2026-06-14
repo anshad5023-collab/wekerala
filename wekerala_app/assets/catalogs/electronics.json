@@ -1,0 +1,22 @@
+[
+  {"nameEn":"USB-C Charging Cable 1m","nameMl":"USB-C ചാർജിംഗ് കേബിൾ 1m","category":"Cables & Chargers","unit":"piece","gstRate":18,"attributes":{"compatible_with":"All Android, MacBook","warranty_months":"6"}},
+  {"nameEn":"Lightning Cable (iPhone) 1m","nameMl":"ലൈറ്റ്‌നിംഗ് കേബിൾ 1m","category":"Cables & Chargers","unit":"piece","gstRate":18,"attributes":{"compatible_with":"iPhone","warranty_months":"6"}},
+  {"nameEn":"5W USB Charger Adapter","nameMl":"5W USB ചാർജർ","category":"Cables & Chargers","unit":"piece","gstRate":18,"attributes":{"compatible_with":"All phones","warranty_months":"12"}},
+  {"nameEn":"18W Fast Charger Adapter","nameMl":"18W ഫാസ്‌റ്റ് ചാർജർ","category":"Cables & Chargers","unit":"piece","gstRate":18,"attributes":{"compatible_with":"Samsung, Mi, Realme","warranty_months":"12"}},
+  {"nameEn":"Power Bank 10000mAh","nameMl":"പവർ ബാങ്ക് 10000mAh","category":"Mobile Accessories","unit":"piece","gstRate":18,"attributes":{"warranty_months":"12"}},
+  {"nameEn":"Phone Case (Universal Silicone)","nameMl":"ഫോൺ കേസ് (സിലിക്കൺ)","category":"Mobile Accessories","unit":"piece","gstRate":18,"attributes":{"compatible_with":"Universal"}},
+  {"nameEn":"Screen Guard / Tempered Glass","nameMl":"സ്‌ക്രീൻ ഗ്ലാസ്","category":"Mobile Accessories","unit":"piece","gstRate":18},
+  {"nameEn":"OTG Adapter (USB-C to USB-A)","nameMl":"OTG അഡാപ്‌റ്റർ","category":"Cables & Chargers","unit":"piece","gstRate":18,"attributes":{"compatible_with":"All Android USB-C phones"}},
+  {"nameEn":"Wired Earphone (3.5mm)","nameMl":"വയർഡ് ഇയർഫോൺ","category":"Headphones","unit":"piece","gstRate":18,"attributes":{"compatible_with":"All phones with 3.5mm jack","warranty_months":"6"}},
+  {"nameEn":"Bluetooth Earbuds (TWS)","nameMl":"ബ്ലൂടൂത്ത് ഇയർബഡ്‌സ്","category":"Headphones","unit":"piece","gstRate":18,"attributes":{"compatible_with":"All Bluetooth devices","warranty_months":"12"}},
+  {"nameEn":"Over-Ear Headphone (Wired)","nameMl":"ഓവർ-ഇയർ ഹെഡ്ഫോൺ","category":"Headphones","unit":"piece","gstRate":18,"attributes":{"warranty_months":"12"}},
+  {"nameEn":"Bluetooth Speaker (Portable)","nameMl":"ബ്ലൂടൂത്ത് സ്‌പീക്കർ","category":"Smart Devices","unit":"piece","gstRate":18,"attributes":{"warranty_months":"12"}},
+  {"nameEn":"USB Hub 4-Port","nameMl":"USB ഹബ് 4-പോർട്ട്","category":"Cables & Chargers","unit":"piece","gstRate":18},
+  {"nameEn":"HDMI Cable 1.5m","nameMl":"HDMI കേബിൾ 1.5m","category":"Cables & Chargers","unit":"piece","gstRate":18},
+  {"nameEn":"Selfie Stick (Bluetooth)","nameMl":"സെൽഫി സ്‌റ്റിക്","category":"Mobile Accessories","unit":"piece","gstRate":18},
+  {"nameEn":"Phone Stand / Holder","nameMl":"ഫോൺ സ്‌റ്റാൻഡ്","category":"Mobile Accessories","unit":"piece","gstRate":18},
+  {"nameEn":"Wireless Mouse","nameMl":"വയർലസ് മൗസ്","category":"Smart Devices","unit":"piece","gstRate":18,"attributes":{"compatible_with":"Windows, Mac","warranty_months":"12"}},
+  {"nameEn":"Keyboard (Wired USB)","nameMl":"കീബോർഡ് (USB)","category":"Smart Devices","unit":"piece","gstRate":18,"attributes":{"compatible_with":"Windows, Mac","warranty_months":"12"}},
+  {"nameEn":"Pen Drive 32GB (USB 3.0)","nameMl":"പെൻ ഡ്രൈവ് 32GB","category":"Smart Devices","unit":"piece","gstRate":18,"attributes":{"warranty_months":"12"}},
+  {"nameEn":"Night Lamp (LED USB)","nameMl":"LED നൈറ്റ് ലാമ്പ്","category":"Smart Devices","unit":"piece","gstRate":12,"attributes":{"power_watts":"3W"}}
+]

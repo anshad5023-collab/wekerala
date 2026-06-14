@@ -100,6 +100,11 @@ class _ProductsBody extends ConsumerWidget {
             tooltip: t('products_import'),
             onPressed: () => context.push('/products/import'),
           ),
+          IconButton(
+            icon: const Icon(Icons.auto_awesome_outlined),
+            tooltip: 'Starter Catalog',
+            onPressed: () => context.push('/products/catalog'),
+          ),
         ],
       ),
       body: productsAsync.when(
@@ -264,6 +269,19 @@ class _ProductsBody extends ConsumerWidget {
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.primary,
                                   foregroundColor: Colors.white,
+                                  minimumSize: const Size(160, 44),
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(10)),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              OutlinedButton.icon(
+                                onPressed: () => context.push('/products/catalog'),
+                                icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+                                label: const Text('Import Starter Catalog'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.primary,
+                                  side: const BorderSide(color: AppColors.primary),
                                   minimumSize: const Size(160, 44),
                                   shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(10)),

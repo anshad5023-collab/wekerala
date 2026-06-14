@@ -176,6 +176,13 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       if (data.category.isNotEmpty) _category = data.category;
       _unit = data.unit;
       _loadingImage = false;
+      // Merge shop-type attributes returned by Gemini AI scan
+      if (data.attributes.isNotEmpty) {
+        _attributes = {
+          ..._attributes,
+          ...data.attributes.map((k, v) => MapEntry(k, v.toString())),
+        };
+      }
     });
     if (data.nameEn.isEmpty && mounted) {
       _showError('Product found but no name available. Enter name manually.');
@@ -261,7 +268,11 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     setState(() => _loadingImage = true);
     final bytes = await file.readAsBytes();
     final base64Image = base64Encode(bytes);
-    final data = await ProductLookupService.lookupByPhoto(base64Image, _getCategories());
+    final shopId = ref.read(activeShopIdProvider).valueOrNull ?? '';
+    final shopType = ref.read(shopStreamProvider(shopId)).value?.shopType ?? '';
+    final data = await ProductLookupService.lookupByPhoto(
+      base64Image, _getCategories(), shopType: shopType,
+    );
     if (!mounted) return;
     if (data != null && data.hasData) {
       _applyLookup(data);

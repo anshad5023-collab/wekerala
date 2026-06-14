@@ -11,6 +11,9 @@ class ProductData {
   final String category;
   final String unit;
   final String source;
+  final String barcodeType;
+  /// Shop-type-specific fields extracted by Gemini (composition, strength, fabric, etc.)
+  final Map<String, dynamic> attributes;
 
   const ProductData({
     this.nameEn = '',
@@ -19,6 +22,8 @@ class ProductData {
     this.category = '',
     this.unit = 'piece',
     this.source = '',
+    this.barcodeType = 'CUSTOM',
+    this.attributes = const {},
   });
 
   bool get hasData => nameEn.isNotEmpty || imageUrl.isNotEmpty;
@@ -28,26 +33,67 @@ class ProductLookupService {
   static final _db = FirebaseFirestore.instance;
   static const _vercelBase = 'https://wekerala.vercel.app';
 
+  // ─── Barcode type detection ───────────────────────────────────────────────
+
+  static String detectBarcodeType(String code) {
+    final digits = code.replaceAll(RegExp(r'\D'), '');
+    if (digits.length == 13) return 'EAN13';
+    if (digits.length == 12) return 'UPC';
+    if (digits.length == 8) return 'EAN8';
+    return 'CUSTOM';
+  }
+
   // ─── Main barcode entry point ─────────────────────────────────────────────
 
   static Future<ProductData?> lookupBarcode(
       String barcode, List<String> shopCategories) async {
+    final barcodeType = detectBarcodeType(barcode);
+
     // 1. Community database — fastest, zero cost, Kerala-specific
     final community = await _fromCommunity(barcode);
-    if (community != null) return community;
+    if (community != null) {
+      return ProductData(
+        nameEn: community.nameEn,
+        brand: community.brand,
+        imageUrl: community.imageUrl,
+        category: community.category,
+        unit: community.unit,
+        source: community.source,
+        barcodeType: barcodeType,
+        attributes: community.attributes,
+      );
+    }
 
     // 2. Open Food Facts — India DB first, then world
     final off = await _fromOpenFoodFacts(barcode, shopCategories);
     if (off != null) {
-      _saveToCommunity(barcode, off);
-      return off;
+      final result = ProductData(
+        nameEn: off.nameEn,
+        brand: off.brand,
+        imageUrl: off.imageUrl,
+        category: off.category,
+        unit: off.unit,
+        source: off.source,
+        barcodeType: barcodeType,
+      );
+      _saveToCommunity(barcode, result);
+      return result;
     }
 
     // 3. UPC Item DB — good packaged goods coverage
     final upc = await _fromUpcItemDb(barcode, shopCategories);
     if (upc != null) {
-      _saveToCommunity(barcode, upc);
-      return upc;
+      final result = ProductData(
+        nameEn: upc.nameEn,
+        brand: upc.brand,
+        imageUrl: upc.imageUrl,
+        category: upc.category,
+        unit: upc.unit,
+        source: upc.source,
+        barcodeType: barcodeType,
+      );
+      _saveToCommunity(barcode, result);
+      return result;
     }
 
     return null;
@@ -56,15 +102,21 @@ class ProductLookupService {
   // ─── Photo-based identification via Gemini Vision ─────────────────────────
 
   static Future<ProductData?> lookupByPhoto(
-      String base64Image, List<String> shopCategories) async {
+    String base64Image,
+    List<String> shopCategories, {
+    String shopType = '',
+  }) async {
     try {
       final resp = await http
           .post(
             Uri.parse('$_vercelBase/api/gemini-product'),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'image': base64Image}),
+            body: jsonEncode({
+              'image': base64Image,
+              'shopType': shopType,
+            }),
           )
-          .timeout(const Duration(seconds: 20));
+          .timeout(const Duration(seconds: 25));
 
       if (resp.statusCode == 200) {
         final data = jsonDecode(resp.body) as Map<String, dynamic>;
@@ -86,12 +138,28 @@ class ProductLookupService {
             ? '$brand $name'
             : name;
 
+        // Extract shop-type-specific attributes from Gemini response
+        final attributes = <String, dynamic>{};
+        final attrKeys = [
+          'composition', 'strength', 'manufacturer', 'form', 'schedule',
+          'fabric', 'color', 'sizes', 'care_instructions', 'gender',
+          'is_veg', 'allergens', 'spice_level', 'weight_g',
+          'brand', 'model_number', 'warranty_months', 'cut_type',
+        ];
+        for (final key in attrKeys) {
+          final val = data[key];
+          if (val != null && val.toString().isNotEmpty) {
+            attributes[key] = val.toString();
+          }
+        }
+
         return ProductData(
           nameEn: fullName,
           brand: brand,
           category: category,
           unit: unit,
           source: 'gemini',
+          attributes: attributes,
         );
       }
     } catch (e) {
@@ -115,6 +183,7 @@ class ProductLookupService {
         category: d['category'] as String? ?? '',
         unit: d['unit'] as String? ?? 'piece',
         source: 'community',
+        attributes: (d['attributes'] as Map<String, dynamic>?) ?? {},
       );
     } catch (_) {
       return null;
@@ -133,6 +202,8 @@ class ProductLookupService {
       'category': data.category,
       'unit': data.unit,
       'source': data.source,
+      'barcodeType': data.barcodeType,
+      if (data.attributes.isNotEmpty) 'attributes': data.attributes,
       'addedAt': FieldValue.serverTimestamp(),
       'verifiedCount': FieldValue.increment(1),
     }, SetOptions(merge: true));
@@ -288,7 +359,7 @@ class ProductLookupService {
     'fish': ['Fish'],
     'seafood': ['Prawns & Seafood'],
     'prawn': ['Prawns & Seafood'],
-    // Personal care — appears across grocery, pharmacy, fancy stores
+    // Personal care
     'personal care': ['Personal Care'],
     'shampoo': ['Personal Care'],
     'conditioner': ['Personal Care'],
@@ -406,7 +477,7 @@ class ProductLookupService {
   static String _normaliseUnit(String raw) {
     final s = raw.toLowerCase();
     if (s.contains('kg') || s.contains('kilogram')) return 'kg';
-    if (s.contains(' g') || s.contains('gram')) return 'gram';
+    if (s.contains(' g') || s.contains('gram')) return 'g';
     if (s.contains('ml') || s.contains('millilitre')) return 'ml';
     if (s.contains('litre') || s.contains('liter') || s.contains(' l')) {
       return 'litre';
