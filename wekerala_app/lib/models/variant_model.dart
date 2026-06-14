@@ -6,6 +6,8 @@ class VariantModel {
   final double price;
   final double offerPrice;
   final int? stockQty; // null = not tracking stock for this variant
+  final String? sku;
+  final Map<String, dynamic> attributes;
 
   const VariantModel({
     required this.variantId,
@@ -13,6 +15,8 @@ class VariantModel {
     required this.price,
     this.offerPrice = 0,
     this.stockQty,
+    this.sku,
+    this.attributes = const {},
   });
 
   bool get isOutOfStock => stockQty != null && stockQty! <= 0;
@@ -25,6 +29,8 @@ class VariantModel {
       price: (m['price'] as num?)?.toDouble() ?? 0,
       offerPrice: (m['offerPrice'] as num?)?.toDouble() ?? 0,
       stockQty: (m['stockQty'] as num?)?.toInt(),
+      sku: m['sku'] as String?,
+      attributes: (m['attributes'] as Map<String, dynamic>?) ?? {},
     );
   }
 
@@ -36,6 +42,8 @@ class VariantModel {
       'offerPrice': offerPrice,
     };
     if (stockQty != null) m['stockQty'] = stockQty;
+    if (sku != null && sku!.isNotEmpty) m['sku'] = sku;
+    if (attributes.isNotEmpty) m['attributes'] = attributes;
     return m;
   }
 
@@ -44,6 +52,8 @@ class VariantModel {
     double? price,
     double? offerPrice,
     Object? stockQty = _sentinel,
+    Object? sku = _sentinel,
+    Map<String, dynamic>? attributes,
   }) {
     return VariantModel(
       variantId: variantId,
@@ -51,6 +61,8 @@ class VariantModel {
       price: price ?? this.price,
       offerPrice: offerPrice ?? this.offerPrice,
       stockQty: stockQty == _sentinel ? this.stockQty : stockQty as int?,
+      sku: sku == _sentinel ? this.sku : sku as String?,
+      attributes: attributes ?? this.attributes,
     );
   }
 

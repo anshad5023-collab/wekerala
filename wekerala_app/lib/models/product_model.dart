@@ -33,6 +33,9 @@ class ProductModel {
   final String? batchNumber;
   final String? searchAlias; // generic/alternate name (e.g. "Metformin" for "Glycomet Tab")
   final String? description; // shown on storefront product detail
+  /// Shop-type-specific attributes (fabric, dosage, spice level, etc.)
+  /// Keys are defined in kShopTypeProductSchema; values are always String.
+  final Map<String, dynamic> attributes;
 
   const ProductModel({
     required this.productId,
@@ -62,6 +65,7 @@ class ProductModel {
     this.batchNumber,
     this.searchAlias,
     this.description,
+    this.attributes = const {},
   });
 
   bool get isLowStock => stockQty != null && stockQty! <= lowStockThreshold;
@@ -109,6 +113,7 @@ class ProductModel {
       batchNumber: d['batchNumber'] as String?,
       searchAlias: d['searchAlias'] as String?,
       description: d['description'] as String?,
+      attributes: (d['attributes'] as Map<String, dynamic>?) ?? {},
     );
   }
 
@@ -142,6 +147,7 @@ class ProductModel {
     if (batchNumber != null) m['batchNumber'] = batchNumber;
     if (searchAlias != null && searchAlias!.isNotEmpty) m['searchAlias'] = searchAlias;
     if (description != null && description!.isNotEmpty) m['description'] = description;
+    if (attributes.isNotEmpty) m['attributes'] = attributes;
     return m;
   }
 
@@ -173,6 +179,7 @@ class ProductModel {
     Object? batchNumber = _sentinel,
     Object? searchAlias = _sentinel,
     Object? description = _sentinel,
+    Map<String, dynamic>? attributes,
   }) {
     return ProductModel(
       productId: productId ?? this.productId,
@@ -202,6 +209,7 @@ class ProductModel {
       batchNumber: batchNumber == _sentinel ? this.batchNumber : batchNumber as String?,
       searchAlias: searchAlias == _sentinel ? this.searchAlias : searchAlias as String?,
       description: description == _sentinel ? this.description : description as String?,
+      attributes: attributes ?? this.attributes,
     );
   }
 }

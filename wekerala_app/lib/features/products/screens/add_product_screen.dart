@@ -11,6 +11,7 @@ import 'package:image_cropper/image_cropper.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../../../core/config/shop_type_schema.dart';
 import '../../../core/services/product_lookup_service.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/layout/breakpoints.dart';
@@ -66,6 +67,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   final _hsnCode = TextEditingController();
   bool _priceIncludesGst = true;
 
+  // Shop-type dynamic attributes (keys from kShopTypeProductSchema)
+  Map<String, String> _attributes = {};
+
   @override
   void dispose() {
     _nameEnCtrl.dispose();
@@ -112,6 +116,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       _gstRate = p.gstRate;
       _hsnCode.text = p.hsnCode ?? '';
       _priceIncludesGst = p.priceIncludesGst;
+      _attributes = p.attributes.map((k, v) => MapEntry(k, v.toString()));
     });
   }
 
@@ -329,6 +334,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         batchNumber: _batchNumberCtrl.text.trim().isEmpty ? null : _batchNumberCtrl.text.trim(),
         searchAlias: _searchAliasCtrl.text.trim().isEmpty ? null : _searchAliasCtrl.text.trim(),
         description: _descriptionCtrl.text.trim().isEmpty ? null : _descriptionCtrl.text.trim(),
+        attributes: Map<String, dynamic>.from(
+          _attributes..removeWhere((_, v) => v.trim().isEmpty),
+        ),
       );
 
       if (widget.productId != null) {
@@ -370,6 +378,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       _variants = [];
       _expiryDate = null;
       _gstRate = 0;
+      _attributes = {};
     });
     _formKey.currentState?.reset();
   }
@@ -415,6 +424,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         batchNumber: _batchNumberCtrl.text.trim().isEmpty ? null : _batchNumberCtrl.text.trim(),
         searchAlias: _searchAliasCtrl.text.trim().isEmpty ? null : _searchAliasCtrl.text.trim(),
         description: _descriptionCtrl.text.trim().isEmpty ? null : _descriptionCtrl.text.trim(),
+        attributes: Map<String, dynamic>.from(
+          _attributes..removeWhere((_, v) => v.trim().isEmpty),
+        ),
       );
       await ProductRepository.add(shopId, product);
       if (mounted) {
@@ -475,6 +487,8 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
 
         final shopVal = ref.watch(shopStreamProvider(shopId)).value;
         final categories = shopVal?.categories ?? [];
+        final shopType = shopVal?.shopType ?? '';
+        final schema = kShopTypeProductSchema[shopType] ?? [];
 
         return Scaffold(
           backgroundColor: AppColors.background,
@@ -568,6 +582,14 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                     alignLabelWithHint: true,
                   ),
                 ),
+                if (schema.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  _SchemaAttributesSection(
+                    schema: schema,
+                    values: _attributes,
+                    onChanged: (key, value) => setState(() => _attributes[key] = value),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _batchNumberCtrl,
@@ -784,6 +806,97 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
           borderSide: BorderSide.none,
         ),
       );
+}
+
+// ─── Shop-Type Schema Attributes Section ─────────────────────────────────────
+
+class _SchemaAttributesSection extends StatelessWidget {
+  final List<ProductFieldSpec> schema;
+  final Map<String, String> values;
+  final void Function(String key, String value) onChanged;
+
+  const _SchemaAttributesSection({
+    required this.schema,
+    required this.values,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.tune_rounded, size: 16, color: AppColors.primary),
+              const SizedBox(width: 6),
+              Text(
+                'Product Details',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: AppColors.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ...schema.map((spec) {
+            if (spec.type == ProductFieldType.dropdown) {
+              final current = values[spec.key];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: DropdownButtonFormField<String>(
+                  value: spec.options.contains(current) ? current : null,
+                  decoration: InputDecoration(
+                    labelText: spec.labelEn,
+                    border: const OutlineInputBorder(),
+                    isDense: true,
+                    filled: true,
+                    fillColor: Colors.white,
+                  ),
+                  items: spec.options
+                      .map((o) => DropdownMenuItem(value: o, child: Text(o)))
+                      .toList(),
+                  onChanged: (v) => onChanged(spec.key, v ?? ''),
+                ),
+              );
+            }
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: TextFormField(
+                initialValue: values[spec.key] ?? '',
+                keyboardType: spec.type == ProductFieldType.number
+                    ? TextInputType.number
+                    : TextInputType.text,
+                decoration: InputDecoration(
+                  labelText: spec.labelEn,
+                  hintText: spec.hint.isNotEmpty ? spec.hint : null,
+                  border: const OutlineInputBorder(),
+                  isDense: true,
+                  filled: true,
+                  fillColor: Colors.white,
+                  helperText: spec.labelMl,
+                  helperStyle: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                onChanged: (v) => onChanged(spec.key, v),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
 }
 
 // ─── Stock & Expiry Section ───────────────────────────────────────────────────
