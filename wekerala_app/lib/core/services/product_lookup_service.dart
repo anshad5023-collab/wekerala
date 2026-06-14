@@ -44,12 +44,19 @@ class ProductLookupService {
   }
 
   // ─── Main barcode entry point ─────────────────────────────────────────────
+  //
+  // Database cascade order varies by shop type:
+  //   Grocery / Bakery / Café / default  → community → Open Food Facts → UPC Item DB
+  //   Pharmacy                            → community → UPC Item DB (medicines) → Open Food Facts (supplements)
+  //   Electronics / Stationery            → community → UPC Item DB → Open Food Facts
+  //   Textile / Fancy / Gift              → community → Open Food Facts (cosmetics) → UPC Item DB
 
   static Future<ProductData?> lookupBarcode(
-      String barcode, List<String> shopCategories) async {
+      String barcode, List<String> shopCategories, {String shopType = ''}) async {
     final barcodeType = detectBarcodeType(barcode);
+    final type = shopType.toLowerCase();
 
-    // 1. Community database — fastest, zero cost, Kerala-specific
+    // Step 1: Community database — always first, zero cost, shared across all Kerala shops
     final community = await _fromCommunity(barcode);
     if (community != null) {
       return ProductData(
@@ -64,10 +71,15 @@ class ProductLookupService {
       );
     }
 
-    // 2. Open Food Facts — India DB first, then world
-    final off = await _fromOpenFoodFacts(barcode, shopCategories);
-    if (off != null) {
-      final result = ProductData(
+    // Steps 2 & 3: Order depends on shop type
+    final tryUpcFirst = type == 'pharmacy' ||
+        type == 'electronics' ||
+        type == 'stationery';
+
+    Future<ProductData?> tryOff() async {
+      final off = await _fromOpenFoodFacts(barcode, shopCategories);
+      if (off == null) return null;
+      return ProductData(
         nameEn: off.nameEn,
         brand: off.brand,
         imageUrl: off.imageUrl,
@@ -76,14 +88,12 @@ class ProductLookupService {
         source: off.source,
         barcodeType: barcodeType,
       );
-      _saveToCommunity(barcode, result);
-      return result;
     }
 
-    // 3. UPC Item DB — good packaged goods coverage
-    final upc = await _fromUpcItemDb(barcode, shopCategories);
-    if (upc != null) {
-      final result = ProductData(
+    Future<ProductData?> tryUpc() async {
+      final upc = await _fromUpcItemDb(barcode, shopCategories);
+      if (upc == null) return null;
+      return ProductData(
         nameEn: upc.nameEn,
         brand: upc.brand,
         imageUrl: upc.imageUrl,
@@ -92,8 +102,18 @@ class ProductLookupService {
         source: upc.source,
         barcodeType: barcodeType,
       );
-      _saveToCommunity(barcode, result);
-      return result;
+    }
+
+    final first = tryUpcFirst ? await tryUpc() : await tryOff();
+    if (first != null) {
+      _saveToCommunity(barcode, first);
+      return first;
+    }
+
+    final second = tryUpcFirst ? await tryOff() : await tryUpc();
+    if (second != null) {
+      _saveToCommunity(barcode, second);
+      return second;
     }
 
     return null;

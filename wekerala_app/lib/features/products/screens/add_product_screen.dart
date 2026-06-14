@@ -189,10 +189,17 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     }
   }
 
+  String _getShopType() {
+    final shopId = ref.read(activeShopIdProvider).valueOrNull ?? '';
+    return ref.read(shopStreamProvider(shopId)).valueOrNull?.shopType ?? '';
+  }
+
   Future<void> _lookupBarcode(String barcode) async {
     if (barcode.isEmpty) return;
     setState(() => _loadingImage = true);
-    final data = await ProductLookupService.lookupBarcode(barcode, _getCategories());
+    final data = await ProductLookupService.lookupBarcode(
+      barcode, _getCategories(), shopType: _getShopType(),
+    );
     if (!mounted) return;
     if (data != null) {
       _applyLookup(data);
@@ -227,7 +234,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     );
     if (barcode == null || !mounted) return;
     setState(() => _loadingImage = true);
-    final data = await ProductLookupService.lookupBarcode(barcode, _getCategories());
+    final data = await ProductLookupService.lookupBarcode(
+      barcode, _getCategories(), shopType: _getShopType(),
+    );
     if (!mounted) return;
     if (data != null) {
       _applyLookup(data);
