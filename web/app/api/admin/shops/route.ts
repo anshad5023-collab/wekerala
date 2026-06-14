@@ -36,7 +36,7 @@ function parseFields(fields: Record<string, FVal>): Record<string, unknown> {
 
 function checkAuth(req: NextRequest): boolean {
   if (!ADMIN_PASSWORD) return false;
-  const pw = req.headers.get('x-admin-password') ?? req.nextUrl.searchParams.get('password') ?? '';
+  const pw = req.headers.get('x-admin-password') ?? '';
   return pw === ADMIN_PASSWORD;
 }
 
@@ -120,6 +120,11 @@ export async function PATCH(req: NextRequest) {
   };
   const { shopId, isApproved, action, reason } = body;
   const collection = body.collection ?? 'shops';
+
+  const ALLOWED_COLLECTIONS = ['shops', 'services', 'restaurants', 'hotels', 'theaters', 'beauty', 'doctors', 'hospitals', 'education', 'homeServices', 'realestate'];
+  if (!ALLOWED_COLLECTIONS.includes(collection)) {
+    return NextResponse.json({ error: 'Invalid collection' }, { status: 400 });
+  }
 
   if (!shopId) {
     return NextResponse.json({ error: 'Missing shopId' }, { status: 400 });

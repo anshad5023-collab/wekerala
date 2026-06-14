@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
       }),
     });
 
-    if (!res.ok) return NextResponse.json({ orders: [] });
+    if (!res.ok) return NextResponse.json({ error: 'Failed to fetch orders' }, { status: 500 });
 
     const rows = await res.json() as Array<{ document?: { name: string; fields: Record<string, FVal> } }>;
     const orders: Array<Record<string, unknown>> = rows
@@ -65,6 +65,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ orders });
   } catch (e) {
     console.error(e);
-    return NextResponse.json({ orders: [] });
+    return NextResponse.json({ error: 'Failed to fetch orders' }, { status: 500 });
   }
 }

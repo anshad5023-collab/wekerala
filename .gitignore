@@ -47,6 +47,12 @@ web/tsconfig.tsbuildinfo
 # Claude Code internal files
 .claude/
 
+# Large binary build artifacts (served via Firebase Hosting or GitHub Releases)
+web/public/*.apk
+web/public/*.zip
+web/public/*.exe
+web/public/*.msix
+
 # Research, archive, pitch, and local-only folders — not needed by AI or CI
 waste/
 pitch-deck/

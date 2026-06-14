@@ -86,6 +86,21 @@ export async function GET(req: NextRequest) {
   const period = req.nextUrl.searchParams.get('period') ?? 'month';
   if (!shopId) return NextResponse.json({ error: 'Missing shopId' }, { status: 400 });
 
+  // Owner-only data — require a Bearer token matching the shop's ownerPhone or a
+  // shared analytics secret stored in ANALYTICS_SECRET env var.
+  const authHeader = req.headers.get('authorization');
+  if (!authHeader) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const analyticsSecret = process.env.ANALYTICS_SECRET;
+  if (!analyticsSecret) {
+    return NextResponse.json({ error: 'Analytics auth not configured' }, { status: 503 });
+  }
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+  if (token !== analyticsSecret) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   // ── Cache read: try shops/{shopId}/analytics/summary ────────────────────────
   // Cache is keyed by shopId + period so different periods are cached independently.
   const cacheDocPath = `shops/${shopId}/analytics/summary_${period}`;

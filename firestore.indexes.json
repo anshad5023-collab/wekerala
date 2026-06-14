@@ -35,6 +35,15 @@
         { "fieldPath": "district", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "credits",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "amount", "order": "ASCENDING" },
+        { "fieldPath": "paidAmount", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

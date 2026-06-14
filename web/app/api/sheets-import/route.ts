@@ -10,9 +10,23 @@ function parseCSV(csv: string): Record<string, string>[] {
   }).filter((row) => row['name']);
 }
 
+function isGoogleSheetsUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return (
+      (parsed.hostname === 'docs.google.com' || parsed.hostname === 'sheets.googleapis.com') &&
+      parsed.pathname.includes('/spreadsheets/d/')
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get('url');
   if (!url) return NextResponse.json({ error: 'Missing url' }, { status: 400 });
+
+  if (!isGoogleSheetsUrl(url)) return NextResponse.json({ error: 'Invalid Google Sheets URL' }, { status: 400 });
 
   const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
   if (!match) return NextResponse.json({ error: 'Invalid Google Sheets URL' }, { status: 400 });

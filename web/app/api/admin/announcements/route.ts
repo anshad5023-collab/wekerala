@@ -7,7 +7,7 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? '';
 
 function checkAuth(req: NextRequest): boolean {
   if (!ADMIN_PASSWORD) return false;
-  const pw = req.headers.get('x-admin-password') ?? req.nextUrl.searchParams.get('password') ?? '';
+  const pw = req.headers.get('x-admin-password') ?? '';
   return pw === ADMIN_PASSWORD;
 }
 

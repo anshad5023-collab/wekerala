@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAdminAuth } from '@/lib/firebase-admin';
 
 const API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? 'AIzaSyCFB9YZL3_bXjvRMoWaYFv8nTs_ote52GQ';
 const PROJECT_ID = (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? 'shoplink-prod').replace(/^﻿/, '');
@@ -59,6 +60,19 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // --- Auth: verify Firebase ID token ---
+  const authHeader = req.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  let verifiedUid: string;
+  try {
+    const decoded = await getAdminAuth().verifyIdToken(authHeader.slice(7));
+    verifiedUid = decoded.uid;
+  } catch {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const body = await req.json() as {
       businessId?: string;
@@ -71,7 +85,9 @@ export async function POST(req: NextRequest) {
       ownerId?: string;
     };
 
-    const { businessId, businessName, collection, title, description, discount, validUntil, ownerId } = body;
+    const { businessId, businessName, collection, title, description, discount, validUntil } = body;
+    // Always use the server-verified uid — never trust the client-supplied ownerId
+    const ownerId = verifiedUid;
 
     if (!businessId || !title) {
       return NextResponse.json({ error: 'businessId and title are required' }, { status: 400 });

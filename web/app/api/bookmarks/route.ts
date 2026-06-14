@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAdminAuth } from '@/lib/firebase-admin';
 
 const API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? 'AIzaSyCFB9YZL3_bXjvRMoWaYFv8nTs_ote52GQ';
 const PROJECT_ID = (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? 'shoplink-prod').replace(/^﻿/, '');
@@ -26,22 +27,52 @@ function parseFields(fields: Record<string, FVal>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, parseValue(v)]));
 }
 
+async function verifyAuth(req: NextRequest): Promise<{ uid: string } | NextResponse> {
+  const authHeader = req.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  try {
+    const decoded = await getAdminAuth().verifyIdToken(authHeader.slice(7));
+    return { uid: decoded.uid };
+  } catch {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+}
+
 export async function GET(req: NextRequest) {
-  const uid = req.nextUrl.searchParams.get('uid');
-  if (!uid) return NextResponse.json({ error: 'uid required' }, { status: 400 });
+  const authResult = await verifyAuth(req);
+  if (authResult instanceof NextResponse) return authResult;
+  const { uid: verifiedUid } = authResult;
 
   try {
-    const res = await fetch(`${BASE}/bookmarks?pageSize=200&key=${API_KEY}`);
-    if (!res.ok) return NextResponse.json({ error: 'Firestore error' }, { status: 500 });
-    const json = await res.json();
-    const docs: Array<{ name: string; fields: Record<string, FVal> }> = json.documents ?? [];
+    // Use a structured query to fetch only this user's bookmarks server-side
+    const queryBody = {
+      structuredQuery: {
+        from: [{ collectionId: 'bookmarks' }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: 'uid' },
+            op: 'EQUAL',
+            value: { stringValue: verifiedUid },
+          },
+        },
+      },
+    };
 
-    const bookmarks: Array<Record<string, unknown>> = docs
-      .map((doc): Record<string, unknown> => {
-        const f = parseFields(doc.fields ?? {});
-        return { id: (doc.name as string).split('/').pop() ?? '', ...f };
-      })
-      .filter((b) => (b['uid'] as string) === uid);
+    const res = await fetch(
+      `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents:runQuery?key=${API_KEY}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(queryBody) }
+    );
+    if (!res.ok) return NextResponse.json({ error: 'Firestore error' }, { status: 500 });
+    const json = await res.json() as Array<{ document?: { name: string; fields: Record<string, FVal> } }>;
+
+    const bookmarks: Array<Record<string, unknown>> = json
+      .filter((row) => row.document)
+      .map((row): Record<string, unknown> => {
+        const f = parseFields(row.document!.fields ?? {});
+        return { id: (row.document!.name as string).split('/').pop() ?? '', ...f };
+      });
 
     return NextResponse.json({ bookmarks });
   } catch (e) {
@@ -51,25 +82,28 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const authResult = await verifyAuth(req);
+  if (authResult instanceof NextResponse) return authResult;
+  const { uid: verifiedUid } = authResult;
+
   try {
     const body = await req.json() as {
-      uid?: string;
       businessId?: string;
       collection?: string;
       businessName?: string;
       photoUrl?: string;
     };
 
-    const { uid, businessId, collection, businessName, photoUrl } = body;
+    const { businessId, collection, businessName, photoUrl } = body;
 
-    if (!uid || !businessId) {
-      return NextResponse.json({ error: 'uid and businessId required' }, { status: 400 });
+    if (!businessId) {
+      return NextResponse.json({ error: 'businessId required' }, { status: 400 });
     }
 
-    const docId = `${uid}__${businessId}`;
+    const docId = `${verifiedUid}__${businessId}`;
     const now = new Date().toISOString();
     const fields: Record<string, FVal> = {
-      uid: { stringValue: uid },
+      uid: { stringValue: verifiedUid },
       businessId: { stringValue: businessId },
       collection: { stringValue: collection ?? '' },
       businessName: { stringValue: businessName ?? '' },
@@ -92,15 +126,18 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const uid = req.nextUrl.searchParams.get('uid');
+  const authResult = await verifyAuth(req);
+  if (authResult instanceof NextResponse) return authResult;
+  const { uid: verifiedUid } = authResult;
+
   const businessId = req.nextUrl.searchParams.get('businessId');
 
-  if (!uid || !businessId) {
-    return NextResponse.json({ error: 'uid and businessId required' }, { status: 400 });
+  if (!businessId) {
+    return NextResponse.json({ error: 'businessId required' }, { status: 400 });
   }
 
   try {
-    const docId = `${uid}__${businessId}`;
+    const docId = `${verifiedUid}__${businessId}`;
     const res = await fetch(`${BASE}/bookmarks/${docId}?key=${API_KEY}`, { method: 'DELETE' });
     if (!res.ok) return NextResponse.json({ error: 'Failed to delete bookmark' }, { status: 500 });
     return NextResponse.json({ ok: true });

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAdminAuth } from '@/lib/firebase-admin';
 
 const API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? 'AIzaSyCFB9YZL3_bXjvRMoWaYFv8nTs_ote52GQ';
 const PROJECT_ID = (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? 'shoplink-prod').replace(/^﻿/, '');
@@ -27,13 +28,32 @@ function parseFields(fields: Record<string, FVal>): Record<string, unknown> {
 }
 
 async function fetchRatingsForBusiness(businessId: string): Promise<number[]> {
-  const res = await fetch(`${BASE}/ratings?pageSize=500&key=${API_KEY}`);
+  // Use a structured query to filter by businessId server-side instead of fetching all docs
+  const queryBody = {
+    structuredQuery: {
+      from: [{ collectionId: 'ratings' }],
+      where: {
+        fieldFilter: {
+          field: { fieldPath: 'businessId' },
+          op: 'EQUAL',
+          value: { stringValue: businessId },
+        },
+      },
+      select: {
+        fields: [{ fieldPath: 'stars' }],
+      },
+    },
+  };
+
+  const res = await fetch(
+    `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents:runQuery?key=${API_KEY}`,
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(queryBody) }
+  );
   if (!res.ok) return [];
-  const json = await res.json();
-  const docs: Array<{ name: string; fields: Record<string, FVal> }> = json.documents ?? [];
-  return docs
-    .map((doc) => parseFields(doc.fields ?? {}))
-    .filter((f) => (f['businessId'] as string) === businessId)
+  const json = await res.json() as Array<{ document?: { fields: Record<string, FVal> } }>;
+  return json
+    .filter((row) => row.document)
+    .map((row) => parseFields(row.document!.fields ?? {}))
     .map((f) => (f['stars'] as number) ?? 0)
     .filter((s) => s > 0);
 }
@@ -58,18 +78,30 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // Verify Firebase ID token — uid must come from the verified token, not the request body
+  const authHeader = req.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  let verifiedUid: string;
+  try {
+    const decoded = await getAdminAuth().verifyIdToken(authHeader.slice(7));
+    verifiedUid = decoded.uid;
+  } catch {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
     const body = await req.json() as {
       businessId?: string;
       collection?: string;
-      uid?: string;
       stars?: number;
     };
 
-    const { businessId, collection, uid, stars } = body;
+    const { businessId, collection, stars } = body;
 
-    if (!businessId || !uid || !stars) {
-      return NextResponse.json({ error: 'businessId, uid, stars required' }, { status: 400 });
+    if (!businessId || !stars) {
+      return NextResponse.json({ error: 'businessId, stars required' }, { status: 400 });
     }
     if (stars < 1 || stars > 5) {
       return NextResponse.json({ error: 'stars must be 1-5' }, { status: 400 });
@@ -79,11 +111,11 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    const docId = `${uid}__${businessId}`;
+    const docId = `${verifiedUid}__${businessId}`;
     const ratingFields: Record<string, FVal> = {
       businessId: { stringValue: businessId },
       collection: { stringValue: collection },
-      uid: { stringValue: uid },
+      uid: { stringValue: verifiedUid },
       stars: { integerValue: String(stars) },
       createdAt: { stringValue: now },
     };

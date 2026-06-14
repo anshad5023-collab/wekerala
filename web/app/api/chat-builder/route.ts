@@ -6,8 +6,8 @@ import type { UpdateConfigAction, AiAction } from '@/lib/ai-action-types';
 
 // ── Firestore REST helpers ────────────────────────────────────────────────────
 
-const PROJECT_ID = (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? 'shoplink-prod').replace(/^﻿/, '');
-const API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? 'AIzaSyCFB9YZL3_bXjvRMoWaYFv8nTs_ote52GQ';
+const PROJECT_ID = (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? 'shoplink-prod').replace(/^/, '');
+const API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY ?? '';
 const BASE_REST = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`;
 
@@ -38,7 +38,10 @@ function parseFields(fields: Record<string, FVal>): Record<string, unknown> {
 function toFirestoreValue(v: unknown): FVal {
   if (v === null || v === undefined) return { nullValue: null };
   if (typeof v === 'boolean') return { booleanValue: v };
-  if (typeof v === 'number') return { stringValue: String(v) };
+  if (typeof v === 'number') {
+    // Correctly distinguish between Integers and Doubles for Firestore REST
+    return Number.isInteger(v) ? { integerValue: String(v) } : { doubleValue: v };
+  }
   if (typeof v === 'string') return { stringValue: v };
   if (Array.isArray(v)) return { arrayValue: { values: v.map(toFirestoreValue) } };
   if (typeof v === 'object') {
@@ -221,7 +224,7 @@ async function callGemini(
   userMessage: string,
   history: HistoryItem[] = [],
 ): Promise<AiAction> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
   // Build multi-turn contents from history then append current message
   const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
@@ -240,7 +243,6 @@ async function callGemini(
       temperature: 0.2,
       maxOutputTokens: 512,
       responseMimeType: 'application/json',
-      thinkingConfig: { thinkingBudget: 0 },
     },
   };
 
@@ -492,7 +494,8 @@ export async function POST(req: NextRequest) {
   const draftDoc = await firestoreGet(`shops/${shopId}/versions/draft`);
   if (draftDoc?.['config'] && typeof draftDoc['config'] === 'object') {
     currentConfig = draftDoc['config'] as Partial<WebsiteConfig>;
-  } else if (draftDoc && !draftDoc['config']) {
+  }
+  else if (draftDoc && !draftDoc['config']) {
     // Legacy draft: the document IS the config (old format before versioning)
     currentConfig = draftDoc as Partial<WebsiteConfig>;
   }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { restGetDoc, restAddDoc } from '@/lib/firestore-rest';
+import { getAdminAuth } from '@/lib/firebase-admin';
 
 const API_KEY = process.env.NEXT_PUBLIC_FIREBASE_API_KEY ?? 'AIzaSyCFB9YZL3_bXjvRMoWaYFv8nTs_ote52GQ';
 const PROJECT_ID = (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ?? 'shoplink-prod').replace(/^﻿/, '');
@@ -7,9 +8,24 @@ const BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databas
 
 type FVal = { stringValue: string } | { booleanValue: boolean } | { nullValue: null };
 
+async function getVerifiedUid(request: Request): Promise<string | null> {
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  try {
+    const decoded = await getAdminAuth().verifyIdToken(authHeader.slice(7));
+    return decoded.uid;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(req: NextRequest) {
+  const tokenUid = await getVerifiedUid(req);
+  if (!tokenUid) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const uid = req.nextUrl.searchParams.get('uid');
   if (!uid) return NextResponse.json({ error: 'uid required' }, { status: 400 });
+  if (tokenUid !== uid) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   try {
     const res = await fetch(`${BASE}/users/${uid}/addresses?key=${API_KEY}&pageSize=20`);
@@ -29,8 +45,11 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const uid = req.nextUrl.searchParams.get('uid');
-  if (!uid) return NextResponse.json({ error: 'uid required' }, { status: 400 });
+  const tokenUid = await getVerifiedUid(req);
+  if (!tokenUid) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  // Always use the verified token uid — ignore any client-supplied uid query param.
+  const uid = tokenUid;
 
   try {
     const body = await req.json() as { label?: string; address?: string; isDefault?: boolean };
@@ -51,9 +70,13 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const tokenUid = await getVerifiedUid(req);
+  if (!tokenUid) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
   const uid = req.nextUrl.searchParams.get('uid');
   const id = req.nextUrl.searchParams.get('id');
   if (!uid || !id) return NextResponse.json({ error: 'uid and id required' }, { status: 400 });
+  if (tokenUid !== uid) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   try {
     const res = await fetch(`${BASE}/users/${uid}/addresses/${id}?key=${API_KEY}`, { method: 'DELETE' });
