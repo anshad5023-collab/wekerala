@@ -25,12 +25,24 @@ function toWaNum(raw: string): string {
   return digits.length === 10 ? `91${digits}` : digits;
 }
 
+// Build WhatsApp pre-filled message that includes the unique shop code.
+// The webhook uses this code (#W1042) to route to the exact shop — unambiguous
+// even when multiple shops have similar names.
+function waMsg(shop: ShopData): string {
+  const code = (shop as ShopData & { shopCode?: string }).shopCode;
+  const name = shop.shopName || shop.name || 'your shop';
+  return code
+    ? `Hi! I'm interested in ${name} ${code}`
+    : `Hi! I'm interested in ${name}`;
+}
+
 function WAFloat({ config, shop }: { config: WebsiteConfig; shop: ShopData }) {
   if (!config.whatsappEnabled) return null;
   const num = toWaNum(config.whatsappNumber || shop.ownerPhone);
   if (!num) return null;
   return (
-    <a href={`https://wa.me/${num}`} target="_blank" rel="noreferrer"
+    <a href={`https://wa.me/${num}?text=${encodeURIComponent(waMsg(shop))}`}
+      target="_blank" rel="noreferrer"
       className="fixed bottom-6 right-4 w-14 h-14 bg-green-500 rounded-full flex items-center justify-center shadow-xl text-2xl z-50 hover:scale-110 transition-transform">
       💬
     </a>
@@ -43,7 +55,8 @@ function WABtn({ config, shop, className = '', style = {} }: { config: WebsiteCo
   if (!num) return null;
   const label = config.primaryButtonText || 'Order Now';
   return (
-    <a href={`https://wa.me/${num}`} target="_blank" rel="noreferrer"
+    <a href={`https://wa.me/${num}?text=${encodeURIComponent(waMsg(shop))}`}
+      target="_blank" rel="noreferrer"
       className={`inline-block px-6 py-2.5 rounded-full text-white font-semibold ${className}`}
       style={{ backgroundColor: '#25D366', ...style }}>
       💬 {label}

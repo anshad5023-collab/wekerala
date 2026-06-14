@@ -372,6 +372,36 @@ async function handleOndcCancellation(body) {
   console.log(`ONDC order ${orderId} cancelled for shop ${shopId}`);
 }
 
+// ─── Assign unique shopCode when a new shop is created ───────────────────────
+// shopCode format: W1001 … W9999 (then W10000+)
+// Stored on the shop doc and used as the unambiguous WhatsApp routing code.
+// The storefront WhatsApp button pre-fills "#W1042" so the webhook can find
+// the exact shop even if 100 shops are named "Fancy Store".
+
+exports.onShopCreated = onDocumentCreated('shops/{shopId}', async (event) => {
+  const db = getFirestore();
+  const shopId = event.params.shopId;
+  const shop = event.data?.data();
+  if (!shop) return;
+  if (shop.shopCode) return; // already assigned (shouldn't happen, but guard)
+
+  const counterRef = db.collection('counters').doc('shopCode');
+
+  try {
+    const code = await db.runTransaction(async (tx) => {
+      const counterDoc = await tx.get(counterRef);
+      const next = counterDoc.exists ? (counterDoc.data().next || 1001) : 1001;
+      tx.set(counterRef, { next: next + 1 }, { merge: true });
+      return `W${next}`;
+    });
+
+    await db.collection('shops').doc(shopId).update({ shopCode: code });
+    console.log(`[ShopCreated] Assigned shopCode ${code} to shop ${shopId}`);
+  } catch (err) {
+    console.error(`[ShopCreated] Failed to assign shopCode to ${shopId}:`, err);
+  }
+});
+
 // ─── Function 1: Existing — New Order Notification ──────────────────────────
 
 // Fires when a new order is created in any shop
@@ -1023,22 +1053,90 @@ exports.whatsappWebhook = onRequest({ timeoutSeconds: 60, cors: true }, async (r
     }
     await dedupRef.set({ ts: FieldValue.serverTimestamp(), sender });
 
-    // ── 3. Find shop ──────────────────────────────────────────────────────────
-    const shopsSnap = phoneNumberId
-      ? await db.collection('shops').where('whatsappPhoneNumberId', '==', phoneNumberId).limit(1).get()
-      : { empty: true, docs: [] };
+    // ── 3. Find shop — 3-tier cascade ────────────────────────────────────────
+    //
+    // Tier A: Shop has its own dedicated WhatsApp Business number.
+    //         Each shop that registers their own number stores whatsappPhoneNumberId.
+    //         This is the most precise match.
+    //
+    // Tier B: Customer already chatted with a shop before.
+    //         We keep a root-level senderContext/{sender} → {shopId} record so
+    //         returning customers are automatically routed to the same shop.
+    //
+    // Tier C: Message starts with shop name (storefront WhatsApp button pre-fills
+    //         "Hi [ShopName]!" so the AI can match by shop name on first contact).
+    //
+    // If none match: send a friendly selector reply and stop.
 
-    if (shopsSnap.empty) {
-      console.warn('[Webhook] No shop for phoneNumberId:', phoneNumberId);
+    let shopDoc = null;
+
+    // Tier A — dedicated number
+    if (phoneNumberId) {
+      const snap = await db.collection('shops')
+        .where('whatsappPhoneNumberId', '==', phoneNumberId)
+        .where('isActive', '==', true)
+        .limit(1).get();
+      if (!snap.empty) shopDoc = snap.docs[0];
+    }
+
+    // Tier B — returning customer (conversation memory)
+    if (!shopDoc) {
+      const ctxSnap = await db.collection('senderContext').doc(sender).get();
+      if (ctxSnap.exists) {
+        const { shopId: prevShopId } = ctxSnap.data();
+        const prevShop = await db.collection('shops').doc(prevShopId).get();
+        if (prevShop.exists && prevShop.data().isActive !== false) {
+          shopDoc = prevShop;
+        }
+      }
+    }
+
+    // Tier C — short shop code in message (storefront button pre-fills "#W1042")
+    // Each shop has a unique 4-5 digit shopCode stored in Firestore.
+    // The storefront WhatsApp button pre-fills: "Hi! #W1042"
+    // This is unambiguous even when shop names are similar.
+    if (!shopDoc) {
+      const codeMatch = messageText.match(/#W(\d{4,5})/i);
+      if (codeMatch) {
+        const snap = await db.collection('shops')
+          .where('shopCode', '==', codeMatch[0].toUpperCase())
+          .limit(1).get();
+        if (!snap.empty) shopDoc = snap.docs[0];
+      }
+    }
+
+    // Tier D — shop slug in message (fallback for older links)
+    if (!shopDoc) {
+      const slugMatch = messageText.match(/slug:([a-z0-9-]+)/i);
+      if (slugMatch) {
+        const snap = await db.collection('shops')
+          .where('shopSlug', '==', slugMatch[1].toLowerCase())
+          .limit(1).get();
+        if (!snap.empty) shopDoc = snap.docs[0];
+      }
+    }
+
+    // No shop found — ask the customer which shop they want
+    if (!shopDoc) {
+      await sendWhatsApp(
+        sender,
+        `👋 Welcome to *weKerala*!\n\nPlease tell us which shop you're looking for, or tap the shop's WhatsApp button from the shop page.\n\nExample: _"Hi Fancy Store"_`,
+        null
+      );
       return;
     }
 
-    const shopDoc  = shopsSnap.docs[0];
-    const shopId   = shopDoc.id;
-    const shop     = shopDoc.data();
+    const shopId     = shopDoc.id;
+    const shop       = shopDoc.data();
     const aiSettings = shop.aiSettings || {};
 
     if (aiSettings.enabled !== true) return;
+
+    // Remember this sender → shop mapping for future messages (Tier B)
+    db.collection('senderContext').doc(sender).set(
+      { shopId, lastSeen: FieldValue.serverTimestamp() },
+      { merge: true }
+    ).catch(() => {});
 
     const shopName      = shop.shopName || shop.name || 'Our Shop';
     const ownerPhone    = shop.ownerPhone || shop.phoneNumber || shop.phone || shop.ownerWhatsApp || '';
