@@ -8,6 +8,144 @@ import { useCartStore } from '@/lib/cart-store';
 import { translations, type Language } from '@/lib/translations';
 import type { Product } from '@/lib/products';
 
+// ── Attribute display helpers ─────────────────────────────────────────────────
+
+const ATTR_LABELS: Record<string, string> = {
+  composition: 'Composition',
+  strength: 'Strength',
+  form: 'Form',
+  schedule: 'Schedule',
+  fabric: 'Material',
+  material: 'Material',
+  color: 'Color',
+  colour: 'Color',
+  sizes: 'Available Sizes',
+  size: 'Size',
+  gender: 'For',
+  is_veg: 'Dietary',
+  allergens: 'Allergens',
+  model_number: 'Model No.',
+  model: 'Model',
+  warranty_months: 'Warranty',
+  warranty: 'Warranty',
+  compatible_with: 'Compatible With',
+  care_instructions: 'Care',
+  care: 'Care',
+  manufacturer: 'Manufacturer',
+  brand: 'Brand',
+  ram: 'RAM',
+  storage: 'Storage',
+  battery: 'Battery',
+  connectivity: 'Connectivity',
+  weight: 'Weight',
+  ingredients: 'Ingredients',
+  shelf_life: 'Shelf Life',
+  expiry: 'Expiry',
+  net_quantity: 'Net Quantity',
+  country_of_origin: 'Origin',
+  fssai: 'FSSAI No.',
+};
+
+function attrLabel(key: string): string {
+  return ATTR_LABELS[key] ?? key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function VegBadge({ value }: { value: string }) {
+  const v = String(value).toLowerCase();
+  if (v === 'veg' || v === 'vegetarian') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold bg-green-100 text-green-700 border border-green-300">
+        <span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" /> Veg
+      </span>
+    );
+  }
+  if (v === 'egg') {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold bg-orange-100 text-orange-700 border border-orange-300">
+        <span className="w-2.5 h-2.5 rounded-full bg-orange-500 inline-block" /> Egg
+      </span>
+    );
+  }
+  // non-veg / default
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-bold bg-red-100 text-red-700 border border-red-300">
+      <span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" /> Non-Veg
+    </span>
+  );
+}
+
+function ChipList({ items }: { items: string[] }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {items.map((item, i) => (
+        <span key={i} className="rounded-md border border-gray-300 bg-gray-50 px-2.5 py-0.5 text-xs font-medium text-gray-700">
+          {item}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function ProductAttributes({ attributes }: { attributes: Record<string, unknown> }) {
+  const entries = Object.entries(attributes).filter(([, v]) => v !== null && v !== undefined && v !== '');
+  if (entries.length === 0) return null;
+
+  return (
+    <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3">
+      <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-400">Product Details</p>
+      <div className="flex flex-col gap-2">
+        {entries.map(([key, value]) => {
+          const label = attrLabel(key);
+
+          // Special: is_veg → colored dietary badge
+          if (key === 'is_veg') {
+            return (
+              <div key={key} className="flex items-center justify-between gap-2">
+                <span className="text-xs text-gray-500 shrink-0">{label}</span>
+                <VegBadge value={String(value)} />
+              </div>
+            );
+          }
+
+          // Special: sizes or allergens arrays → chip list
+          if (Array.isArray(value)) {
+            const items = value.map((v) => String(v)).filter(Boolean);
+            if (items.length === 0) return null;
+            return (
+              <div key={key} className="flex flex-col gap-1">
+                <span className="text-xs text-gray-500">{label}</span>
+                <ChipList items={items} />
+              </div>
+            );
+          }
+
+          // Special: warranty_months → "X months"
+          if (key === 'warranty_months') {
+            const months = Number(value);
+            const display = months >= 12
+              ? `${Math.floor(months / 12)} year${months >= 24 ? 's' : ''}${months % 12 ? ` ${months % 12} month${months % 12 > 1 ? 's' : ''}` : ''}`
+              : `${months} month${months !== 1 ? 's' : ''}`;
+            return (
+              <div key={key} className="flex items-start justify-between gap-2">
+                <span className="text-xs text-gray-500 shrink-0">{label}</span>
+                <span className="text-xs font-medium text-gray-800 text-right">{display}</span>
+              </div>
+            );
+          }
+
+          // Default: key–value row
+          return (
+            <div key={key} className="flex items-start justify-between gap-2">
+              <span className="text-xs text-gray-500 shrink-0">{label}</span>
+              <span className="text-xs font-medium text-gray-800 text-right break-words max-w-[60%]">{String(value)}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 interface ProductDetailSheetProps {
   product: Product;
   language: Language;
@@ -98,6 +236,11 @@ export function ProductDetailSheet({ product, language, onClose, allProducts, on
             <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2">
               <p className="text-sm text-gray-600 leading-relaxed">{product.description}</p>
             </div>
+          )}
+
+          {/* Category-specific attributes (RAM, sizes, is_veg, composition, etc.) */}
+          {product.attributes && Object.keys(product.attributes).length > 0 && (
+            <ProductAttributes attributes={product.attributes as Record<string, unknown>} />
           )}
 
           {/* Variants — for textile/clothing shops with color/size options */}

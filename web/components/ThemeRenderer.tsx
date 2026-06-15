@@ -15,6 +15,7 @@ interface Product {
   productId: string; name: string; price: number; offerPrice: number;
   unit: string; imageUrl: string; category: string; isOutOfStock: boolean;
   isFeatured?: boolean; isNew?: boolean; description?: string;
+  attributes?: Record<string, unknown>;
 }
 interface Props { config: WebsiteConfig; shop: ShopData; products: Product[]; shopId?: string; language?: 'en' | 'ml' }
 

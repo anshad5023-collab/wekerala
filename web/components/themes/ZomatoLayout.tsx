@@ -25,6 +25,7 @@ interface Product {
   category: string;
   isOutOfStock: boolean;
   description?: string;
+  attributes?: Record<string, unknown>;
 }
 
 interface WebsiteConfig {
@@ -67,6 +68,7 @@ function toAppProduct(p: Product): AppProduct {
     image: p.imageUrl ?? '',
     isOutOfStock: p.isOutOfStock,
     description: p.description,
+    attributes: p.attributes,
   };
 }
 

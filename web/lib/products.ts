@@ -18,6 +18,8 @@ export interface Product {
   orderCount?: number; // times this product was billed — used for popularity sort
   hasVariants?: boolean;
   variants?: Array<{ variantId: string; name: string; price: number; offerPrice?: number; stockQty?: number }>;
+  /** Category-specific product attributes (e.g. RAM, storage, is_veg, sizes, composition, etc.) */
+  attributes?: Record<string, unknown>;
 }
 
 export interface AiSettings {
@@ -104,6 +106,9 @@ export function firestoreToProduct(data: Record<string, any>, id: string): Produ
     orderCount: (data['orderCount'] as number | undefined) ?? 0,
     hasVariants: data['hasVariants'] as boolean | undefined,
     variants: Array.isArray(data['variants']) ? data['variants'] as Product['variants'] : undefined,
+    attributes: data['attributes'] && typeof data['attributes'] === 'object' && !Array.isArray(data['attributes'])
+      ? data['attributes'] as Record<string, unknown>
+      : undefined,
   };
 }
 

@@ -221,6 +221,9 @@ export default async function SitePage({
       isFeatured: (p.isFeatured as boolean) || false,
       isNew: (p.isNew as boolean) || false,
       description: (p.description as string) || '',
+      attributes: p.attributes && typeof p.attributes === 'object' && !Array.isArray(p.attributes)
+        ? p.attributes as Record<string, unknown>
+        : undefined,
     };
   });
 
