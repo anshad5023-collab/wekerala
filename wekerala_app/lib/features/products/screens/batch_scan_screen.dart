@@ -6,6 +6,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/product_lookup_service.dart';
 import '../../../providers/shop_provider.dart';
+import '../../../models/shop_model.dart';
 import '../models/scan_job.dart';
 import 'batch_review_screen.dart';
 
@@ -22,15 +23,15 @@ class _BatchScanScreenState extends ConsumerState<BatchScanScreen> {
   bool _scanning = false;
   int _jobCounter = 0;
 
-  String _getShopType() {
-    final shopAsync = ref.read(activeShopProvider);
-    return shopAsync.valueOrNull?.shopType ?? '';
+  ShopModel? _getShop() {
+    final shopId = ref.read(activeShopIdProvider).valueOrNull ?? '';
+    if (shopId.isEmpty) return null;
+    return ref.read(shopStreamProvider(shopId)).valueOrNull;
   }
 
-  List<String> _getCategories() {
-    final shopAsync = ref.read(activeShopProvider);
-    return shopAsync.valueOrNull?.categories ?? [];
-  }
+  String _getShopType() => _getShop()?.shopType ?? '';
+
+  List<String> _getCategories() => _getShop()?.categories ?? [];
 
   Future<void> _takePhoto() async {
     final status = await Permission.camera.request();

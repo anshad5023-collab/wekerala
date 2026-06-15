@@ -290,7 +290,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       // Always use the photo the owner took as the product image —
       // Open Food Facts rarely has Indian products so the scanned photo is best.
       setState(() {
-        _imageFile = XFile(file.path);
+        _imageFile = File(file.path);
         _imageUrl = '';
         _imageSource = 'owner';
       });
