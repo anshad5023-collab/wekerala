@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -248,7 +249,7 @@ class _ThumbCard extends StatelessWidget {
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: Image.asset(job.imagePath, fit: BoxFit.cover, errorBuilder: (_, __, ___) =>
+            child: Image.file(File(job.imagePath), fit: BoxFit.cover, errorBuilder: (_, __, ___) =>
                 Container(color: Colors.grey.shade100,
                   child: const Icon(Icons.image, color: Colors.grey))),
           ),
