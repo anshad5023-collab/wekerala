@@ -13,6 +13,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../core/config/shop_type_schema.dart';
 import '../../../core/services/product_lookup_service.dart';
+import '../models/product_attribute_schema.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/layout/breakpoints.dart';
 import '../../../providers/language_provider.dart'; // translationsProvider
@@ -652,6 +653,13 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   ),
                   onChanged: (v) => setState(() => _category = v),
                 ),
+                // Dynamic category-based attribute fields
+                _CategoryAttributesSection(
+                  category: _category,
+                  values: _attributes,
+                  onChanged: (key, value) => setState(() => _attributes[key] = value),
+                  onChipsChanged: (key, value) => setState(() => _attributes[key] = value),
+                ),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 16,
@@ -924,6 +932,206 @@ class _SchemaAttributesSection extends StatelessWidget {
               ),
             );
           }),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Category-Based Attribute Section ────────────────────────────────────────
+//
+// Shown/hidden dynamically based on the currently typed/selected category.
+// Uses [kCategoryAttributeSchema] from product_attribute_schema.dart.
+
+class _CategoryAttributesSection extends StatefulWidget {
+  final String category;
+  final Map<String, String> values;
+  final void Function(String key, String value) onChanged;
+  final void Function(String key, String value) onChipsChanged;
+
+  const _CategoryAttributesSection({
+    required this.category,
+    required this.values,
+    required this.onChanged,
+    required this.onChipsChanged,
+  });
+
+  @override
+  State<_CategoryAttributesSection> createState() =>
+      _CategoryAttributesSectionState();
+}
+
+class _CategoryAttributesSectionState
+    extends State<_CategoryAttributesSection> {
+  List<AttributeField> _fields = [];
+
+  @override
+  void didUpdateWidget(_CategoryAttributesSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.category != widget.category) {
+      _fields = getAttributeFields(widget.category);
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _fields = getAttributeFields(widget.category);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_fields.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0F7FF),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.category_outlined, size: 16, color: AppColors.primary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    '${widget.category} Details',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ..._fields.map((field) => _buildField(field)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildField(AttributeField field) {
+    switch (field.type) {
+      case AttributeType.dropdown:
+        return _buildDropdown(field);
+      case AttributeType.chips:
+        return _buildChips(field);
+      case AttributeType.number:
+        return _buildText(field, isNumber: true);
+      case AttributeType.text:
+        return _buildText(field, isNumber: false);
+    }
+  }
+
+  Widget _buildText(AttributeField field, {required bool isNumber}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextFormField(
+        initialValue: widget.values[field.key] ?? '',
+        keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+        decoration: InputDecoration(
+          labelText: field.label,
+          hintText: field.hint.isNotEmpty ? field.hint : null,
+          helperText: field.labelMl.isNotEmpty ? field.labelMl : null,
+          helperStyle: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+          border: const OutlineInputBorder(),
+          isDense: true,
+          filled: true,
+          fillColor: Colors.white,
+        ),
+        onChanged: (v) => widget.onChanged(field.key, v),
+      ),
+    );
+  }
+
+  Widget _buildDropdown(AttributeField field) {
+    final current = widget.values[field.key];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: DropdownButtonFormField<String>(
+        value: field.options.contains(current) ? current : null,
+        decoration: InputDecoration(
+          labelText: field.label,
+          helperText: field.labelMl.isNotEmpty ? field.labelMl : null,
+          helperStyle: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+          border: const OutlineInputBorder(),
+          isDense: true,
+          filled: true,
+          fillColor: Colors.white,
+        ),
+        items: field.options
+            .map((o) => DropdownMenuItem(value: o, child: Text(o)))
+            .toList(),
+        onChanged: (v) => widget.onChanged(field.key, v ?? ''),
+      ),
+    );
+  }
+
+  Widget _buildChips(AttributeField field) {
+    // Parse comma-separated stored value back into a set of selected chips.
+    final storedValue = widget.values[field.key] ?? '';
+    final selected = storedValue.isEmpty
+        ? <String>{}
+        : storedValue.split(',').map((s) => s.trim()).toSet();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            field.label,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+          ),
+          if (field.labelMl.isNotEmpty)
+            Text(field.labelMl,
+                style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: field.options.map((option) {
+              final isSelected = selected.contains(option);
+              return FilterChip(
+                label: Text(option, style: const TextStyle(fontSize: 12)),
+                selected: isSelected,
+                onSelected: (val) {
+                  final next = Set<String>.from(selected);
+                  if (val) {
+                    next.add(option);
+                  } else {
+                    next.remove(option);
+                  }
+                  // Store as comma-separated string
+                  final joined = next.toList()..sort();
+                  widget.onChipsChanged(field.key, joined.join(', '));
+                },
+                selectedColor: AppColors.primary.withValues(alpha: 0.15),
+                checkmarkColor: AppColors.primary,
+                labelStyle: TextStyle(
+                  color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                  fontWeight:
+                      isSelected ? FontWeight.w600 : FontWeight.normal,
+                ),
+                side: BorderSide(
+                  color: isSelected
+                      ? AppColors.primary
+                      : Colors.grey.shade300,
+                ),
+                backgroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+              );
+            }).toList(),
+          ),
         ],
       ),
     );
