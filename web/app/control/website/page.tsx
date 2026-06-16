@@ -147,6 +147,9 @@ function BuilderContent() {
   // ── Improvement 7: Viewport & preview key state ───────────────────────────
   const [viewport, setViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [previewKey, setPreviewKey] = useState(0);
+  // Mobile-only: shop owners are on phones, but the live preview panel is desktop-
+  // only. This lets them flip the whole builder between editing and a live preview.
+  const [mobileView, setMobileView] = useState<'edit' | 'preview'>('edit');
   const [iframePreviewToken, setIframePreviewToken] = useState<string>('');
 
   // ── Session token (server-signed, replaces raw uid in API calls) ──────────
@@ -436,11 +439,29 @@ function BuilderContent() {
       {/* ── Header ── */}
       <header className="shrink-0 bg-[#283618] text-[#fefae0] px-3 py-3 flex items-center gap-2 z-30">
         <button onClick={() => window.history.back()} className="text-lg mr-1">←</button>
-        <span className="flex-1 font-semibold text-sm truncate">Website Builder</span>
-        {draftSaved && <span className="text-xs text-[#fefae0]/50">Saved</span>}
+        <span className="hidden sm:inline flex-1 font-semibold text-sm truncate">Website Builder</span>
+
+        {/* Mobile-only Edit/Preview toggle — gives phone users the live preview
+            the desktop split-view has. */}
+        <div className="flex lg:hidden flex-1 justify-center">
+          <div className="inline-flex rounded-lg bg-[#fefae0]/15 p-0.5">
+            <button
+              onClick={() => setMobileView('edit')}
+              className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${mobileView === 'edit' ? 'bg-[#fefae0] text-[#283618]' : 'text-[#fefae0]/80'}`}>
+              Edit
+            </button>
+            <button
+              onClick={() => { setMobileView('preview'); setPreviewKey(k => k + 1); }}
+              className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${mobileView === 'preview' ? 'bg-[#fefae0] text-[#283618]' : 'text-[#fefae0]/80'}`}>
+              Preview
+            </button>
+          </div>
+        </div>
+
+        {draftSaved && <span className="hidden sm:inline text-xs text-[#fefae0]/50">Saved</span>}
         <button
           onClick={handlePreview}
-          className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[#fefae0]/40 hover:bg-[#fefae0]/10">
+          className="hidden lg:inline-block px-3 py-1.5 rounded-lg text-xs font-medium border border-[#fefae0]/40 hover:bg-[#fefae0]/10">
           Preview
         </button>
         {publishStatus === 'success' && (
@@ -467,7 +488,7 @@ function BuilderContent() {
       <div className="flex flex-1 overflow-hidden">
 
         {/* ── LEFT: Settings Panel ── */}
-        <div className="w-full lg:w-[420px] lg:min-w-[420px] flex flex-col border-r border-gray-200 overflow-hidden">
+        <div className={`w-full lg:w-[420px] lg:min-w-[420px] flex-col border-r border-gray-200 overflow-hidden ${mobileView === 'preview' ? 'hidden lg:flex' : 'flex'}`}>
 
           {/* Scrollable content area */}
           <main className="flex-1 overflow-y-auto">
@@ -1073,11 +1094,12 @@ function BuilderContent() {
 
         </div>
 
-        {/* ── RIGHT: Live Preview Panel (Improvement 7) — hidden on mobile ── */}
-        <div className="hidden lg:flex flex-1 flex-col bg-gray-100">
+        {/* ── RIGHT: Live Preview Panel — always on desktop; on mobile shown when
+              the Edit/Preview toggle is set to Preview ── */}
+        <div className={`flex-1 flex-col bg-gray-100 ${mobileView === 'preview' ? 'flex' : 'hidden'} lg:flex`}>
 
-          {/* Viewport toggle bar */}
-          <div className="flex items-center gap-2 p-3 border-b border-gray-200 bg-white shrink-0">
+          {/* Viewport toggle bar — desktop only (mobile preview is already phone-width) */}
+          <div className="hidden lg:flex items-center gap-2 p-3 border-b border-gray-200 bg-white shrink-0">
             {(Object.entries(VIEWPORTS) as [keyof typeof VIEWPORTS, typeof VIEWPORTS[keyof typeof VIEWPORTS]][]).map(([key, val]) => (
               <button
                 key={key}
