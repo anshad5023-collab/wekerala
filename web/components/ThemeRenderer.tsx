@@ -201,6 +201,7 @@ function CleanLayout({ config, shop, products, shopId, language = 'en' }: Props)
   const waNum = config.whatsappEnabled !== false ? toWaNum(config.whatsappNumber || shop.ownerPhone) : '';
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
   const has = (s: string) => config.sections.includes(s);
+  const aboutFirst = config.sections.indexOf('about') <= config.sections.indexOf('contact');
   const [activeCat, setActiveCat] = useState('All');
   const [search, setSearch] = useState('');
   const cats = ['All', ...Array.from(new Set(products.map(pr => pr.category).filter(Boolean)))];
@@ -370,24 +371,27 @@ function CleanLayout({ config, shop, products, shopId, language = 'en' }: Props)
             </div>
           )}
 
-          {/* About & Contact sections */}
-          {has('about') && (
-            <section className="mx-4 mt-6 px-6 py-8 bg-white rounded-xl border border-gray-100">
-              <h2 className="font-semibold text-lg mb-2" style={{ color: p }}>{language === 'ml' ? 'ഞങ്ങളെക്കുറിച്ച്' : 'About Us'}</h2>
-              <p className="text-gray-600">{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
-              {config.storeHoursEnabled && config.storeHoursText && (
-                <p className="text-sm text-gray-500 mt-3">🕐 {config.storeHoursText}</p>
-              )}
-            </section>
-          )}
-          {has('contact') && (
-            <section className="mx-4 mt-4 px-6 py-8 bg-white rounded-xl border border-gray-100">
-              <h2 className="font-semibold text-lg mb-3" style={{ color: p }}>{language === 'ml' ? 'ബന്ധപ്പെടുക' : 'Contact'}</h2>
-              <p className="text-gray-600">{shop.district}, Kerala</p>
-              {shop.ownerPhone && <p className="text-gray-600 mt-1">📞 {shop.ownerPhone}</p>}
-              <div className="mt-4"><WABtn config={config} shop={shop} /></div>
-            </section>
-          )}
+          {/* About & Contact sections — order follows the builder's drag-to-reorder list */}
+          {(() => {
+            const aboutSec = has('about') && (
+              <section key="about" className="mx-4 mt-6 px-6 py-8 bg-white rounded-xl border border-gray-100">
+                <h2 className="font-semibold text-lg mb-2" style={{ color: p }}>{language === 'ml' ? 'ഞങ്ങളെക്കുറിച്ച്' : 'About Us'}</h2>
+                <p className="text-gray-600">{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
+                {config.storeHoursEnabled && config.storeHoursText && (
+                  <p className="text-sm text-gray-500 mt-3">🕐 {config.storeHoursText}</p>
+                )}
+              </section>
+            );
+            const contactSec = has('contact') && (
+              <section key="contact" className="mx-4 mt-4 px-6 py-8 bg-white rounded-xl border border-gray-100">
+                <h2 className="font-semibold text-lg mb-3" style={{ color: p }}>{language === 'ml' ? 'ബന്ധപ്പെടുക' : 'Contact'}</h2>
+                <p className="text-gray-600">{shop.district}, Kerala</p>
+                {shop.ownerPhone && <p className="text-gray-600 mt-1">📞 {shop.ownerPhone}</p>}
+                <div className="mt-4"><WABtn config={config} shop={shop} /></div>
+              </section>
+            );
+            return aboutFirst ? <>{aboutSec}{contactSec}</> : <>{contactSec}{aboutSec}</>;
+          })()}
         </main>
       </div>
 
@@ -402,6 +406,7 @@ function DarkLayout({ config, shop, products, shopId }: Props) {
   const waNum = config.whatsappEnabled !== false ? toWaNum(config.whatsappNumber || shop.ownerPhone) : '';
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
   const has = (s: string) => config.sections.includes(s);
+  const aboutFirst = config.sections.indexOf('about') <= config.sections.indexOf('contact');
   const [activeCat, setActiveCat] = useState('All');
   const [search, setSearch] = useState('');
   const cats = ['All', ...Array.from(new Set(products.map(pr => pr.category).filter(Boolean)))];
@@ -493,14 +498,14 @@ function DarkLayout({ config, shop, products, shopId }: Props) {
 
       {has('about') && (
         <section className="max-w-7xl mx-auto px-4 md:px-8 py-8" style={{ backgroundColor: '#0d0d1f' }}>
-          <div className="md:flex md:gap-8">
-            <div className="flex-1">
+          <div className="flex flex-col md:flex-row md:gap-8">
+            <div className={has('contact') ? (aboutFirst ? 'order-1 md:flex-1' : 'order-2 mt-6 md:mt-0 md:w-64') : 'flex-1'}>
               <h2 className="font-bold text-lg mb-2" style={{ color: p }}>About</h2>
               <p className="text-gray-400">{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
               {config.storeHoursEnabled && config.storeHoursText && <p className="text-sm text-gray-500 mt-3">🕐 {config.storeHoursText}</p>}
             </div>
             {has('contact') && (
-              <div className="mt-6 md:mt-0 md:w-64">
+              <div className={aboutFirst ? 'order-2 mt-6 md:mt-0 md:w-64' : 'order-1 md:flex-1'}>
                 <h2 className="font-bold text-lg mb-2" style={{ color: p }}>Contact</h2>
                 <p className="text-gray-400">{shop.district}, Kerala</p>
                 {shop.ownerPhone && <p className="text-gray-400 mt-1">📞 {shop.ownerPhone}</p>}
@@ -528,6 +533,7 @@ function WarmLayout({ config, shop, products, shopId }: Props) {
   const waNum = config.whatsappEnabled !== false ? toWaNum(config.whatsappNumber || shop.ownerPhone) : '';
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
   const has = (s: string) => config.sections.includes(s);
+  const aboutFirst = config.sections.indexOf('about') <= config.sections.indexOf('contact');
   const [activeCat, setActiveCat] = useState('All');
   const [search, setSearch] = useState('');
   const cats = ['All', ...Array.from(new Set(products.map(pr => pr.category).filter(Boolean)))];
@@ -629,16 +635,16 @@ function WarmLayout({ config, shop, products, shopId }: Props) {
       )}
 
       {(has('about') || has('contact')) && (
-        <section className="max-w-7xl mx-auto px-4 md:px-8 py-8 md:flex md:gap-8" style={{ backgroundColor: '#fdf5e6' }}>
+        <section className="max-w-7xl mx-auto px-4 md:px-8 py-8 flex flex-col md:flex-row md:gap-8" style={{ backgroundColor: '#fdf5e6' }}>
           {has('about') && (
-            <div className="flex-1">
+            <div className={has('contact') ? (aboutFirst ? 'order-1 md:flex-1' : 'order-2 mt-6 md:mt-0 md:w-56') : 'flex-1'}>
               <h2 className="font-bold text-lg mb-2" style={{ color: p }}>About Us</h2>
               <p style={{ color: '#5a4a3a' }}>{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
               {config.storeHoursEnabled && config.storeHoursText && <p className="text-sm mt-3 opacity-70">🕐 {config.storeHoursText}</p>}
             </div>
           )}
           {has('contact') && (
-            <div className={`${has('about') ? 'mt-6 md:mt-0 md:w-56' : 'w-full text-center'}`}>
+            <div className={has('about') ? (aboutFirst ? 'order-2 mt-6 md:mt-0 md:w-56' : 'order-1 md:flex-1') : 'w-full text-center'}>
               <h2 className="font-bold text-lg mb-2" style={{ color: p }}>Contact</h2>
               <p style={{ color: '#5a4a3a' }}>{shop.district}, Kerala</p>
               {shop.ownerPhone && <p className="mt-1" style={{ color: '#5a4a3a' }}>📞 {shop.ownerPhone}</p>}
@@ -658,6 +664,7 @@ function NeopopLayout({ config, shop, products, shopId }: Props) {
   const waNum = config.whatsappEnabled !== false ? toWaNum(config.whatsappNumber || shop.ownerPhone) : '';
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
   const has = (sec: string) => config.sections.includes(sec);
+  const aboutFirst = config.sections.indexOf('about') <= config.sections.indexOf('contact');
   const [activeCat, setActiveCat] = useState('All');
   const [search, setSearch] = useState('');
   const cats = ['All', ...Array.from(new Set(products.map(pr => pr.category).filter(Boolean)))];
@@ -741,16 +748,16 @@ function NeopopLayout({ config, shop, products, shopId }: Props) {
       )}
 
       {(has('about') || has('contact')) && (
-        <section className="max-w-7xl mx-auto px-4 md:px-8 py-8 border-t border-white/10 md:flex md:gap-8">
+        <section className="max-w-7xl mx-auto px-4 md:px-8 py-8 border-t border-white/10 flex flex-col md:flex-row md:gap-8">
           {has('about') && (
-            <div className="flex-1">
+            <div className={has('contact') ? (aboutFirst ? 'order-1 md:flex-1' : 'order-2 mt-6 md:mt-0 md:w-56') : 'flex-1'}>
               <h2 className="font-black text-xl mb-2" style={{ color: p }}>About</h2>
               <p className="text-gray-400">{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
               {config.storeHoursEnabled && config.storeHoursText && <p className="text-sm text-gray-500 mt-3">🕐 {config.storeHoursText}</p>}
             </div>
           )}
           {has('contact') && (
-            <div className={`${has('about') ? 'mt-6 md:mt-0 md:w-56' : 'w-full text-center'}`}>
+            <div className={has('about') ? (aboutFirst ? 'order-2 mt-6 md:mt-0 md:w-56' : 'order-1 md:flex-1') : 'w-full text-center'}>
               <h2 className="font-black text-xl mb-2" style={{ color: p }}>Contact</h2>
               <p className="text-gray-500">{shop.district}, Kerala · {shop.ownerPhone}</p>
               <div className="mt-4">
@@ -771,6 +778,7 @@ function EditorialLayout({ config, shop, products, shopId }: Props) {
   const waNum = config.whatsappEnabled !== false ? toWaNum(config.whatsappNumber || shop.ownerPhone) : '';
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
   const has = (s: string) => config.sections.includes(s);
+  const aboutFirst = config.sections.indexOf('about') <= config.sections.indexOf('contact');
   const isLight = config.secondaryColor.startsWith('#8') || config.secondaryColor.startsWith('#9');
   const [activeCat, setActiveCat] = useState('All');
   const [search, setSearch] = useState('');
@@ -871,16 +879,16 @@ function EditorialLayout({ config, shop, products, shopId }: Props) {
       )}
 
       {(has('about') || has('contact')) && (
-        <section className="max-w-7xl mx-auto px-8 py-10 md:flex md:gap-8 border-t border-gray-200">
+        <section className="max-w-7xl mx-auto px-8 py-10 flex flex-col md:flex-row md:gap-8 border-t border-gray-200">
           {has('about') && (
-            <div className="flex-1">
+            <div className={has('contact') ? (aboutFirst ? 'order-1 md:flex-1' : 'order-2 mt-6 md:mt-0 md:w-56') : 'flex-1'}>
               <h2 className="text-2xl font-bold mb-3" style={{ color: p }}>About Us</h2>
               <p className="text-gray-600 leading-relaxed">{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
               {config.storeHoursEnabled && config.storeHoursText && <p className="text-sm text-gray-400 mt-4">🕐 {config.storeHoursText}</p>}
             </div>
           )}
           {has('contact') && (
-            <div className={`${has('about') ? 'mt-6 md:mt-0 md:w-56' : 'w-full text-center'}`}>
+            <div className={has('about') ? (aboutFirst ? 'order-2 mt-6 md:mt-0 md:w-56' : 'order-1 md:flex-1') : 'w-full text-center'}>
               <h2 className="text-2xl font-bold mb-3" style={{ color: p }}>Contact</h2>
               <p className="text-gray-500">{shop.district}, Kerala</p>
               {shop.ownerPhone && <p className="text-gray-600 mt-1">📞 {shop.ownerPhone}</p>}
@@ -902,6 +910,7 @@ function CarouselLayout({ config, shop, products, shopId }: Props) {
   const [activeCat, setActiveCat] = useState('All');
   const [search, setSearch] = useState('');
   const has = (s: string) => config.sections.includes(s);
+  const aboutFirst = config.sections.indexOf('about') <= config.sections.indexOf('contact');
 
   const cats = ['All', ...Array.from(new Set(products.map(pr => pr.category).filter(Boolean)))];
   const visible = products.filter(pr =>
@@ -1008,16 +1017,16 @@ function CarouselLayout({ config, shop, products, shopId }: Props) {
       )}
 
       {(has('about') || has('contact')) && (
-        <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 md:flex md:gap-8 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 flex flex-col md:flex-row md:gap-8 bg-gray-50">
           {has('about') && (
-            <section className="flex-1">
+            <section className={has('contact') ? (aboutFirst ? 'order-1 md:flex-1' : 'order-2 mt-6 md:mt-0 md:w-56') : 'flex-1'}>
               <h2 className="font-bold text-lg mb-2" style={{ color: p }}>About</h2>
               <p className="text-gray-600">{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
               {config.storeHoursEnabled && config.storeHoursText && <p className="text-sm text-gray-400 mt-3">🕐 {config.storeHoursText}</p>}
             </section>
           )}
           {has('contact') && (
-            <section className={`${has('about') ? 'mt-6 md:mt-0 md:w-56' : 'w-full text-center'}`}>
+            <section className={has('about') ? (aboutFirst ? 'order-2 mt-6 md:mt-0 md:w-56' : 'order-1 md:flex-1') : 'w-full text-center'}>
               <h2 className="font-bold text-lg mb-2" style={{ color: p }}>Contact</h2>
               <p className="text-gray-500">{shop.district} · {shop.ownerPhone}</p>
               <div className="mt-4"><WABtn config={config} shop={shop} style={{ backgroundColor: p }} /></div>
@@ -1036,6 +1045,7 @@ function LuxuryLayout({ config, shop, products, shopId }: Props) {
   const waNum = config.whatsappEnabled !== false ? toWaNum(config.whatsappNumber || shop.ownerPhone) : '';
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
   const has = (s: string) => config.sections.includes(s);
+  const aboutFirst = config.sections.indexOf('about') <= config.sections.indexOf('contact');
   const [activeCat, setActiveCat] = useState('All');
   const [search, setSearch] = useState('');
   const cats = ['All', ...Array.from(new Set(products.map(pr => pr.category).filter(Boolean)))];
@@ -1150,16 +1160,16 @@ function LuxuryLayout({ config, shop, products, shopId }: Props) {
       )}
 
       {(has('about') || has('contact')) && (
-        <section className="max-w-7xl mx-auto px-6 py-8 border-t md:flex md:gap-8" style={{ borderColor: `${p}20` }}>
+        <section className="max-w-7xl mx-auto px-6 py-8 border-t flex flex-col md:flex-row md:gap-8" style={{ borderColor: `${p}20` }}>
           {has('about') && (
-            <div className="flex-1">
+            <div className={has('contact') ? (aboutFirst ? 'order-1 md:flex-1' : 'order-2 mt-6 md:mt-0 md:w-56 md:text-right') : 'flex-1'}>
               <h2 className="font-bold tracking-widest text-sm uppercase mb-3" style={{ color: p }}>Our Story</h2>
               <p className="text-gray-400 leading-relaxed">{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
               {config.storeHoursEnabled && config.storeHoursText && <p className="text-sm opacity-50 mt-3">🕐 {config.storeHoursText}</p>}
             </div>
           )}
           {has('contact') && (
-            <div className={`${has('about') ? 'mt-6 md:mt-0 md:w-56 md:text-right' : 'w-full text-center'}`}>
+            <div className={has('about') ? (aboutFirst ? 'order-2 mt-6 md:mt-0 md:w-56 md:text-right' : 'order-1 md:flex-1') : 'w-full text-center'}>
               <p className="opacity-50 text-sm tracking-wider">{shop.district}, Kerala</p>
               {shop.ownerPhone && <p className="opacity-50 text-sm mt-1">{shop.ownerPhone}</p>}
               <div className="mt-4">
@@ -1180,6 +1190,7 @@ function FestivalLayout({ config, shop, products, shopId }: Props) {
   const waNum = config.whatsappEnabled !== false ? toWaNum(config.whatsappNumber || shop.ownerPhone) : '';
   const banners = [shop.bannerImageUrl, ...(config.banners ?? [])].filter(Boolean);
   const has = (sec: string) => config.sections.includes(sec);
+  const aboutFirst = config.sections.indexOf('about') <= config.sections.indexOf('contact');
   const bg = config.themeId === 'zenith' ? '#f0fdf4' : '#fff8e7';
   const [activeCat, setActiveCat] = useState('All');
   const [search, setSearch] = useState('');
@@ -1278,16 +1289,16 @@ function FestivalLayout({ config, shop, products, shopId }: Props) {
       )}
 
       {(has('about') || has('contact')) && (
-        <section className="max-w-7xl mx-auto px-4 md:px-8 py-8 md:flex md:gap-8" style={{ backgroundColor: `${s}15` }}>
+        <section className="max-w-7xl mx-auto px-4 md:px-8 py-8 flex flex-col md:flex-row md:gap-8" style={{ backgroundColor: `${s}15` }}>
           {has('about') && (
-            <div className="flex-1">
+            <div className={has('contact') ? (aboutFirst ? 'order-1 md:flex-1' : 'order-2 mt-6 md:mt-0 md:w-56') : 'flex-1'}>
               <h2 className="font-bold text-lg mb-2" style={{ color: p }}>About Us</h2>
               <p className="text-gray-700">{config.aboutText || `Welcome to ${config.siteName || shop.shopName}!`}</p>
               {config.storeHoursEnabled && config.storeHoursText && <p className="text-sm text-gray-500 mt-3">🕐 {config.storeHoursText}</p>}
             </div>
           )}
           {has('contact') && (
-            <div className={`${has('about') ? 'mt-6 md:mt-0 md:w-56' : 'w-full text-center'}`}>
+            <div className={has('about') ? (aboutFirst ? 'order-2 mt-6 md:mt-0 md:w-56' : 'order-1 md:flex-1') : 'w-full text-center'}>
               <h2 className="font-bold text-lg mb-2" style={{ color: p }}>Contact</h2>
               <p className="text-gray-600">{shop.district}, Kerala · {shop.ownerPhone}</p>
               <div className="mt-4"><WABtn config={config} shop={shop} style={{ backgroundColor: p }} /></div>
