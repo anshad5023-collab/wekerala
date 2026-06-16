@@ -1,6 +1,8 @@
 'use client';
 
+import { useRef } from 'react';
 import Image from 'next/image';
+import { motion, useScroll, useTransform } from 'framer-motion';
 import { Clock, ShoppingBag, Truck, CheckCircle, XCircle } from 'lucide-react';
 import type { Language } from '@/lib/translations';
 
@@ -22,12 +24,22 @@ export function ShopBanner({
   deliveryCharge,
   isOpen,
 }: ShopBannerProps) {
+  const bannerRef = useRef<HTMLDivElement>(null);
+  const { scrollY } = useScroll();
+  // Image drifts down at ~30% of scroll speed → parallax depth without leaving its frame.
+  const y = useTransform(scrollY, [0, 300], [0, 45]);
+  const scale = useTransform(scrollY, [0, 300], [1, 1.12]);
+
   return (
     <div>
       {/* Hero banner image — only rendered when a banner image exists */}
       {bannerImageUrl ? (
-        <div className="relative h-36 w-full overflow-hidden bg-gray-100">
-          <Image src={bannerImageUrl} alt="Shop banner" fill className="object-cover" priority />
+        <div ref={bannerRef} className="relative h-36 w-full overflow-hidden bg-gray-100">
+          <motion.div style={{ y, scale }} className="absolute inset-0 -top-4 -bottom-4">
+            <Image src={bannerImageUrl} alt="Shop banner" fill className="object-cover" priority />
+          </motion.div>
+          {/* subtle gradient for text legibility + depth */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent" />
           <div className="absolute right-3 top-3">
             {isOpen ? (
               <span className="flex items-center gap-1 rounded-full bg-green-500 px-2 py-0.5 text-xs font-bold text-white shadow">

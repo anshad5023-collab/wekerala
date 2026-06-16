@@ -27,9 +27,9 @@ export function CartPage({ language, onBack, onCheckout, deliveryCharge = 0, fre
   const belowMin = minOrderAmount > 0 && subtotal < minOrderAmount;
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#f0fdf4]">
+    <div className="flex min-h-screen flex-col bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-50 flex items-center gap-3 bg-[#22c55e] px-4 py-4 text-white shadow-md">
+      <header className="sticky top-0 z-50 flex items-center gap-3 bg-primary px-4 py-4 text-primary-foreground shadow-md">
         <Button
           variant="ghost"
           size="icon"

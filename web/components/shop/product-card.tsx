@@ -5,6 +5,7 @@ import { Minus, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCartStore } from '@/lib/cart-store';
 import { translations, type Language } from '@/lib/translations';
+import { haptic } from '@/lib/haptics';
 import type { Product } from '@/lib/products';
 
 interface ProductCardProps {
@@ -27,11 +28,13 @@ export function ProductCard({ product, language, onProductClick }: ProductCardPr
 
   const handleAddClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    haptic('medium');
     addItem(product);
   };
 
   const handleQuantityChange = (e: React.MouseEvent, newQuantity: number) => {
     e.stopPropagation();
+    haptic('light');
     updateQuantity(product.id, newQuantity);
   };
 

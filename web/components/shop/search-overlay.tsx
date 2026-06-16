@@ -109,9 +109,9 @@ export function SearchOverlay({
   const ft = filterTranslations[language];
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[#f0fdf4]">
+    <div className="fixed inset-0 z-50 flex flex-col bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-10 flex items-center gap-3 bg-[#22c55e] px-4 py-3 text-white shadow-md">
+      <header className="sticky top-0 z-10 flex items-center gap-3 bg-primary px-4 py-3 text-white shadow-md">
         <button
           onClick={onClose}
           className="flex h-10 w-10 items-center justify-center rounded-full hover:bg-white/10"
@@ -140,7 +140,7 @@ export function SearchOverlay({
         >
           <SlidersHorizontal className="h-5 w-5" />
           {filterCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-bold text-[#22c55e]">
+            <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-bold text-primary">
               {filterCount}
             </span>
           )}
@@ -149,13 +149,13 @@ export function SearchOverlay({
 
       {/* Filter Section */}
       {showFilters && (
-        <div className="border-b border-[#22c55e]/20 bg-white p-4">
+        <div className="border-b border-primary/20 bg-white p-4">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-semibold italic text-gray-800">{ft.filters}</h2>
             {filterCount > 0 && (
               <button
                 onClick={clearAllFilters}
-                className="text-sm italic text-[#22c55e] hover:underline"
+                className="text-sm italic text-primary hover:underline"
               >
                 {ft.clearAll}
               </button>
@@ -177,8 +177,8 @@ export function SearchOverlay({
                   className={cn(
                     'flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm italic transition-all',
                     selectedPriceFilter === filter.id
-                      ? 'border-[#22c55e] bg-[#22c55e] text-white'
-                      : 'border-gray-300 bg-white text-gray-700 hover:border-[#22c55e]'
+                      ? 'border-primary bg-primary text-white'
+                      : 'border-gray-300 bg-white text-gray-700 hover:border-primary'
                   )}
                 >
                   {selectedPriceFilter === filter.id && <Check className="h-3 w-3" />}
@@ -206,8 +206,8 @@ export function SearchOverlay({
                         className={cn(
                           'flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm italic transition-all',
                           isSelected
-                            ? 'border-[#22c55e] bg-[#dcfce7]'
-                            : 'border-gray-300 bg-white hover:border-[#22c55e]'
+                            ? 'border-primary bg-[#dcfce7]'
+                            : 'border-gray-300 bg-white hover:border-primary'
                         )}
                       >
                         <span
@@ -215,7 +215,7 @@ export function SearchOverlay({
                           style={{ backgroundColor: option.colorCode }}
                         />
                         {option.label[language]}
-                        {isSelected && <Check className="h-3 w-3 text-[#22c55e]" />}
+                        {isSelected && <Check className="h-3 w-3 text-primary" />}
                       </button>
                     );
                   }
@@ -227,8 +227,8 @@ export function SearchOverlay({
                       className={cn(
                         'flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm italic transition-all',
                         isSelected
-                          ? 'border-[#22c55e] bg-[#22c55e] text-white'
-                          : 'border-gray-300 bg-white text-gray-700 hover:border-[#22c55e]'
+                          ? 'border-primary bg-primary text-white'
+                          : 'border-gray-300 bg-white text-gray-700 hover:border-primary'
                       )}
                     >
                       {isSelected && <Check className="h-3 w-3" />}
@@ -287,7 +287,7 @@ export function SearchOverlay({
                   <h3 className={`line-clamp-1 text-left text-sm font-semibold italic ${product.isOutOfStock ? 'text-gray-400' : 'text-gray-800'}`}>
                     {product.name[language]}
                   </h3>
-                  <p className={`mt-0.5 text-left text-sm italic ${product.isOutOfStock ? 'text-gray-400' : 'text-[#22c55e]'}`}>
+                  <p className={`mt-0.5 text-left text-sm italic ${product.isOutOfStock ? 'text-gray-400' : 'text-primary'}`}>
                     ₹{product.price}
                   </p>
                 </div>

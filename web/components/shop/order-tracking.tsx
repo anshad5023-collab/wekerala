@@ -54,9 +54,9 @@ export function OrderTracking({ orderId, shopId }: { orderId: string; shopId: st
   const currentIdx = isCancelled ? -1 : STEPS.findIndex((s) => s.key === status);
 
   return (
-    <div className="min-h-screen bg-[#f0fdf4]">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-50 flex items-center gap-3 bg-[#22c55e] px-4 py-3 text-white shadow-md">
+      <header className="sticky top-0 z-50 flex items-center gap-3 bg-primary px-4 py-3 text-primary-foreground shadow-md">
         <button
           onClick={() => window.history.back()}
           className="flex items-center justify-center rounded-full p-1.5 hover:bg-white/20 transition-colors"

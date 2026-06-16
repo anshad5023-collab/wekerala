@@ -28,7 +28,7 @@ export function SearchBar({ language, value, onSearchClick }: SearchBarProps) {
           <div className="relative">
             <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
             {filterCount > 0 && (
-              <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#22c55e] text-[10px] font-bold text-white">
+              <span className="absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
                 {filterCount}
               </span>
             )}

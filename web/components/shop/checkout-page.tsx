@@ -124,9 +124,9 @@ export function CheckoutPage({ language, onBack, onConfirm, onLanguageToggle, sh
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#f0fdf4]">
+    <div className="flex min-h-screen flex-col bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-50 flex items-center justify-between bg-[#22c55e] px-4 py-4 text-white shadow-md">
+      <header className="sticky top-0 z-50 flex items-center justify-between bg-primary px-4 py-4 text-primary-foreground shadow-md">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"

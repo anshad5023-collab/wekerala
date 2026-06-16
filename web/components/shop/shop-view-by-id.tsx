@@ -16,6 +16,7 @@ import { ProductDetailSheet } from '@/components/shop/product-detail-sheet';
 import { AnnouncementModal } from '@/components/shop/announcement-modal';
 import { useCartStore } from '@/lib/cart-store';
 import { useAuthStore } from '@/lib/auth-store';
+import { haptic } from '@/lib/haptics';
 import { type Language } from '@/lib/translations';
 import { SearchOverlay } from '@/components/shop/search-overlay';
 import { fetchShopData, type ShopData, type Product } from '@/lib/products';
@@ -23,17 +24,24 @@ import { ChatWidget } from '@/components/shop/chat-widget';
 
 export function ShopSkeleton() {
   return (
-    <div className="animate-pulse">
+    <div>
       <div className="h-16 bg-primary/80" />
-      <div className="h-40 bg-gray-200" />
+      <div className="wk-skeleton h-40" />
       <div className="flex gap-2 p-4">
         {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-8 w-20 rounded-full bg-gray-200" />
+          <div key={i} className="wk-skeleton h-8 w-20 rounded-full" />
         ))}
       </div>
-      <div className="grid grid-cols-2 gap-3 p-4">
-        {[1, 2, 3, 4, 5, 6].map((i) => (
-          <div key={i} className="h-48 rounded-lg bg-gray-200" />
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 p-4">
+        {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+          <div key={i} className="overflow-hidden rounded-xl border border-border">
+            <div className="wk-skeleton h-[120px]" />
+            <div className="space-y-2 p-2">
+              <div className="wk-skeleton h-3 w-4/5 rounded" />
+              <div className="wk-skeleton h-3 w-2/5 rounded" />
+              <div className="wk-skeleton mt-2 h-8 rounded-lg" />
+            </div>
+          </div>
         ))}
       </div>
     </div>
@@ -157,13 +165,16 @@ export function ShopViewById({ shopId }: { shopId: string }) {
       // clear message instead of falsely showing a success screen for an order that
       // was never saved.
       if (resData.error === 'shop_closed') {
+        haptic('warning');
         setOrderError('This shop is currently closed. Please try again later.');
         return;
       }
       if (!response.ok || !resData.orderId) {
+        haptic('warning');
         setOrderError('Could not place your order. Please check your connection and try again.');
         return;
       }
+      haptic('success');
       setNewOrderId(resData.orderId);
 
       // Order saved — now hand off to WhatsApp (so a rejected/failed order never
@@ -183,6 +194,7 @@ export function ShopViewById({ shopId }: { shopId: string }) {
       setCurrentPage('confirmation');
     } catch (e) {
       console.error('Failed to save order', e);
+      haptic('warning');
       setOrderError('Could not place your order. Please check your connection and try again.');
     } finally {
       setIsSubmitting(false);

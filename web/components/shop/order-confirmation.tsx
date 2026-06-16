@@ -78,8 +78,8 @@ export function OrderConfirmation({ language, customerDetails, onBackToShop, wha
   }, [clearCart]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#f0fdf4]">
-      <header className="sticky top-0 z-50 flex items-center justify-center bg-[#22c55e] px-4 py-4 text-white shadow-md">
+    <div className="flex min-h-screen flex-col bg-background">
+      <header className="sticky top-0 z-50 flex items-center justify-center bg-primary px-4 py-4 text-primary-foreground shadow-md">
         <h1 className="text-lg font-bold italic">{t.shopName}</h1>
       </header>
 
