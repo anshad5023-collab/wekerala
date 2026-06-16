@@ -1449,6 +1449,9 @@ export default function ThemeRenderer({ config, shop, products, shopId, language
       {theme.layout === 'amazon' && <AmazonLayout {...layoutProps} />}
       {theme.layout === 'flipkart' && <FlipkartLayout {...layoutProps} />}
       {theme.layout === 'swiggy' && <SwiggyLayout {...layoutProps} />}
+      {/* 'restaurant' theme has no dedicated layout — render the Swiggy menu it's
+          described as, so selecting it no longer shows a blank product area. */}
+      {theme.layout === 'restaurant' && <SwiggyLayout {...layoutProps} />}
       {theme.layout === 'zomato' && <ZomatoLayout {...layoutProps} />}
       <ReviewsSection config={config} />
       <PolicyFooter config={config} shopId={shopId} />
