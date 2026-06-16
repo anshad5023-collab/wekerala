@@ -56,7 +56,8 @@ export function OrderTracking({ orderId, shopId }: { orderId: string; shopId: st
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-50 flex items-center gap-3 bg-primary px-4 py-3 text-primary-foreground shadow-md">
+      <header className="sticky top-0 z-50 bg-primary text-primary-foreground shadow-md">
+        <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3">
         <button
           onClick={() => window.history.back()}
           className="flex items-center justify-center rounded-full p-1.5 hover:bg-white/20 transition-colors"
@@ -81,9 +82,10 @@ export function OrderTracking({ orderId, shopId }: { orderId: string; shopId: st
             <span className="text-[11px] font-medium">Live</span>
           </div>
         )}
+        </div>
       </header>
 
-      <div className="p-4 space-y-4 pb-24">
+      <div className="mx-auto max-w-2xl p-4 space-y-4 pb-24">
         {loading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => <div key={i} className="h-16 rounded-xl bg-gray-200 animate-pulse" />)}

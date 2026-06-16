@@ -25,7 +25,7 @@ export function FloatingCartBar({ language, onClick, isOpen = true }: FloatingCa
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 80, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-          className={`fixed inset-x-4 bottom-4 z-40 flex items-center justify-between rounded-xl px-5 py-4 shadow-lg transition-colors active:scale-[0.98] ${isOpen ? 'bg-primary text-primary-foreground' : 'bg-gray-400 text-white'}`}
+          className={`fixed inset-x-0 bottom-4 z-40 mx-auto flex w-[calc(100%-2rem)] max-w-2xl items-center justify-between rounded-xl px-5 py-4 shadow-lg transition-colors active:scale-[0.98] ${isOpen ? 'bg-primary text-primary-foreground' : 'bg-gray-400 text-white'}`}
         >
           <div className="flex items-center gap-3">
             <ShoppingBag className="h-5 w-5" />

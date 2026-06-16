@@ -89,7 +89,8 @@ export default function CustomerAddressesPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-50 flex items-center gap-3 bg-primary px-4 py-3 text-primary-foreground shadow-md">
+      <header className="sticky top-0 z-50 bg-primary text-primary-foreground shadow-md">
+        <div className="mx-auto flex max-w-lg items-center gap-3 px-4 py-3">
         <button
           onClick={() => window.history.back()}
           className="flex items-center justify-center rounded-full p-1.5 hover:bg-white/20 transition-colors"
@@ -107,6 +108,7 @@ export default function CustomerAddressesPage() {
             Add
           </button>
         )}
+        </div>
       </header>
 
       <div className="p-4 space-y-4 pb-24 max-w-lg mx-auto">

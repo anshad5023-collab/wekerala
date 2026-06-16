@@ -83,7 +83,7 @@ export function OrderConfirmation({ language, customerDetails, onBackToShop, wha
         <h1 className="text-lg font-bold italic">{t.shopName}</h1>
       </header>
 
-      <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
+      <div className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center p-6 text-center">
         <motion.div
           initial={{ scale: 0, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}

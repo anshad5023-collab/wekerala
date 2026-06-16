@@ -126,7 +126,8 @@ export function CheckoutPage({ language, onBack, onConfirm, onLanguageToggle, sh
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-50 flex items-center justify-between bg-primary px-4 py-4 text-primary-foreground shadow-md">
+      <header className="sticky top-0 z-50 bg-primary text-primary-foreground shadow-md">
+        <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-4">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
@@ -147,10 +148,12 @@ export function CheckoutPage({ language, onBack, onConfirm, onLanguageToggle, sh
         >
           {language === 'en' ? 'മല' : 'EN'}
         </Button>
+        </div>
       </header>
 
       {/* Order Summary Strip */}
-      <div className="bg-white border-b border-border px-4 py-3">
+      <div className="bg-white border-b border-border">
+        <div className="mx-auto max-w-2xl px-4 py-3">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium text-foreground">{itemCount} item{itemCount !== 1 ? 's' : ''}</span>
           <span className="text-sm font-bold text-primary">₹{(subtotal + (discountAmount > 0 ? -discountAmount : 0)).toFixed(0)}</span>
@@ -167,10 +170,11 @@ export function CheckoutPage({ language, onBack, onConfirm, onLanguageToggle, sh
             </span>
           )}
         </div>
+        </div>
       </div>
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="flex flex-1 flex-col">
+      <form onSubmit={handleSubmit} className="mx-auto flex w-full max-w-2xl flex-1 flex-col">
         <div className="flex-1 space-y-4 p-4">
           <h2 className="text-lg font-semibold italic text-foreground">{t.deliveryDetails}</h2>
           

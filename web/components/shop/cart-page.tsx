@@ -29,21 +29,23 @@ export function CartPage({ language, onBack, onCheckout, deliveryCharge = 0, fre
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-50 flex items-center gap-3 bg-primary px-4 py-4 text-primary-foreground shadow-md">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onBack}
-          className="text-white hover:bg-white/20 hover:text-white"
-          aria-label="Go back"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <h1 className="text-lg font-bold italic">{t.cart}</h1>
+      <header className="sticky top-0 z-50 bg-primary text-primary-foreground shadow-md">
+        <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-4">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onBack}
+            className="text-white hover:bg-white/20 hover:text-white"
+            aria-label="Go back"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <h1 className="text-lg font-bold italic">{t.cart}</h1>
+        </div>
       </header>
 
       {/* Cart Items */}
-      <div className="flex-1 overflow-auto">
+      <div className="mx-auto w-full max-w-2xl flex-1 overflow-auto">
         {items.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
             <div className="flex h-20 w-20 items-center justify-center rounded-full bg-muted">
@@ -143,7 +145,7 @@ export function CartPage({ language, onBack, onCheckout, deliveryCharge = 0, fre
 
       {/* Checkout Bar */}
       {items.length > 0 && (
-        <div className="sticky bottom-0 border-t border-border bg-card p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.1)]">
+        <div className="sticky bottom-0 mx-auto w-full max-w-2xl border-t border-border bg-card p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.1)]">
           <div className="mb-2 space-y-1">
             <div className="flex items-center justify-between text-sm">
               <span className="italic text-muted-foreground">{t.cartTotal}</span>

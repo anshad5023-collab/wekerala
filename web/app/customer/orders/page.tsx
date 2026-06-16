@@ -172,7 +172,8 @@ export default function CustomerOrdersPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-50 flex items-center gap-3 bg-primary px-4 py-3 text-primary-foreground shadow-md">
+      <header className="sticky top-0 z-50 bg-primary text-primary-foreground shadow-md">
+        <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3">
         <button
           onClick={() => window.history.back()}
           className="flex items-center justify-center rounded-full p-1.5 hover:bg-white/20 transition-colors"
@@ -192,9 +193,10 @@ export default function CustomerOrdersPage() {
           </button>
         )}
         {phone && <span className="text-xs opacity-75 truncate max-w-[120px]">{phone}</span>}
+        </div>
       </header>
 
-      <div className="p-4 space-y-4 pb-24">
+      <div className="mx-auto max-w-2xl p-4 space-y-4 pb-24">
         {!uid ? (
           <div className="mt-16 text-center px-4">
             <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
