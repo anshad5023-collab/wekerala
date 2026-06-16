@@ -192,12 +192,14 @@ export async function POST(req: NextRequest) {
       parsed = JSON.parse(match[0]);
     }
 
-    // After Gemini identifies name+brand, search for a product image.
-    // Pipeline: 1) Open Food Facts (food), 2) DuckDuckGo image search (all products, free, no key)
+    // After Gemini identifies name+brand, try Open Food Facts for a product image
+    // (works fine server-side — it's an official API, not a scrape, so no IP blocking).
+    // General web image search (DuckDuckGo) is done on-device by the app instead —
+    // see ProductLookupService._fetchImageFromWeb in the Flutter app. DuckDuckGo blocks
+    // requests from data-center IPs like Vercel's regardless of headers, but a shop
+    // owner's phone is on an ordinary mobile/WiFi IP, so it works reliably from there.
     if (parsed.name || parsed.brand) {
       const query = [parsed.brand, parsed.name].filter(Boolean).join(' ');
-
-      // 1 — Open Food Facts (best for packaged food with barcode data)
       try {
         const offRes = await fetch(
           `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=1&lc=en`,
@@ -209,46 +211,6 @@ export async function POST(req: NextRequest) {
           if (imgUrl) parsed.imageUrl = imgUrl;
         }
       } catch { /* best-effort */ }
-
-      // 2 — DuckDuckGo image search if Open Food Facts had no result
-      // Uses DDG's unofficial vqd-token flow — free, no API key, searches entire web.
-      // DDG blocks non-browser User-Agents (e.g. "Googlebot") with 403 — must look like
-      // a real Chrome browser AND carry the session cookie from step A into step B.
-      if (!parsed.imageUrl) {
-        try {
-          const browserUA =
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
-
-          // Step A: get vqd token + session cookie
-          const ddgHtml = await fetch(
-            `https://duckduckgo.com/?q=${encodeURIComponent(query + ' product')}&iax=images&ia=images`,
-            { headers: { 'User-Agent': browserUA }, signal: AbortSignal.timeout(5000) }
-          );
-          const cookie = ddgHtml.headers.get('set-cookie') ?? '';
-          const html = await ddgHtml.text();
-          const vqdMatch = html.match(/vqd=['"]([^'"]+)['"]/);
-          if (vqdMatch) {
-            // Step B: fetch image results, carrying the cookie from step A
-            const imgRes = await fetch(
-              `https://duckduckgo.com/i.js?q=${encodeURIComponent(query)}&vqd=${vqdMatch[1]}&o=json&p=1&s=0&u=bing&f=,,,`,
-              {
-                headers: {
-                  'User-Agent': browserUA,
-                  'Referer': 'https://duckduckgo.com/',
-                  ...(cookie ? { Cookie: cookie } : {}),
-                },
-                signal: AbortSignal.timeout(5000),
-              }
-            );
-            if (imgRes.ok) {
-              const imgData = await imgRes.json() as { results?: Array<{ image?: string; thumbnail?: string }> };
-              // Pick first result that looks like a real product image URL (not a tiny icon)
-              const hit = imgData.results?.find(r => r.image && r.image.startsWith('http'));
-              if (hit?.image) parsed.imageUrl = hit.image;
-            }
-          }
-        } catch { /* best-effort */ }
-      }
     }
 
     return NextResponse.json(parsed);

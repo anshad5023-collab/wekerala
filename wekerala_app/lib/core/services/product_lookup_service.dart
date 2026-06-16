@@ -146,8 +146,15 @@ class ProductLookupService {
         final brand = (data['brand'] as String? ?? '').trim();
         final rawCat = (data['category'] as String? ?? '').trim();
         final unit = _normaliseUnit(data['unit'] as String? ?? 'piece');
-        final imageUrl = (data['imageUrl'] as String? ?? '').trim();
+        var imageUrl = (data['imageUrl'] as String? ?? '').trim();
         final description = (data['description'] as String? ?? '').trim();
+
+        // Server (Vercel) couldn't get a DuckDuckGo image — DDG blocks data-center
+        // IPs regardless of headers. Try again from the phone itself: a normal
+        // mobile/WiFi IP isn't blocked, so this works where the server attempt can't.
+        if (imageUrl.isEmpty && (name.isNotEmpty || brand.isNotEmpty)) {
+          imageUrl = await _fetchImageFromWeb([brand, name].where((s) => s.isNotEmpty).join(' '));
+        }
 
         // Match Gemini category against shop's category list.
         // Strategy: substring match first, then word-overlap fallback.
@@ -206,6 +213,52 @@ class ProductLookupService {
       debugPrint('Gemini photo lookup error: $e');
     }
     return null;
+  }
+
+  // ─── Private: DuckDuckGo image search (run on-device) ────────────────────
+  //
+  // DuckDuckGo blocks requests from data-center IPs (Vercel/AWS/etc.) as
+  // anti-bot protection — no header trick fixes that. A shop owner's phone is
+  // on an ordinary mobile/WiFi IP, so calling DDG directly from here works.
+  // Free, no API key, unofficial vqd-token flow.
+
+  static Future<String> _fetchImageFromWeb(String query) async {
+    if (query.trim().isEmpty) return '';
+    try {
+      const ua = 'Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 '
+          '(KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36';
+
+      // Step A: get vqd token + session cookie
+      final tokenResp = await http.get(
+        Uri.parse(
+            'https://duckduckgo.com/?q=${Uri.encodeQueryComponent('$query product')}&iax=images&ia=images'),
+        headers: {'User-Agent': ua},
+      ).timeout(const Duration(seconds: 6));
+
+      final cookie = tokenResp.headers['set-cookie'] ?? '';
+      final vqdMatch = RegExp(r'''vqd=['"]([^'"]+)['"]''').firstMatch(tokenResp.body);
+      if (vqdMatch == null) return '';
+
+      // Step B: fetch image results, carrying the cookie from step A
+      final imgResp = await http.get(
+        Uri.parse(
+            'https://duckduckgo.com/i.js?q=${Uri.encodeQueryComponent(query)}&vqd=${vqdMatch.group(1)}&o=json&p=1&s=0&u=bing&f=,,,'),
+        headers: {
+          'User-Agent': ua,
+          'Referer': 'https://duckduckgo.com/',
+          if (cookie.isNotEmpty) 'Cookie': cookie,
+        },
+      ).timeout(const Duration(seconds: 6));
+
+      if (imgResp.statusCode != 200) return '';
+      final data = jsonDecode(imgResp.body) as Map<String, dynamic>;
+      final results = (data['results'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      for (final r in results) {
+        final img = r['image'] as String?;
+        if (img != null && img.startsWith('http')) return img;
+      }
+    } catch (_) { /* best-effort */ }
+    return '';
   }
 
   // ─── Private: Community DB ───────────────────────────────────────────────
