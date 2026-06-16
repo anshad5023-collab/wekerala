@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, type ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/auth-store';
 import { Switch } from '@/components/ui/switch';
@@ -60,6 +60,24 @@ function ThemeMiniPreview({ theme }: { theme: ThemeConfig }) {
       </div>
       <div className="absolute bottom-1.5 right-1.5 w-4 h-4 rounded-full bg-green-500" />
     </div>
+  );
+}
+
+function CollapsibleSection({ title, defaultOpen = false, headerExtra, children }: {
+  title: ReactNode; defaultOpen?: boolean; headerExtra?: ReactNode; children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <section className="bg-white rounded-xl overflow-hidden">
+      <div className="flex items-center justify-between gap-2 pr-4">
+        <button type="button" onClick={() => setOpen(o => !o)} className="flex-1 flex items-center justify-between gap-2 p-4 text-left">
+          <h3 className="font-semibold text-sm text-gray-700">{title}</h3>
+          <span className={`text-gray-400 text-xs shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}>▾</span>
+        </button>
+        {headerExtra && <div className="shrink-0">{headerExtra}</div>}
+      </div>
+      {open && <div className="px-4 pb-4 space-y-3">{children}</div>}
+    </section>
   );
 }
 
@@ -583,11 +601,9 @@ function BuilderContent() {
                 </div>
 
                 {/* Announcement bar */}
-                <section className="bg-white rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-sm text-gray-700">📢 Announcement Bar</h3>
-                    <Switch checked={config.announcementBarEnabled || false} onCheckedChange={v => setC({ announcementBarEnabled: v })} />
-                  </div>
+                <CollapsibleSection title="📢 Announcement Bar" defaultOpen={config.announcementBarEnabled} headerExtra={
+                  <Switch checked={config.announcementBarEnabled || false} onCheckedChange={v => setC({ announcementBarEnabled: v })} />
+                }>
                   {config.announcementBarEnabled && (
                     <>
                       <input value={config.announcementBar || ''} onChange={e => setC({ announcementBar: e.target.value })}
@@ -602,11 +618,10 @@ function BuilderContent() {
                       </div>
                     </>
                   )}
-                </section>
+                </CollapsibleSection>
 
                 {/* Site info */}
-                <section className="bg-white rounded-xl p-4 space-y-3">
-                  <h3 className="font-semibold text-sm text-gray-700">Site Info</h3>
+                <CollapsibleSection title="Site Info" defaultOpen>
                   <div>
                     <label className="text-xs text-gray-500">Site Name</label>
                     <input value={config.siteName} onChange={e => { setC({ siteName: e.target.value }); setPublishError(''); }}
@@ -631,11 +646,10 @@ function BuilderContent() {
                       className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
                       placeholder="Order Now" />
                   </div>
-                </section>
+                </CollapsibleSection>
 
                 {/* Colours & font */}
-                <section className="bg-white rounded-xl p-4 space-y-3">
-                  <h3 className="font-semibold text-sm text-gray-700">Colours & Font</h3>
+                <CollapsibleSection title="Colours & Font" defaultOpen>
 
                   {/* ── Improvement 1: Color Palette Presets ── */}
                   <div>
@@ -701,11 +715,10 @@ function BuilderContent() {
                       ))}
                     </div>
                   </div>
-                </section>
+                </CollapsibleSection>
 
                 {/* Social Links */}
-                <section className="bg-white rounded-xl p-4 space-y-3">
-                  <h3 className="font-semibold text-sm text-gray-700">Social Links</h3>
+                <CollapsibleSection title="Social Links">
                   {([
                     { key: 'instagram', label: '📸 Instagram', placeholder: 'https://instagram.com/yourshop' },
                     { key: 'facebook',  label: '📘 Facebook',  placeholder: 'https://facebook.com/yourpage' },
@@ -721,11 +734,10 @@ function BuilderContent() {
                         placeholder={placeholder} />
                     </div>
                   ))}
-                </section>
+                </CollapsibleSection>
 
                 {/* SEO */}
-                <section className="bg-white rounded-xl p-4 space-y-3">
-                  <h3 className="font-semibold text-sm text-gray-700">🔍 SEO Settings</h3>
+                <CollapsibleSection title="🔍 SEO Settings">
                   <p className="text-xs text-gray-400">Controls how your site appears on Google search.</p>
                   <div>
                     <label className="text-xs text-gray-500">Page Title (for Google)</label>
@@ -739,11 +751,10 @@ function BuilderContent() {
                       rows={2} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
                       placeholder="Best shop in Kerala. Fresh products, fast delivery to your door." />
                   </div>
-                </section>
+                </CollapsibleSection>
 
                 {/* Branding — Improvement 3: Image Uploader */}
-                <section className="bg-white rounded-xl p-4 space-y-3">
-                  <h3 className="font-semibold text-sm text-gray-700">Branding</h3>
+                <CollapsibleSection title="Branding">
                   <div>
                     <label className="text-xs text-gray-500">Logo URL (override shop logo)</label>
                     <div className="flex gap-2 mt-1">
@@ -778,11 +789,10 @@ function BuilderContent() {
                       </label>
                     </div>
                   </div>
-                </section>
+                </CollapsibleSection>
 
                 {/* Sections — Improvements 4 & 5: Drag-to-reorder + Section settings */}
-                <section className="bg-white rounded-xl p-4 space-y-2">
-                  <h3 className="font-semibold text-sm text-gray-700">Sections</h3>
+                <CollapsibleSection title="Sections" defaultOpen>
                   <p className="text-xs text-gray-400">Drag to reorder. Click ▶ for section settings.</p>
                   {config.sections.map((sec, i) => (
                     <div key={sec}>
@@ -832,37 +842,32 @@ function BuilderContent() {
                       + Add {sec} section
                     </button>
                   ))}
-                </section>
+                </CollapsibleSection>
 
                 {/* WhatsApp */}
-                <section className="bg-white rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-sm text-gray-700">💬 WhatsApp Button</h3>
-                    <Switch checked={config.whatsappEnabled} onCheckedChange={v => setC({ whatsappEnabled: v })} />
-                  </div>
+                <CollapsibleSection title="💬 WhatsApp Button" defaultOpen={config.whatsappEnabled} headerExtra={
+                  <Switch checked={config.whatsappEnabled} onCheckedChange={v => setC({ whatsappEnabled: v })} />
+                }>
                   {config.whatsappEnabled && (
                     <input value={config.whatsappNumber} onChange={e => setC({ whatsappNumber: e.target.value })}
                       className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
                       placeholder="919876543210 (with country code)" />
                   )}
-                </section>
+                </CollapsibleSection>
 
                 {/* Store Hours */}
-                <section className="bg-white rounded-xl p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold text-sm text-gray-700">🕐 Store Hours</h3>
-                    <Switch checked={config.storeHoursEnabled} onCheckedChange={v => setC({ storeHoursEnabled: v })} />
-                  </div>
+                <CollapsibleSection title="🕐 Store Hours" defaultOpen={config.storeHoursEnabled} headerExtra={
+                  <Switch checked={config.storeHoursEnabled} onCheckedChange={v => setC({ storeHoursEnabled: v })} />
+                }>
                   {config.storeHoursEnabled && (
                     <input value={config.storeHoursText} onChange={e => setC({ storeHoursText: e.target.value })}
                       className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#283618]"
                       placeholder="Mon–Sat: 9am–9pm, Sun: Closed" />
                   )}
-                </section>
+                </CollapsibleSection>
 
                 {/* Delivery Settings */}
-                <section className="bg-white rounded-xl p-4 space-y-3">
-                  <h3 className="font-semibold text-sm text-gray-700">🚚 Delivery Settings</h3>
+                <CollapsibleSection title="🚚 Delivery Settings">
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs text-gray-500">Delivery Charge (₹)</label>
@@ -896,11 +901,10 @@ function BuilderContent() {
                         ? `₹${config.deliveryCharge} delivery · Free above ₹${config.freeDeliveryAbove}`
                         : `₹${config.deliveryCharge} delivery charge`}
                   </p>
-                </section>
+                </CollapsibleSection>
 
                 {/* Extra banners — Improvement 3: Banner upload */}
-                <section className="bg-white rounded-xl p-4 space-y-3">
-                  <h3 className="font-semibold text-sm text-gray-700">Extra Banners <span className="text-gray-400 font-normal text-xs">(for hero carousel)</span></h3>
+                <CollapsibleSection title={<>Extra Banners <span className="text-gray-400 font-normal text-xs">(for hero carousel)</span></>}>
                   {(config.banners || []).map((url, i) => (
                     <div key={i} className="flex items-center gap-2">
                       <p className="flex-1 text-xs text-gray-500 truncate">{url}</p>
@@ -924,7 +928,7 @@ function BuilderContent() {
                       onChange={e => { const f = e.target.files?.[0]; if (f) handleBannerUpload(f); }}
                     />
                   </label>
-                </section>
+                </CollapsibleSection>
               </div>
             )}
 
