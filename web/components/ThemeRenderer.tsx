@@ -316,7 +316,7 @@ function CleanLayout({ config, shop, products, shopId, language = 'en' }: Props)
                     {pr.imageUrl && <img src={pr.imageUrl} alt={pr.name} className="w-full h-20 object-cover" />}
                     <div className="p-1.5">
                       <p className="text-xs font-medium line-clamp-2">{pr.name}</p>
-                      <p className="text-xs font-bold mt-0.5" style={{ color: p }}>₹{pr.price}</p>
+                      <p className="text-xs font-bold mt-0.5" style={{ color: config.secondaryColor }}>₹{pr.price}</p>
                     </div>
                   </div>
                 ))}
@@ -358,7 +358,7 @@ function CleanLayout({ config, shop, products, shopId, language = 'en' }: Props)
                           <p className="text-sm font-medium line-clamp-2 leading-snug">{pr.name}</p>
                           {pr.unit && <p className="text-xs text-gray-400 mt-0.5">{pr.unit}</p>}
                           <div className="flex items-center gap-1.5 mt-1.5">
-                            <p className="text-sm font-bold" style={{ color: p }}>₹{pr.price}</p>
+                            <p className="text-sm font-bold" style={{ color: config.secondaryColor }}>₹{pr.price}</p>
                             {hasOffer && <p className="text-xs text-gray-400 line-through">₹{pr.offerPrice}</p>}
                           </div>
                           {!pr.isOutOfStock && <ProductOrderBtn waNum={waNum} productName={pr.name} price={pr.price} primaryColor={p} />}
@@ -487,7 +487,7 @@ function DarkLayout({ config, shop, products, shopId }: Props) {
                 <div className="p-2.5">
                   <p className="text-sm font-medium text-white line-clamp-2">{pr.name}</p>
                   {pr.unit && <p className="text-xs text-gray-500 mt-0.5">{pr.unit}</p>}
-                  <p className="text-sm font-bold mt-1" style={{ color: p }}>₹{pr.price}</p>
+                  <p className="text-sm font-bold mt-1" style={{ color: config.secondaryColor }}>₹{pr.price}</p>
                   {!pr.isOutOfStock && <ProductOrderBtn waNum={waNum} productName={pr.name} price={pr.price} primaryColor={p} className="rounded" />}
                 </div>
               </div>
@@ -1003,7 +1003,7 @@ function CarouselLayout({ config, shop, products, shopId }: Props) {
                       <p className="text-sm font-medium line-clamp-2">{pr.name}</p>
                       {pr.unit && <p className="text-xs text-gray-400 mt-0.5">{pr.unit}</p>}
                       <div className="flex items-center gap-1 mt-1">
-                        <p className="text-sm font-bold" style={{ color: p }}>₹{pr.price}</p>
+                        <p className="text-sm font-bold" style={{ color: config.secondaryColor }}>₹{pr.price}</p>
                         {hasOffer && <p className="text-xs text-gray-400 line-through">₹{pr.offerPrice}</p>}
                       </div>
                       {!pr.isOutOfStock && <ProductOrderBtn waNum={waNum} productName={pr.name} price={pr.price} primaryColor={p} />}
@@ -1135,7 +1135,7 @@ function LuxuryLayout({ config, shop, products, shopId }: Props) {
                 <div className="flex-1 p-3">
                   <p className="font-semibold text-sm line-clamp-2 text-white">{pr.name}</p>
                   {pr.unit && <p className="text-xs opacity-40 mt-0.5">{pr.unit}</p>}
-                  <p className="font-bold mt-1" style={{ color: p }}>₹{pr.price}</p>
+                  <p className="font-bold mt-1" style={{ color: config.secondaryColor }}>₹{pr.price}</p>
                   {pr.isOutOfStock && <p className="text-xs text-red-400 mt-1">Out of stock</p>}
                   {!pr.isOutOfStock && <ProductOrderBtn waNum={waNum} productName={pr.name} price={pr.price} primaryColor={p} className="inline-block rounded px-3 py-1 text-black" />}
                 </div>
@@ -1150,7 +1150,7 @@ function LuxuryLayout({ config, shop, products, shopId }: Props) {
                 <div className="p-3">
                   <p className="font-semibold text-sm line-clamp-2 text-white tracking-wide">{pr.name}</p>
                   {pr.unit && <p className="text-xs opacity-40 mt-0.5">{pr.unit}</p>}
-                  <p className="font-bold mt-2" style={{ color: p }}>₹{pr.price}</p>
+                  <p className="font-bold mt-2" style={{ color: config.secondaryColor }}>₹{pr.price}</p>
                   {!pr.isOutOfStock && <ProductOrderBtn waNum={waNum} productName={pr.name} price={pr.price} primaryColor={p} className="inline-block px-3 py-1 text-black font-bold" />}
                 </div>
               </div>
