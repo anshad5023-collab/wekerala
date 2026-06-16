@@ -7,6 +7,9 @@ export interface ThemeConfig {
   tag: string;
   layout: LayoutVariant;
   defaults: { primaryColor: string; secondaryColor: string; fontFamily: string; bgColor: string; textColor: string };
+  /** Hidden from the builder's theme picker but still renders for shops already
+   *  using it (kept for backward-compatibility after consolidation). */
+  hidden?: boolean;
 }
 
 export interface SocialLinks {
@@ -100,6 +103,7 @@ export const THEMES: ThemeConfig[] = [
   {
     id: 'mana', name: 'Mana', description: 'Ultra-minimal & fast', tag: 'Minimal', layout: 'editorial',
     defaults: { primaryColor: '#2563eb', secondaryColor: '#93c5fd', fontFamily: 'Inter', bgColor: '#ffffff', textColor: '#111827' },
+    hidden: true, // same 'editorial' layout as Helsinki — consolidated
   },
   {
     id: 'oxford', name: 'Oxford', description: 'Dark luxury — premium brands', tag: 'Premium', layout: 'luxury',
@@ -116,10 +120,12 @@ export const THEMES: ThemeConfig[] = [
   {
     id: 'zenith', name: 'Zenith', description: 'B2B style — large catalogs', tag: 'B2B', layout: 'festival',
     defaults: { primaryColor: '#0f766e', secondaryColor: '#14b8a6', fontFamily: 'DM Sans', bgColor: '#f0fdf4', textColor: '#134e4a' },
+    hidden: true, // same 'festival' layout as Festival — consolidated
   },
   {
     id: 'restaurant', name: 'Restaurant', description: 'Swiggy-style menu for hotels & restaurants', tag: 'Food', layout: 'restaurant',
     defaults: { primaryColor: '#FC8019', secondaryColor: '#FF4D2B', fontFamily: 'Poppins', bgColor: '#FFFFFF', textColor: '#3E4152' },
+    hidden: true, // redundant with Swiggy theme (same menu layout) — consolidated
   },
   {
     id: 'amazon', name: 'Amazon', description: 'Amazon-style shop — deals, categories, product grid', tag: 'Shop', layout: 'amazon',

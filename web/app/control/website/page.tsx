@@ -359,8 +359,11 @@ function BuilderContent() {
     }
   };
 
-  const tags = ['All', 'Minimal', 'Dark', 'Kerala', 'D2C', 'Fashion', 'Premium', 'Catalog', 'B2B'];
-  const filtered = themeFilter === 'All' ? THEMES : THEMES.filter(t => t.tag === themeFilter);
+  // Only offer non-hidden themes, and derive the filter chips from what's actually
+  // available so newly-tagged themes (Food, Shop, …) can never go unlisted again.
+  const visibleThemes = THEMES.filter(t => !t.hidden);
+  const tags = ['All', ...Array.from(new Set(visibleThemes.map(t => t.tag)))];
+  const filtered = themeFilter === 'All' ? visibleThemes : visibleThemes.filter(t => t.tag === themeFilter);
   const currentTheme = getTheme(config.themeId);
   const socialLinks = config.socialLinks || { instagram: '', facebook: '', youtube: '', twitter: '' };
 

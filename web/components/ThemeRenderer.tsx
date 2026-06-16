@@ -1453,6 +1453,15 @@ export default function ThemeRenderer({ config, shop, products, shopId, language
           described as, so selecting it no longer shows a blank product area. */}
       {theme.layout === 'restaurant' && <SwiggyLayout {...layoutProps} />}
       {theme.layout === 'zomato' && <ZomatoLayout {...layoutProps} />}
+      {/* Custom HTML — the builder's field was previously saved but never rendered
+          on any theme. Wired once here so it works for every layout. It's the
+          shop owner's own markup on their own site. */}
+      {config.customHtml?.trim() && (
+        <section
+          className="wk-custom-html mx-auto max-w-screen-xl px-4 py-6"
+          dangerouslySetInnerHTML={{ __html: config.customHtml }}
+        />
+      )}
       <ReviewsSection config={config} />
       <PolicyFooter config={config} shopId={shopId} />
     </>
