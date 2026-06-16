@@ -118,6 +118,8 @@ export default function AmazonLayout({ config, shop, products, shopId }: Props) 
   const [slide, setSlide] = useState(0);
   const [countdown, setCountdown] = useState(getTimeUntilMidnight());
 
+  const has = (s: string) => config.sections.includes(s);
+
   const banners = config.banners?.filter(Boolean) ?? [];
   const hasBanners = banners.length > 0;
   const totalSlides = hasBanners ? banners.length : 1;
@@ -512,7 +514,7 @@ export default function AmazonLayout({ config, shop, products, shopId }: Props) 
         )}
 
         {/* About */}
-        {config.aboutText && (
+        {has('about') && config.aboutText && (
           <section className="bg-white rounded-lg p-4 border border-gray-200">
             <h3 className="font-bold text-gray-800 mb-2 text-sm">About {displayName}</h3>
             <p className="text-xs text-gray-600 leading-relaxed">{config.aboutText}</p>

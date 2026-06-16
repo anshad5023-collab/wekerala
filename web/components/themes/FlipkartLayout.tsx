@@ -335,6 +335,9 @@ export default function FlipkartLayout({ config, shop, products, shopId }: Props
   const flashSaleTarget = useMemo(() => nextMidnightMs(), []);
   const countdown = useCountdown(flashSaleTarget);
 
+  const has = (s: string) => config.sections.includes(s);
+  const aboutFirst = config.sections.indexOf('about') <= config.sections.indexOf('contact');
+
   const hasFlashSale = products.some((p) => p.offerPrice > 0 && p.offerPrice < p.price);
 
   /* Categories */
@@ -806,17 +809,35 @@ export default function FlipkartLayout({ config, shop, products, shopId }: Props
           </div>
         )}
 
-        {/* ── About ── */}
-        {config.aboutText && (
-          <div className="mt-3 bg-white px-4 py-3" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
-            <p className="text-sm font-bold mb-1" style={{ color: '#2874F0' }}>
-              About {shop.shopName}
-            </p>
-            <p className="text-sm" style={{ color: '#212121' }}>
-              {config.aboutText}
-            </p>
-          </div>
-        )}
+        {/* ── About & Contact — order follows the builder's drag-to-reorder list ── */}
+        {(() => {
+          const aboutBlock = has('about') && config.aboutText && (
+            <div key="about" className="mt-3 bg-white px-4 py-3" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+              <p className="text-sm font-bold mb-1" style={{ color: '#2874F0' }}>
+                About {shop.shopName}
+              </p>
+              <p className="text-sm" style={{ color: '#212121' }}>
+                {config.aboutText}
+              </p>
+            </div>
+          );
+          const contactBlock = has('contact') && (
+            <div key="contact" className="mt-3 bg-white px-4 py-3" style={{ boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+              <p className="text-sm font-bold mb-1" style={{ color: '#2874F0' }}>
+                Contact
+              </p>
+              <p className="text-sm" style={{ color: '#212121' }}>
+                {shop.district}, Kerala
+              </p>
+              {shop.ownerPhone && (
+                <a href={`tel:${shop.ownerPhone}`} className="text-sm font-medium block mt-1" style={{ color: '#2874F0' }}>
+                  📞 {shop.ownerPhone}
+                </a>
+              )}
+            </div>
+          );
+          return aboutFirst ? <>{aboutBlock}{contactBlock}</> : <>{contactBlock}{aboutBlock}</>;
+        })()}
       </div>
 
       {/* ── Product Detail Sheet ── */}

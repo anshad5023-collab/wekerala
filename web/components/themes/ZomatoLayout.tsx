@@ -269,6 +269,9 @@ export default function ZomatoLayout({ config, shop, products, shopId }: Props) 
   const [cartExpanded, setCartExpanded] = useState(false);
   const categoryRefs = useRef<{ [cat: string]: HTMLDivElement | null }>({});
 
+  const has = (s: string) => config.sections.includes(s);
+  const aboutFirst = config.sections.indexOf('about') <= config.sections.indexOf('contact');
+
   // ── Derived data ──────────────────────────────────────────────────────────
   const categories = useMemo(() => {
     const seen = new Set<string>();
@@ -498,12 +501,34 @@ export default function ZomatoLayout({ config, shop, products, shopId }: Props) 
         </div>
       )}
 
-      {/* ══ ABOUT / TAGLINE ═════════════════════════════════════════════════ */}
+      {/* ══ TAGLINE ══════════════════════════════════════════════════════════ */}
       {config.tagline && (
         <div className="mx-3 mt-3 bg-white rounded-xl px-4 py-3 shadow-sm">
           <p className="text-sm text-gray-500 italic">"{config.tagline}"</p>
         </div>
       )}
+
+      {/* ══ ABOUT & CONTACT — order follows the builder's drag-to-reorder list ═ */}
+      {(() => {
+        const aboutBlock = has('about') && config.aboutText && (
+          <div key="about" className="mx-3 mt-3 bg-white rounded-xl px-4 py-3 shadow-sm">
+            <p className="text-sm font-bold mb-1" style={{ color: '#E23744' }}>About</p>
+            <p className="text-sm text-gray-600">{config.aboutText}</p>
+          </div>
+        );
+        const contactBlock = has('contact') && (
+          <div key="contact" className="mx-3 mt-3 bg-white rounded-xl px-4 py-3 shadow-sm">
+            <p className="text-sm font-bold mb-1" style={{ color: '#E23744' }}>Contact</p>
+            <p className="text-sm text-gray-600">{shop.district}, Kerala</p>
+            {shop.ownerPhone && (
+              <a href={`tel:${shop.ownerPhone}`} className="text-sm font-medium block mt-1" style={{ color: '#E23744' }}>
+                📞 {shop.ownerPhone}
+              </a>
+            )}
+          </div>
+        );
+        return aboutFirst ? <>{aboutBlock}{contactBlock}</> : <>{contactBlock}{aboutBlock}</>;
+      })()}
 
       {/* ══ MENU HEADER ═════════════════════════════════════════════════════ */}
       <div className="mt-4 px-4">
