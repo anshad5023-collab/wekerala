@@ -142,6 +142,21 @@ function SidebarLayout({
   );
 }
 
+function DeliveryInfo({ config }: { config: WebsiteConfig }) {
+  const dc = config.deliveryCharge ?? 0;
+  const fda = config.freeDeliveryAbove ?? 0;
+  const moa = config.minOrderAmount ?? 0;
+  if (!dc && !fda && !moa) return null;
+  return (
+    <div className="mx-4 my-2 rounded-xl px-4 py-2.5 flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium"
+      style={{ backgroundColor: `${config.primaryColor}10`, color: config.primaryColor }}>
+      <span>🚚 {dc > 0 ? `Delivery ₹${dc}` : 'Free delivery'}</span>
+      {fda > 0 && <span>Free above ₹{fda}</span>}
+      {moa > 0 && <span>🛒 Min order ₹{moa}</span>}
+    </div>
+  );
+}
+
 function CouponPromo({ config }: { config: WebsiteConfig }) {
   const active = (config.couponCodes ?? []).filter(c => c.active);
   if (active.length === 0) return null;
@@ -260,6 +275,7 @@ function CleanLayout({ config, shop, products, shopId, language = 'en' }: Props)
       )}
 
       <CouponPromo config={config} />
+      <DeliveryInfo config={config} />
 
       {/* ── Main content: sidebar + products ── */}
       <div className="max-w-7xl mx-auto flex gap-0 md:gap-6 px-0 md:px-4 pb-12 mt-2">
@@ -458,6 +474,7 @@ function DarkLayout({ config, shop, products, shopId }: Props) {
       )}
 
       <CouponPromo config={config} />
+      <DeliveryInfo config={config} />
 
       {has('products') && products.length > 0 && (
         <SidebarLayout cats={cats} activeCat={activeCat} onSelect={setActiveCat} primaryColor={p}>
@@ -586,6 +603,7 @@ function WarmLayout({ config, shop, products, shopId }: Props) {
       )}
 
       <CouponPromo config={config} />
+      <DeliveryInfo config={config} />
 
       {has('products') && products.length > 0 && (
         <SidebarLayout cats={cats} activeCat={activeCat} onSelect={setActiveCat} primaryColor={p}>
@@ -709,6 +727,7 @@ function NeopopLayout({ config, shop, products, shopId }: Props) {
       )}
 
       <CouponPromo config={config} />
+      <DeliveryInfo config={config} />
 
       {has('products') && products.length > 0 && (
         <SidebarLayout cats={cats} activeCat={activeCat} onSelect={setActiveCat} primaryColor={p}>
@@ -839,6 +858,7 @@ function EditorialLayout({ config, shop, products, shopId }: Props) {
       )}
 
       <CouponPromo config={config} />
+      <DeliveryInfo config={config} />
 
       {has('products') && products.length > 0 && (
         <SidebarLayout cats={cats} activeCat={activeCat} onSelect={setActiveCat} primaryColor={p}>
@@ -965,6 +985,7 @@ function CarouselLayout({ config, shop, products, shopId }: Props) {
       )}
 
       <CouponPromo config={config} />
+      <DeliveryInfo config={config} />
 
       {has('products') && products.length > 0 && (
         <SidebarLayout cats={cats} activeCat={activeCat} onSelect={setActiveCat} primaryColor={p}>
@@ -1113,6 +1134,7 @@ function LuxuryLayout({ config, shop, products, shopId }: Props) {
       )}
 
       <CouponPromo config={config} />
+      <DeliveryInfo config={config} />
 
       {has('products') && products.length > 0 && (
         <section className="max-w-7xl mx-auto px-4 py-6">
@@ -1242,6 +1264,7 @@ function FestivalLayout({ config, shop, products, shopId }: Props) {
       )}
 
       <CouponPromo config={config} />
+      <DeliveryInfo config={config} />
 
       {has('products') && products.length > 0 && (
         <SidebarLayout cats={cats} activeCat={activeCat} onSelect={setActiveCat} primaryColor={p}>
