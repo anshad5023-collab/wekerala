@@ -215,36 +215,75 @@ class ProductLookupService {
     return null;
   }
 
-  // ─── Private: DuckDuckGo image search (run on-device) ────────────────────
+  // ─── Private: web image search (run on-device) ───────────────────────────
   //
-  // DuckDuckGo blocks requests from data-center IPs (Vercel/AWS/etc.) as
-  // anti-bot protection — no header trick fixes that. A shop owner's phone is
-  // on an ordinary mobile/WiFi IP, so calling DDG directly from here works.
-  // Free, no API key, unofficial vqd-token flow.
+  // Search engines block data-center IPs (Vercel/AWS/etc.) as anti-bot
+  // protection — no header trick fixes that. A shop owner's phone is on an
+  // ordinary mobile/WiFi IP, so calling them directly from here works.
+  // Free, no API key. We try Bing first (most scrape-friendly, no token
+  // needed) and fall back to DuckDuckGo, so a single source going down or
+  // changing its markup no longer means "no image".
+
+  static const _imgUa =
+      'Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 '
+      '(KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36';
 
   static Future<String> _fetchImageFromWeb(String query) async {
-    if (query.trim().isEmpty) return '';
-    try {
-      const ua = 'Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 '
-          '(KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36';
+    final q = query.trim();
+    if (q.isEmpty) return '';
+    // Append "product" to bias results toward clean catalogue-style shots.
+    final bing = await _bingImageSearch('$q product');
+    if (bing.isNotEmpty) return bing;
+    return _ddgImageSearch(q);
+  }
 
-      // Step A: get vqd token + session cookie
+  // Bing image search via HTML scrape. Each result carries a JSON `m`
+  // attribute containing the full-size media URL as `murl`. No token, no key.
+  static Future<String> _bingImageSearch(String query) async {
+    try {
+      final resp = await http.get(
+        Uri.parse(
+            'https://www.bing.com/images/search?q=${Uri.encodeQueryComponent(query)}'
+            '&form=HDRSC2&first=1&safesearch=strict'),
+        headers: {'User-Agent': _imgUa, 'Accept-Language': 'en-US,en;q=0.9'},
+      ).timeout(const Duration(seconds: 8));
+      if (resp.statusCode != 200) return '';
+      final body = resp.body;
+      // Markup is HTML-entity-encoded: murl&quot;:&quot;https://...&quot;
+      for (final re in [
+        RegExp(r'murl&quot;:&quot;(.*?)&quot;'),
+        RegExp(r'"murl":"(.*?)"'),
+      ]) {
+        for (final m in re.allMatches(body)) {
+          var url = m.group(1) ?? '';
+          url = url.replaceAll('&amp;', '&');
+          if (_isUsableImage(url)) return url;
+        }
+      }
+    } catch (_) {/* best-effort */}
+    return '';
+  }
+
+  // DuckDuckGo fallback — unofficial vqd-token flow. Hardened token regex
+  // handles quoted, unquoted and JS-object (vqd:"…") variants DDG rotates between.
+  static Future<String> _ddgImageSearch(String query) async {
+    try {
       final tokenResp = await http.get(
         Uri.parse(
             'https://duckduckgo.com/?q=${Uri.encodeQueryComponent('$query product')}&iax=images&ia=images'),
-        headers: {'User-Agent': ua},
+        headers: {'User-Agent': _imgUa},
       ).timeout(const Duration(seconds: 6));
 
       final cookie = tokenResp.headers['set-cookie'] ?? '';
-      final vqdMatch = RegExp(r'''vqd=['"]([^'"]+)['"]''').firstMatch(tokenResp.body);
+      final vqdMatch =
+          RegExp(r'''vqd[=:]['"]?([\w-]+)''').firstMatch(tokenResp.body);
       if (vqdMatch == null) return '';
 
-      // Step B: fetch image results, carrying the cookie from step A
       final imgResp = await http.get(
         Uri.parse(
             'https://duckduckgo.com/i.js?q=${Uri.encodeQueryComponent(query)}&vqd=${vqdMatch.group(1)}&o=json&p=1&s=0&u=bing&f=,,,'),
         headers: {
-          'User-Agent': ua,
+          'User-Agent': _imgUa,
           'Referer': 'https://duckduckgo.com/',
           if (cookie.isNotEmpty) 'Cookie': cookie,
         },
@@ -255,10 +294,18 @@ class ProductLookupService {
       final results = (data['results'] as List?)?.cast<Map<String, dynamic>>() ?? [];
       for (final r in results) {
         final img = r['image'] as String?;
-        if (img != null && img.startsWith('http')) return img;
+        if (img != null && _isUsableImage(img)) return img;
       }
-    } catch (_) { /* best-effort */ }
+    } catch (_) {/* best-effort */}
     return '';
+  }
+
+  // Reject non-http and obviously bad URLs (data URIs, tiny icons, gifs).
+  static bool _isUsableImage(String url) {
+    if (!url.startsWith('http')) return false;
+    final low = url.toLowerCase();
+    if (low.endsWith('.svg') || low.endsWith('.gif')) return false;
+    return true;
   }
 
   // ─── Private: Community DB ───────────────────────────────────────────────
