@@ -105,18 +105,36 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function PATCH(req: NextRequest) {
-  const authError = await requireOwnerAuth(req);
-  if (authError) return authError;
+const CUSTOMER_CANCELLABLE_STATUSES = new Set(['new', 'confirmed']);
 
+export async function PATCH(req: NextRequest) {
   const shopId = req.nextUrl.searchParams.get('shopId');
   const orderId = req.nextUrl.searchParams.get('orderId');
   if (!shopId || !orderId) return NextResponse.json({ error: 'Missing params' }, { status: 400 });
 
   const VALID = ['confirmed', 'preparing', 'ready', 'out_for_delivery', 'delivered', 'cancelled'];
-  const body = await req.json() as { status?: string };
+  const body = await req.json() as { status?: string; customerUid?: string };
   if (!body.status || !VALID.includes(body.status))
     return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+
+  // Customers have no Firebase Admin-verifiable ID token (auth is phone+uid only),
+  // so a customer cancelling their own order is authorized by matching customerUid
+  // on the order doc instead of requireOwnerAuth. Any other status change still
+  // requires the shop owner's Bearer token.
+  if (body.status === 'cancelled' && body.customerUid) {
+    const getRes = await fetch(`${BASE}/shops/${shopId}/orders/${orderId}?key=${API_KEY}`);
+    if (!getRes.ok) return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+    const doc = await getRes.json() as { fields?: Record<string, FVal> };
+    const storedUid = doc.fields?.customerUid ? parseValue(doc.fields.customerUid) : null;
+    const currentStatus = doc.fields?.status ? parseValue(doc.fields.status) : null;
+    if (storedUid !== body.customerUid)
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    if (typeof currentStatus !== 'string' || !CUSTOMER_CANCELLABLE_STATUSES.has(currentStatus))
+      return NextResponse.json({ error: 'Order can no longer be cancelled' }, { status: 409 });
+  } else {
+    const authError = await requireOwnerAuth(req);
+    if (authError) return authError;
+  }
 
   const url = `${BASE}/shops/${shopId}/orders/${orderId}?updateMask.fieldPaths=status&updateMask.fieldPaths=updatedAt&key=${API_KEY}`;
   const res = await fetch(url, {
@@ -190,6 +208,64 @@ async function upsertCustomer(shopId: string, order: Record<string, unknown>) {
   }
 }
 
+interface OrderItem { productId?: string; variantName?: string; price?: number; qty?: number; subtotal?: number; [k: string]: unknown }
+
+// Re-derives item prices and the order total from Firestore-stored product/coupon data
+// instead of trusting the client's cart payload, so a tampered client (e.g. devtools
+// edit of price/subtotal/discountPercent before checkout) can't under-pay, especially
+// for UPI orders where there's no in-person cash check by the owner.
+async function repriceOrder(shopId: string, data: Record<string, unknown>): Promise<void> {
+  const items = (data.items as OrderItem[]) || [];
+  if (items.length === 0) return;
+  const { getAdminDb } = await import('@/lib/firebase-admin');
+  const db = getAdminDb();
+
+  const productIds = [...new Set(items.map((i) => i.productId).filter(Boolean))] as string[];
+  const productDocs = await Promise.all(
+    productIds.map((id) => db.collection('shops').doc(shopId).collection('products').doc(id).get())
+  );
+  const productsById = new Map(productDocs.map((d) => [d.id, d.data()]));
+
+  let subtotal = 0;
+  for (const item of items) {
+    const product = item.productId ? productsById.get(item.productId) : undefined;
+    if (!product) { subtotal += (item.subtotal as number) || 0; continue; } // unknown product — trust client (best-effort)
+    let trustedPrice = product.price as number | undefined;
+    const variants = product.variants as Array<{ name?: string; price?: number }> | undefined;
+    if (item.variantName && variants?.length) {
+      const variant = variants.find((v) => v.name === item.variantName);
+      if (variant?.price != null) trustedPrice = variant.price;
+    }
+    if (typeof trustedPrice === 'number' && trustedPrice >= 0) {
+      item.price = trustedPrice;
+      item.subtotal = Math.round(trustedPrice * ((item.qty as number) || 1) * 100) / 100;
+    }
+    subtotal += (item.subtotal as number) || 0;
+  }
+
+  // Re-validate coupon server-side rather than trusting client-supplied discountPercent
+  let discountAmount = 0;
+  const couponCode = data.couponCode as string | undefined;
+  if (couponCode) {
+    try {
+      const shopDoc = await db.collection('shops').doc(shopId).get();
+      const coupons = (shopDoc.data()?.website?.couponCodes as Array<{ code?: string; discountPercent?: number; active?: boolean }>) || [];
+      const match = coupons.find((c) => c.code?.toUpperCase() === couponCode.toUpperCase() && c.active !== false);
+      if (match?.discountPercent) {
+        discountAmount = Math.round(subtotal * match.discountPercent / 100);
+        data.discountPercent = match.discountPercent;
+      } else {
+        data.couponCode = '';
+        data.discountPercent = 0;
+      }
+    } catch { /* best-effort — keep client discount if coupon lookup fails */ }
+  }
+
+  const deliveryCharge = (data.deliveryCharge as number) || 0;
+  data.items = items;
+  data.totalAmount = Math.round((subtotal - discountAmount + deliveryCharge) * 100) / 100;
+}
+
 export async function POST(req: NextRequest) {
   const shopId = req.nextUrl.searchParams.get('shopId');
   if (!shopId) return NextResponse.json({ error: 'Missing shopId' }, { status: 400 });
@@ -206,6 +282,11 @@ export async function POST(req: NextRequest) {
     } catch { /* if admin check fails, allow the order through */ }
 
     const data = await req.json() as Record<string, unknown>;
+    try {
+      await repriceOrder(shopId, data);
+    } catch (e) {
+      console.error('[Reprice] Failed, falling back to client-supplied amounts:', e);
+    }
     // Convert timestamp fields (ISO strings → Firestore timestampValue)
     const timestampFields = ['createdAt', 'updatedAt', 'scheduledFor'];
     const fields = Object.fromEntries(Object.entries(data).map(([k, v]) => {

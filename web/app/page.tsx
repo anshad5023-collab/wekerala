@@ -7,6 +7,8 @@ import { useAuthStore } from '@/lib/auth-store';
 import { LoginModal } from '@/components/wk/login-modal';
 import { KERALA_DISTRICTS } from '@/lib/wk-constants';
 import type { WkListing } from '@/app/api/listings/route';
+import { TiltCard } from '@/components/ui/tilt-card';
+import { FadeIn } from '@/components/ui/fade-in';
 
 // Shop type categories for filtering
 const SHOP_TYPES = [
@@ -52,14 +54,18 @@ function ShopCard({ shop }: { shop: WkListing }) {
   const callUrl = phone ? `tel:${phone}` : null;
 
   return (
-    <div style={{
-      background: '#fff',
-      borderRadius: 16,
-      overflow: 'hidden',
-      boxShadow: '0 1px 4px rgba(0,0,0,0.10)',
-      marginBottom: 14,
-      cursor: 'pointer',
-    }}>
+    <TiltCard
+      maxTilt={6}
+      className="rounded-2xl"
+      style={{
+        background: '#fff',
+        borderRadius: 16,
+        overflow: 'hidden',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.10)',
+        marginBottom: 14,
+        cursor: 'pointer',
+      } as React.CSSProperties}
+    >
       {/* Banner image — whole top area clicks to storefront */}
       <Link href={shopHref} style={{ textDecoration: 'none', display: 'block' }}>
         <div style={{ position: 'relative', width: '100%', height: 180, background: '#f0f0f0', overflow: 'hidden' }}>
@@ -137,7 +143,7 @@ function ShopCard({ shop }: { shop: WkListing }) {
           </Link>
         )}
       </div>
-    </div>
+    </TiltCard>
   );
 }
 
@@ -221,8 +227,10 @@ function HomePageContent() {
       </header>
 
       {/* Hero search */}
-      <div style={{ background: '#283618', padding: '0 16px 20px', flexShrink: 0 }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto' }}>
+      <div style={{ background: '#283618', padding: '0 16px 20px', flexShrink: 0, position: 'relative', overflow: 'hidden' }}>
+        <div className="wk-orb" style={{ width: 220, height: 220, background: '#dda15e', top: -100, left: -60 }} />
+        <div className="wk-orb" style={{ width: 180, height: 180, background: '#606c38', top: -40, right: -50, animationDelay: '3s' }} />
+      <div style={{ maxWidth: 1280, margin: '0 auto', position: 'relative' }}>
         <p style={{ fontFamily: 'Caveat, cursive', fontSize: 20, color: '#fefae0', margin: '0 0 12px', opacity: 0.85 }}>
           Discover local shops near you
         </p>
@@ -334,7 +342,11 @@ function HomePageContent() {
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 16 }}>
-            {filtered.map(shop => <ShopCard key={shop.id} shop={shop} />)}
+            {filtered.map((shop, i) => (
+              <FadeIn key={shop.id} delay={Math.min(i, 8) * 0.05}>
+                <ShopCard shop={shop} />
+              </FadeIn>
+            ))}
           </div>
         )}
       </div>

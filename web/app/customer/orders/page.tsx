@@ -15,7 +15,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }
   cancelled:        { label: 'Cancelled',    color: '#dc2626', bg: '#fef2f2' },
 };
 
-const CANCELLABLE_STATUSES = new Set(['new']);
+const CANCELLABLE_STATUSES = new Set(['new', 'confirmed']);
 
 interface OrderItem { productName: string; qty: number; subtotal: number; variantName?: string; }
 interface Order {
@@ -37,7 +37,7 @@ function formatDate(iso: string) {
   } catch { return iso; }
 }
 
-function OrderCard({ order, onCancelled }: { order: Order; onCancelled: (id: string) => void }) {
+function OrderCard({ order, onCancelled, customerUid }: { order: Order; onCancelled: (id: string) => void; customerUid: string }) {
   const status = STATUS_CONFIG[order.status] ?? { label: order.status, color: '#6b7280', bg: '#f9fafb' };
   const items = order.items ?? [];
   const [showItems, setShowItems] = useState(false);
@@ -47,13 +47,20 @@ function OrderCard({ order, onCancelled }: { order: Order; onCancelled: (id: str
     if (!confirm('Cancel this order?')) return;
     setCancelling(true);
     try {
-      await fetch(`/api/orders?shopId=${order.shopId}&orderId=${order.id}`, {
+      const res = await fetch(`/api/orders?shopId=${order.shopId}&orderId=${order.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'cancelled' }),
+        body: JSON.stringify({ status: 'cancelled', customerUid }),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Could not cancel this order.');
+        return;
+      }
       onCancelled(order.id);
-    } catch { /* ignore */ } finally {
+    } catch {
+      alert('Could not cancel this order — check your connection and try again.');
+    } finally {
       setCancelling(false);
     }
   };
@@ -222,7 +229,7 @@ export default function CustomerOrdersPage() {
           </div>
         ) : (
           orders.map((order) => (
-            <OrderCard key={order.id} order={order} onCancelled={handleCancelled} />
+            <OrderCard key={order.id} order={order} onCancelled={handleCancelled} customerUid={uid ?? ''} />
           ))
         )}
       </div>

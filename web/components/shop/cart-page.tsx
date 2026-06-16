@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, Minus, Plus, ShoppingCart, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCartStore } from '@/lib/cart-store';
@@ -58,16 +59,28 @@ export function CartPage({ language, onBack, onCheckout, deliveryCharge = 0, fre
           </div>
         ) : (
           <div className="divide-y divide-border">
+            <AnimatePresence initial={false}>
             {items.map((item) => (
-              <div key={item.product.id} className="flex gap-3 bg-card p-4">
+              <motion.div
+                key={item.product.id}
+                layout
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, height: 0, marginTop: 0, marginBottom: 0, overflow: 'hidden' }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="flex gap-3 bg-card p-4">
                 <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg bg-muted">
-                  <Image
-                    src={item.product.image}
-                    alt={item.product.name[language]}
-                    fill
-                    className="object-cover"
-                    sizes="80px"
-                  />
+                  {item.product.image ? (
+                    <Image
+                      src={item.product.image}
+                      alt={item.product.name[language]}
+                      fill
+                      className="object-cover"
+                      sizes="80px"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-3xl">📦</div>
+                  )}
                 </div>
                 
                 <div className="flex flex-1 flex-col">
@@ -121,8 +134,9 @@ export function CartPage({ language, onBack, onCheckout, deliveryCharge = 0, fre
                     </span>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             ))}
+            </AnimatePresence>
           </div>
         )}
       </div>

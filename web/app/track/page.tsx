@@ -26,6 +26,7 @@ interface Order {
   orderId: string;
   orderNumber: string;
   customerName: string;
+  customerPhone?: string;
   status: string;
   totalAmount: number;
   createdAt: string;
@@ -34,11 +35,12 @@ interface Order {
   items: Array<{ productName: string; qty: number; unit: string; subtotal: number }>;
 }
 
-const STATUS_STEPS = ['new', 'confirmed', 'processing', 'ready', 'out_for_delivery', 'delivered'];
+// Must match the status values written by /api/orders ('preparing', not 'processing').
+const STATUS_STEPS = ['new', 'confirmed', 'preparing', 'ready', 'out_for_delivery', 'delivered'];
 const STATUS_LABELS: Record<string, string> = {
   new: 'Order Received',
   confirmed: 'Confirmed',
-  processing: 'Being Prepared',
+  preparing: 'Being Prepared',
   ready: 'Ready for Pickup',
   out_for_delivery: 'Out for Delivery',
   delivered: 'Delivered',
@@ -47,7 +49,7 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_COLORS: Record<string, string> = {
   new: 'bg-blue-500',
   confirmed: 'bg-indigo-500',
-  processing: 'bg-yellow-500',
+  preparing: 'bg-yellow-500',
   ready: 'bg-orange-500',
   out_for_delivery: 'bg-purple-500',
   delivered: 'bg-green-500',

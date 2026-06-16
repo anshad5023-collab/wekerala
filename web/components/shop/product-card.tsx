@@ -37,12 +37,12 @@ export function ProductCard({ product, language, onProductClick }: ProductCardPr
 
   return (
     <div
-      className="relative flex cursor-pointer flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-shadow hover:shadow-md active:scale-[0.98]"
+      className="group relative flex cursor-pointer flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-lg active:scale-[0.98]"
       onClick={() => onProductClick(product)}
     >
       {/* Discount badge */}
       {discountPct > 0 && (
-        <span className="absolute left-2 top-2 z-10 rounded-md bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+        <span className="absolute left-2 top-2 z-10 rounded-md bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white shadow-sm">
           {discountPct}% OFF
         </span>
       )}
@@ -63,7 +63,7 @@ export function ProductCard({ product, language, onProductClick }: ProductCardPr
             src={product.image}
             alt={product.name[language]}
             fill
-            className="object-cover"
+            className="object-cover transition-transform duration-300 group-hover:scale-110"
             sizes="(max-width: 768px) 50vw, 25vw"
           />
         ) : (

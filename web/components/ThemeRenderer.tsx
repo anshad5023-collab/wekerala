@@ -31,7 +31,7 @@ function toWaNum(raw: string): string {
 // even when multiple shops have similar names.
 function waMsg(shop: ShopData): string {
   const code = (shop as ShopData & { shopCode?: string }).shopCode;
-  const name = shop.shopName || shop.name || 'your shop';
+  const name = shop.shopName || 'your shop';
   return code
     ? `Hi! I'm interested in ${name} ${code}`
     : `Hi! I'm interested in ${name}`;

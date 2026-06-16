@@ -72,9 +72,15 @@ export function OrderTracking({ orderId, shopId }: { orderId: string; shopId: st
             <p className="text-xs opacity-80">{formatDate(order.createdAt)} · {formatTime(order.createdAt)}</p>
           )}
         </div>
-        <div className="text-right">
-          <p className="text-xs opacity-70">Refreshing…</p>
-        </div>
+        {!isCancelled && currentIdx < STEPS.length - 1 && (
+          <div className="flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+            </span>
+            <span className="text-[11px] font-medium">Live</span>
+          </div>
+        )}
       </header>
 
       <div className="p-4 space-y-4 pb-24">

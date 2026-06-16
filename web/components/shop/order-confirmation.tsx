@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import { Bell, BellOff, Check, MessageCircle, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCartStore } from '@/lib/cart-store';
@@ -83,13 +84,30 @@ export function OrderConfirmation({ language, customerDetails, onBackToShop, wha
       </header>
 
       <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
-        <div className="mb-6 flex h-24 w-24 animate-bounce items-center justify-center rounded-full bg-primary/10">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary">
+        <motion.div
+          initial={{ scale: 0, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+          className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-primary/10"
+        >
+          <motion.div
+            initial={{ scale: 0.6 }}
+            animate={{ scale: 1 }}
+            transition={{ delay: 0.15, type: 'spring', stiffness: 300, damping: 14 }}
+            className="flex h-16 w-16 items-center justify-center rounded-full bg-primary"
+          >
             <Check className="h-10 w-10 text-primary-foreground" strokeWidth={3} />
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
 
-        <h2 className="mb-2 text-2xl font-bold italic text-foreground">{t.orderPlaced}</h2>
+        <motion.h2
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="mb-2 text-2xl font-bold italic text-foreground"
+        >
+          {t.orderPlaced}
+        </motion.h2>
         <p className="mb-8 italic text-muted-foreground">{t.orderSuccess}</p>
 
         <div className="mb-8 w-full rounded-xl border border-border bg-card p-4 text-left shadow-sm">
@@ -124,9 +142,7 @@ export function OrderConfirmation({ language, customerDetails, onBackToShop, wha
               className="w-full gap-2 border-primary py-5 text-primary"
               size="lg"
             >
-              {pushState === 'subscribed' ? (
-                <><Check className="h-4 w-4" /> Notifications enabled!</>
-              ) : pushState === 'denied' ? (
+              {pushState === 'denied' ? (
                 <><BellOff className="h-4 w-4" /> Notifications blocked</>
               ) : pushState === 'loading' ? (
                 <><Bell className="h-4 w-4 animate-pulse" /> Enabling…</>

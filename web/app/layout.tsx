@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Poppins, Caveat, JetBrains_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { PageTransition } from '@/components/page-transition'
 import './globals.css'
 
 const poppins = Poppins({
@@ -61,7 +62,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${poppins.variable} ${caveat.variable} ${jetbrainsMono.variable}`}>
       <body className="font-sans antialiased bg-background">
-        {children}
+        <PageTransition>{children}</PageTransition>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

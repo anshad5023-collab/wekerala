@@ -32,13 +32,20 @@ export function ProductGrid({ products, language, onProductClick, isFiltered }: 
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 p-4">
-      {products.map((product) => (
-        <ProductCard 
-          key={product.id} 
-          product={product} 
-          language={language} 
-          onProductClick={onProductClick}
-        />
+      {products.map((product, i) => (
+        <div
+          key={product.id}
+          className="wk-fade-up"
+          // Stagger only the first dozen so above-the-fold cards cascade in;
+          // later cards appear instantly to avoid a long wait on big catalogs.
+          style={{ animationDelay: `${Math.min(i, 11) * 0.04}s` }}
+        >
+          <ProductCard
+            product={product}
+            language={language}
+            onProductClick={onProductClick}
+          />
+        </div>
       ))}
     </div>
   );

@@ -112,20 +112,8 @@ export function ShopViewById({ shopId }: { shopId: string }) {
   const handleConfirmOrder = async (details: CustomerDetails) => {
     if (isSubmitting) return;
     setIsSubmitting(true);
+    setOrderError('');
     setCustomerDetails(details);
-
-    if (shopData?.ownerWhatsApp) {
-      const raw = shopData.ownerWhatsApp.replace(/\D/g, '');
-      const phone = raw.length === 10 ? `91${raw}` : raw;
-      const total = getTotal();
-      const itemList = cartItems
-        .map((i) => `• ${i.product.name.en} x${i.quantity} — ₹${i.product.price * i.quantity}`)
-        .join('\n');
-      const msg = encodeURIComponent(
-        `🛒 *New Order*\n\n*Customer:* ${details.name}\n*Phone:* ${details.phone}\n*Address:* ${details.address}${details.note ? `\n*Note:* ${details.note}` : ''}\n\n*Items:*\n${itemList}\n\n*Total:* ₹${total}`
-      );
-      window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
-    }
 
     try {
       const subtotal = getTotal();
@@ -164,18 +152,41 @@ export function ShopViewById({ shopId }: { shopId: string }) {
         }),
       });
       const resData = await response.json();
+
+      // Order rejected (shop closed) or failed — keep the customer on checkout with a
+      // clear message instead of falsely showing a success screen for an order that
+      // was never saved.
       if (resData.error === 'shop_closed') {
         setOrderError('This shop is currently closed. Please try again later.');
-        setIsSubmitting(false);
         return;
       }
-      if (resData.orderId) setNewOrderId(resData.orderId);
+      if (!response.ok || !resData.orderId) {
+        setOrderError('Could not place your order. Please check your connection and try again.');
+        return;
+      }
+      setNewOrderId(resData.orderId);
+
+      // Order saved — now hand off to WhatsApp (so a rejected/failed order never
+      // opens a "new order" chat) and show the confirmation screen.
+      if (shopData?.ownerWhatsApp) {
+        const raw = shopData.ownerWhatsApp.replace(/\D/g, '');
+        const phone = raw.length === 10 ? `91${raw}` : raw;
+        const itemList = cartItems
+          .map((i) => `• ${i.product.name.en} x${i.quantity} — ₹${i.product.price * i.quantity}`)
+          .join('\n');
+        const msg = encodeURIComponent(
+          `🛒 *New Order*\n\n*Customer:* ${details.name}\n*Phone:* ${details.phone}\n*Address:* ${details.address}${details.note ? `\n*Note:* ${details.note}` : ''}\n\n*Items:*\n${itemList}\n\n*Total:* ₹${finalTotal}`
+        );
+        window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
+      }
+
+      setCurrentPage('confirmation');
     } catch (e) {
       console.error('Failed to save order', e);
+      setOrderError('Could not place your order. Please check your connection and try again.');
     } finally {
       setIsSubmitting(false);
     }
-    setCurrentPage('confirmation');
   };
 
   if (!shopData) return <ShopSkeleton />;
