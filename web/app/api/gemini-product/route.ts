@@ -211,21 +211,34 @@ export async function POST(req: NextRequest) {
       } catch { /* best-effort */ }
 
       // 2 — DuckDuckGo image search if Open Food Facts had no result
-      // Uses DDG's unofficial vqd-token flow — free, no API key, searches entire web
+      // Uses DDG's unofficial vqd-token flow — free, no API key, searches entire web.
+      // DDG blocks non-browser User-Agents (e.g. "Googlebot") with 403 — must look like
+      // a real Chrome browser AND carry the session cookie from step A into step B.
       if (!parsed.imageUrl) {
         try {
-          // Step A: get vqd token
+          const browserUA =
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36';
+
+          // Step A: get vqd token + session cookie
           const ddgHtml = await fetch(
             `https://duckduckgo.com/?q=${encodeURIComponent(query + ' product')}&iax=images&ia=images`,
-            { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)' }, signal: AbortSignal.timeout(5000) }
+            { headers: { 'User-Agent': browserUA }, signal: AbortSignal.timeout(5000) }
           );
+          const cookie = ddgHtml.headers.get('set-cookie') ?? '';
           const html = await ddgHtml.text();
           const vqdMatch = html.match(/vqd=['"]([^'"]+)['"]/);
           if (vqdMatch) {
-            // Step B: fetch image results
+            // Step B: fetch image results, carrying the cookie from step A
             const imgRes = await fetch(
               `https://duckduckgo.com/i.js?q=${encodeURIComponent(query)}&vqd=${vqdMatch[1]}&o=json&p=1&s=0&u=bing&f=,,,`,
-              { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1)', 'Referer': 'https://duckduckgo.com/' }, signal: AbortSignal.timeout(5000) }
+              {
+                headers: {
+                  'User-Agent': browserUA,
+                  'Referer': 'https://duckduckgo.com/',
+                  ...(cookie ? { Cookie: cookie } : {}),
+                },
+                signal: AbortSignal.timeout(5000),
+              }
             );
             if (imgRes.ok) {
               const imgData = await imgRes.json() as { results?: Array<{ image?: string; thumbnail?: string }> };
