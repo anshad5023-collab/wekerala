@@ -224,11 +224,9 @@ export async function POST(req: NextRequest) {
             `https://duckduckgo.com/?q=${encodeURIComponent(query + ' product')}&iax=images&ia=images`,
             { headers: { 'User-Agent': browserUA }, signal: AbortSignal.timeout(5000) }
           );
-          parsed._debug_step_a_status = String(ddgHtml.status);
           const cookie = ddgHtml.headers.get('set-cookie') ?? '';
           const html = await ddgHtml.text();
           const vqdMatch = html.match(/vqd=['"]([^'"]+)['"]/);
-          parsed._debug_vqd_found = vqdMatch ? 'yes' : 'no';
           if (vqdMatch) {
             // Step B: fetch image results, carrying the cookie from step A
             const imgRes = await fetch(
@@ -242,10 +240,8 @@ export async function POST(req: NextRequest) {
                 signal: AbortSignal.timeout(5000),
               }
             );
-            parsed._debug_step_b_status = String(imgRes.status);
             if (imgRes.ok) {
               const imgData = await imgRes.json() as { results?: Array<{ image?: string; thumbnail?: string }> };
-              parsed._debug_results_count = String(imgData.results?.length ?? 0);
               // Pick first result that looks like a real product image URL (not a tiny icon)
               const hit = imgData.results?.find(r => r.image && r.image.startsWith('http'));
               if (hit?.image) parsed.imageUrl = hit.image;
