@@ -227,6 +227,26 @@ export async function POST(req: NextRequest) {
           }
         } catch { /* best-effort */ }
       }
+
+      // 3. Wikipedia — covers famous brands, shoes, electronics, food brands worldwide.
+      // Uses Wikipedia's generator search so it finds the best-matching article image
+      // without needing an exact page title. Works from Vercel, no API key needed.
+      if (!parsed.imageUrl) {
+        try {
+          const wikiRes = await fetch(
+            `https://en.wikipedia.org/w/api.php?action=query&prop=pageimages&format=json&piprop=thumbnail&pithumbsize=500&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=1`,
+            { headers: { 'User-Agent': 'Oratas/1.0 (oratas4ai@gmail.com)' }, signal: AbortSignal.timeout(4000) }
+          );
+          if (wikiRes.ok) {
+            const wikiData = await wikiRes.json() as { query?: { pages?: Record<string, { thumbnail?: { source?: string } }> } };
+            const pages = wikiData.query?.pages;
+            if (pages) {
+              const imgUrl = Object.values(pages)[0]?.thumbnail?.source;
+              if (imgUrl) parsed.imageUrl = imgUrl;
+            }
+          }
+        } catch { /* best-effort */ }
+      }
     }
 
     return NextResponse.json(parsed);

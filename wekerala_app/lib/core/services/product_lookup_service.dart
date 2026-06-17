@@ -241,6 +241,24 @@ class ProductLookupService {
   // attribute containing the full-size media URL as `murl`. No token, no key.
   static Future<String> _bingImageSearch(String query) async {
     try {
+      // Prefetch the Bing homepage to get a session cookie. Without cookies,
+      // Bing shows a consent/redirect page in many regions (India included) that
+      // has no murl attribute — the regex silently finds nothing. A prior request
+      // seeds the necessary cookies so the search page loads correctly.
+      String cookie = '';
+      try {
+        final prefetch = await http.get(
+          Uri.parse('https://www.bing.com/'),
+          headers: {
+            'User-Agent': _imgUa,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate',
+          },
+        ).timeout(const Duration(seconds: 5));
+        cookie = prefetch.headers['set-cookie'] ?? '';
+      } catch (_) {}
+
       final resp = await http.get(
         Uri.parse(
             'https://www.bing.com/images/search?q=${Uri.encodeQueryComponent(query)}'
@@ -248,11 +266,9 @@ class ProductLookupService {
         headers: {
           'User-Agent': _imgUa,
           'Accept-Language': 'en-US,en;q=0.9',
-          // Explicitly request gzip — Flutter's http cannot decode Brotli, so
-          // without this header Bing may return Brotli-compressed HTML that
-          // arrives as garbage bytes and the murl regex finds nothing.
           'Accept-Encoding': 'gzip, deflate',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          if (cookie.isNotEmpty) 'Cookie': cookie,
         },
       ).timeout(const Duration(seconds: 12));
       if (resp.statusCode != 200) return '';

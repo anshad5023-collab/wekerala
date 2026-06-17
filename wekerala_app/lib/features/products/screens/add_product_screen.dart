@@ -288,13 +288,16 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     );
     if (!mounted) return;
     if (data != null && data.hasData) {
-      // Always use the photo the owner took as the product image —
-      // Open Food Facts rarely has Indian products so the scanned photo is best.
-      setState(() {
-        _imageFile = File(file.path);
-        _imageUrl = '';
-        _imageSource = 'owner';
-      });
+      if (data.imageUrl.isEmpty) {
+        // Internet search found nothing — keep the owner's own photo as the image.
+        setState(() {
+          _imageFile = File(file.path);
+          _imageUrl = '';
+          _imageSource = 'owner';
+        });
+      }
+      // _applyLookup fills name/brand/category and, if imageUrl is present,
+      // sets _imageUrl and clears _imageFile so the internet image wins.
       _applyLookup(data);
     } else {
       setState(() => _loadingImage = false);
