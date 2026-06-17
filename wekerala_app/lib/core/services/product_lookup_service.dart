@@ -245,8 +245,16 @@ class ProductLookupService {
         Uri.parse(
             'https://www.bing.com/images/search?q=${Uri.encodeQueryComponent(query)}'
             '&form=HDRSC2&first=1&safesearch=strict'),
-        headers: {'User-Agent': _imgUa, 'Accept-Language': 'en-US,en;q=0.9'},
-      ).timeout(const Duration(seconds: 8));
+        headers: {
+          'User-Agent': _imgUa,
+          'Accept-Language': 'en-US,en;q=0.9',
+          // Explicitly request gzip — Flutter's http cannot decode Brotli, so
+          // without this header Bing may return Brotli-compressed HTML that
+          // arrives as garbage bytes and the murl regex finds nothing.
+          'Accept-Encoding': 'gzip, deflate',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+      ).timeout(const Duration(seconds: 12));
       if (resp.statusCode != 200) return '';
       final body = resp.body;
       // Markup is HTML-entity-encoded: murl&quot;:&quot;https://...&quot;

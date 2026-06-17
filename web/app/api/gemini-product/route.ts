@@ -192,25 +192,41 @@ export async function POST(req: NextRequest) {
       parsed = JSON.parse(match[0]);
     }
 
-    // After Gemini identifies name+brand, try Open Food Facts for a product image
-    // (works fine server-side — it's an official API, not a scrape, so no IP blocking).
-    // General web image search (DuckDuckGo) is done on-device by the app instead —
-    // see ProductLookupService._fetchImageFromWeb in the Flutter app. DuckDuckGo blocks
-    // requests from data-center IPs like Vercel's regardless of headers, but a shop
-    // owner's phone is on an ordinary mobile/WiFi IP, so it works reliably from there.
+    // After Gemini identifies name+brand, try multiple free image sources server-side.
+    // General web image search (DuckDuckGo/Bing scraping) is done on-device instead —
+    // data-center IPs like Vercel's get blocked, but a phone's mobile/WiFi IP isn't.
     if (parsed.name || parsed.brand) {
       const query = [parsed.brand, parsed.name].filter(Boolean).join(' ');
-      try {
-        const offRes = await fetch(
-          `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=1&lc=en`,
-          { headers: { 'User-Agent': 'Oratas/1.0 (oratas4ai@gmail.com)' }, signal: AbortSignal.timeout(4000) }
-        );
-        if (offRes.ok) {
-          const offData = await offRes.json() as { products?: Array<{ image_front_url?: string }> };
-          const imgUrl = offData.products?.[0]?.image_front_url;
-          if (imgUrl) parsed.imageUrl = imgUrl;
-        }
-      } catch { /* best-effort */ }
+
+      // 1. Open Food Facts — best for packaged grocery/food products
+      if (!parsed.imageUrl) {
+        try {
+          const offRes = await fetch(
+            `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=1&lc=en`,
+            { headers: { 'User-Agent': 'Oratas/1.0 (oratas4ai@gmail.com)' }, signal: AbortSignal.timeout(4000) }
+          );
+          if (offRes.ok) {
+            const offData = await offRes.json() as { products?: Array<{ image_front_url?: string }> };
+            const imgUrl = offData.products?.[0]?.image_front_url;
+            if (imgUrl) parsed.imageUrl = imgUrl;
+          }
+        } catch { /* best-effort */ }
+      }
+
+      // 2. Open Library — books, textbooks, notebooks (official API, no key needed)
+      if (!parsed.imageUrl) {
+        try {
+          const olRes = await fetch(
+            `https://openlibrary.org/search.json?q=${encodeURIComponent(query)}&limit=1&fields=cover_i`,
+            { headers: { 'User-Agent': 'Oratas/1.0 (oratas4ai@gmail.com)' }, signal: AbortSignal.timeout(4000) }
+          );
+          if (olRes.ok) {
+            const olData = await olRes.json() as { docs?: Array<{ cover_i?: number }> };
+            const coverId = olData.docs?.[0]?.cover_i;
+            if (coverId) parsed.imageUrl = `https://covers.openlibrary.org/b/id/${coverId}-L.jpg`;
+          }
+        } catch { /* best-effort */ }
+      }
     }
 
     return NextResponse.json(parsed);
