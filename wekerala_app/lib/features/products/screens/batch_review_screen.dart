@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -56,16 +57,19 @@ class _BatchReviewScreenState extends ConsumerState<BatchReviewScreen> {
         final stock = int.tryParse(e.stockCtrl.text.trim());
         final now = DateTime.now();
 
-        // Upload the scanned photo as the product image
+        // Use internet image URL if Gemini/Wikipedia/Bing found one;
+        // only upload the scanned photo when no internet image is available.
         String imageUrl = result.imageUrl;
         String imageSource = result.imageUrl.isNotEmpty ? 'auto' : 'placeholder';
-        try {
-          final imgFile = File(e.job.imagePath);
-          if (imgFile.existsSync()) {
-            imageUrl = await StorageService.uploadProductImage(shopId, productId, imgFile);
-            imageSource = 'owner';
-          }
-        } catch (_) {}
+        if (imageUrl.isEmpty) {
+          try {
+            final imgFile = File(e.job.imagePath);
+            if (imgFile.existsSync()) {
+              imageUrl = await StorageService.uploadProductImage(shopId, productId, imgFile);
+              imageSource = 'owner';
+            }
+          } catch (_) {}
+        }
 
         final product = ProductModel(
           productId: productId,
@@ -208,18 +212,26 @@ class _ProductCard extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                // Thumbnail
+                // Thumbnail — prefer internet image if Gemini found one
                 ClipRRect(
                   borderRadius: BorderRadius.circular(10),
-                  child: Image.file(
-                    File(job.imagePath),
-                    width: 64, height: 64, fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
-                      width: 64, height: 64,
-                      color: Colors.grey.shade100,
-                      child: const Icon(Icons.image, color: Colors.grey),
-                    ),
-                  ),
+                  child: result?.imageUrl.isNotEmpty == true
+                      ? CachedNetworkImage(
+                          imageUrl: result!.imageUrl,
+                          width: 64, height: 64, fit: BoxFit.cover,
+                          errorWidget: (_, __, ___) => Image.file(
+                            File(job.imagePath), width: 64, height: 64, fit: BoxFit.cover,
+                          ),
+                        )
+                      : Image.file(
+                          File(job.imagePath),
+                          width: 64, height: 64, fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 64, height: 64,
+                            color: Colors.grey.shade100,
+                            child: const Icon(Icons.image, color: Colors.grey),
+                          ),
+                        ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
