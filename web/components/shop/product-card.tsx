@@ -68,6 +68,7 @@ export function ProductCard({ product, language, onProductClick }: ProductCardPr
             fill
             className="object-cover transition-transform duration-300 group-hover:scale-110"
             sizes="(max-width: 768px) 50vw, 25vw"
+            quality={55}
           />
         ) : (
           <div className="flex h-full items-center justify-center text-4xl bg-muted/60">

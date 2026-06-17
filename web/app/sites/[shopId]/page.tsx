@@ -130,6 +130,14 @@ export default async function SitePage({
 
   const parsed = parseFields(shopJson.fields as Record<string, unknown>);
 
+  // Kick off the products fetch NOW so it runs in parallel with the website-config
+  // fetch below, instead of back-to-back. Overlapping the two network round-trips
+  // measurably cuts page render time (TTFB) for every storefront visit.
+  const productsPromise = fetch(
+    `${BASE}/shops/${shopId}/products?pageSize=50&key=${API_KEY}`,
+    dataCache,
+  );
+
   // ── Read website config from versioned subcollection with legacy fallback ───
   // isPreview → try draft first, fall back to shop.website
   // public   → try published first, fall back to shop.website
@@ -205,7 +213,7 @@ export default async function SitePage({
     );
   }
 
-  const productsRes = await fetch(`${BASE}/shops/${shopId}/products?pageSize=50&key=${API_KEY}`, dataCache);
+  const productsRes = await productsPromise;
   const productsData = await productsRes.json();
   const products = ((productsData.documents || []) as Array<{ name: string; fields: Record<string, unknown> }>).map((doc) => {
     const p = parseFields(doc.fields || {});
