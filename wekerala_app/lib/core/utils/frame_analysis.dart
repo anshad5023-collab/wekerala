@@ -163,6 +163,25 @@ CapturedFrame extractFrame(CameraImage image, int sensorOrientation) {
   );
 }
 
+/// Build a grayscale NV21 buffer from a [CapturedFrame]'s luminance plane, for
+/// feeding MLKit text recognition. We only need to know *whether there's text*
+/// (a product label) so colour is irrelevant: the chroma half is filled with
+/// 128 (neutral grey). Row padding in the Y plane is stripped so the buffer is a
+/// clean width×height followed by the chroma block MLKit expects.
+Uint8List grayNv21FromFrame(CapturedFrame f) {
+  final w = f.width;
+  final h = f.height;
+  final out = Uint8List(w * h + 2 * ((w + 1) ~/ 2) * ((h + 1) ~/ 2));
+  int o = 0;
+  for (int r = 0; r < h; r++) {
+    final src = r * f.yRowStride;
+    out.setRange(o, o + w, f.y, src);
+    o += w;
+  }
+  out.fillRange(w * h, out.length, 128);
+  return out;
+}
+
 /// Convert a [CapturedFrame] (YUV420) to an upright JPEG. Top-level so it can be
 /// handed to `compute()`. Runs the textbook YUV→RGB conversion, honouring the
 /// U/V plane row- and pixel-strides (handles both planar and NV21-interleaved

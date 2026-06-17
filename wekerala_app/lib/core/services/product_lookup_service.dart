@@ -141,6 +141,8 @@ class ProductLookupService {
               body: jsonEncode({
                 'image': base64Image,
                 'shopType': shopType,
+                // Let Gemini pick the category from the shop's real list.
+                'categories': shopCategories,
               }),
             )
             .timeout(const Duration(seconds: 25));
@@ -153,6 +155,7 @@ class ProductLookupService {
         final name = (data['name'] as String? ?? '').trim();
         final brand = (data['brand'] as String? ?? '').trim();
         final rawCat = (data['category'] as String? ?? '').trim();
+        final color = (data['color'] as String? ?? '').trim();
         final unit = _normaliseUnit(data['unit'] as String? ?? 'piece');
         var imageUrl = (data['imageUrl'] as String? ?? '').trim();
         final description = (data['description'] as String? ?? '').trim();
@@ -160,29 +163,28 @@ class ProductLookupService {
         // Server (Vercel) couldn't get a DuckDuckGo image — DDG blocks data-center
         // IPs regardless of headers. Try again from the phone itself: a normal
         // mobile/WiFi IP isn't blocked, so this works where the server attempt can't.
+        // Include colour so variant-heavy products (shoes, clothing) match better.
         if (imageUrl.isEmpty && (name.isNotEmpty || brand.isNotEmpty)) {
-          imageUrl = await _fetchImageFromWeb([brand, name].where((s) => s.isNotEmpty).join(' '));
+          imageUrl = await _fetchImageFromWeb(
+              [brand, name, color].where((s) => s.isNotEmpty).join(' '));
         }
 
-        // Match Gemini category against shop's category list.
-        // Strategy: substring match first, then word-overlap fallback.
+        // Resolve the category against the shop's real list. Gemini was already
+        // told to pick from this list, so prefer an exact match, then a clear
+        // substring match. We deliberately do NOT fall back to fuzzy word-overlap
+        // — that mapped "footwear" onto "Hair Accessories". A blank category the
+        // owner can fill is always better than a confidently wrong one.
         String category = shopCategories.firstWhere(
-          (c) =>
-              c.toLowerCase().contains(rawCat.toLowerCase()) ||
-              rawCat.toLowerCase().contains(c.toLowerCase()),
+          (c) => c.toLowerCase() == rawCat.toLowerCase(),
           orElse: () => '',
         );
         if (category.isEmpty && rawCat.isNotEmpty) {
-          // Word-overlap: pick the shop category sharing the most words with Gemini's category
-          final geminiWords = rawCat.toLowerCase().split(RegExp(r'[\s&/,]+'));
-          String bestMatch = '';
-          int bestScore = 0;
-          for (final c in shopCategories) {
-            final shopWords = c.toLowerCase().split(RegExp(r'[\s&/,]+'));
-            final score = geminiWords.where((w) => w.length > 2 && shopWords.contains(w)).length;
-            if (score > bestScore) { bestScore = score; bestMatch = c; }
-          }
-          if (bestScore > 0) category = bestMatch;
+          category = shopCategories.firstWhere(
+            (c) =>
+                c.toLowerCase().contains(rawCat.toLowerCase()) ||
+                rawCat.toLowerCase().contains(c.toLowerCase()),
+            orElse: () => '',
+          );
         }
 
         final fullName = (brand.isNotEmpty &&

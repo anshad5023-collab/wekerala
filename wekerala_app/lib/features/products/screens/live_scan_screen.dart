@@ -5,6 +5,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -49,6 +50,12 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
   // Capture feedback
   bool _flash = false;
 
+  // On-device text recognition — only capture frames that contain a product
+  // label, so floors / walls / empty shelves are never captured.
+  final TextRecognizer _recognizer =
+      TextRecognizer(script: TextRecognitionScript.latin);
+  bool _mlkitBroken = false; // if MLKit ever errors, fail open (capture anyway)
+
   // Duplicate detection — perceptual hashes of recent captures.
   final List<int> _recentHashes = [];
   int _duplicatesSkipped = 0;
@@ -74,6 +81,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _controller?.dispose();
+    _recognizer.close();
     super.dispose();
   }
 
@@ -172,9 +180,10 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
     final cooldownOk =
         now.difference(_lastCaptureAt).inMilliseconds > 1100;
 
-    // Two consecutive sharp samples = the camera has settled on a label, not
-    // just a blur passing through focus during a fast pan.
-    if (_sharpStreak >= 2 && cooldownOk) {
+    // Three consecutive sharp samples = the camera has genuinely settled on a
+    // product, not a blur passing through focus during a fast pan or a brief
+    // glance at the floor while walking.
+    if (_sharpStreak >= 3 && cooldownOk) {
       _sharpStreak = 0;
       // Duplicate guard: if this frame looks like a product we just captured
       // (camera still lingering on the same item), skip it — no capture, no
@@ -185,10 +194,12 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
         _lastCaptureAt = now;
         return;
       }
-      _recentHashes.add(hash);
-      if (_recentHashes.length > 18) _recentHashes.removeAt(0);
       _lastCaptureAt = now;
-      _capture(image);
+      _converting = true; // block further frames until this candidate resolves
+      final sensorOrientation = _controller?.description.sensorOrientation ?? 90;
+      // Snapshot the frame synchronously — CameraImage is only valid here.
+      final frame = extractFrame(image, sensorOrientation);
+      _handleCandidate(frame, hash);
     }
 
     // Throttle the sharpness-bar rebuild to ~8 fps.
@@ -198,14 +209,62 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
     }
   }
 
-  Future<void> _capture(CameraImage image) async {
-    _converting = true;
+  /// Decide whether a settled frame is actually a product label, then capture.
+  Future<void> _handleCandidate(CapturedFrame frame, int hash) async {
+    try {
+      // Text gate: a product label has printed text; an empty floor, wall or
+      // shelf does not. Skip frames with no readable text so we never capture
+      // (or pay to identify) emptiness.
+      if (!_mlkitBroken) {
+        bool hasText;
+        try {
+          hasText = await _frameHasText(frame);
+        } catch (e) {
+          debugPrint('MLKit text gate failed — disabling it: $e');
+          _mlkitBroken = true;
+          hasText = true; // fail open: keep the feature working
+        }
+        if (!hasText) return; // not a product label → skip silently
+      }
+
+      // Confirmed label → remember the scene (for dedup) and capture.
+      _recentHashes.add(hash);
+      if (_recentHashes.length > 18) _recentHashes.removeAt(0);
+      await _convertAndQueue(frame);
+    } finally {
+      _converting = false;
+    }
+  }
+
+  Future<bool> _frameHasText(CapturedFrame frame) async {
+    final bytes = grayNv21FromFrame(frame);
+    final input = InputImage.fromBytes(
+      bytes: bytes,
+      metadata: InputImageMetadata(
+        size: Size(frame.width.toDouble(), frame.height.toDouble()),
+        rotation: InputImageRotationValue.fromRawValue(frame.rotation) ??
+            InputImageRotation.rotation0deg,
+        format: InputImageFormat.nv21,
+        bytesPerRow: frame.width,
+      ),
+    );
+    final result = await _recognizer.processImage(input);
+    // Require a clearly readable label, not a stray reflection or one faint
+    // character. We look for a decent amount of recognised text spread over at
+    // least two separate lines — that reliably means a real product label is in
+    // view and legible, while floors/walls/blurry frames produce little or none.
+    final chars = result.text.replaceAll(RegExp(r'[^A-Za-z0-9]'), '');
+    int lines = 0;
+    for (final block in result.blocks) {
+      lines += block.lines.length;
+    }
+    return (chars.length >= 8 && lines >= 1) ||
+        (chars.length >= 5 && lines >= 2);
+  }
+
+  Future<void> _convertAndQueue(CapturedFrame frame) async {
     if (mounted) setState(() => _flash = true);
     try {
-      final sensorOrientation =
-          _controller?.description.sensorOrientation ?? 90;
-      // Snapshot bytes synchronously — CameraImage is only valid in this call.
-      final frame = extractFrame(image, sensorOrientation);
       final jpeg = await compute(frameToJpeg, frame);
       final dir = await getTemporaryDirectory();
       final path =
@@ -226,10 +285,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
     } catch (e) {
       debugPrint('Live capture conversion failed: $e');
     } finally {
-      _converting = false;
-      if (mounted) {
-        setState(() => _flash = false);
-      }
+      if (mounted) setState(() => _flash = false);
     }
   }
 

@@ -118,14 +118,14 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { image?: string; shopType?: string };
+  let body: { image?: string; shopType?: string; categories?: string[] };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { image, shopType = '' } = body;
+  const { image, shopType = '', categories } = body;
   if (!image || typeof image !== 'string') {
     return NextResponse.json({ error: 'image required' }, { status: 400 });
   }
@@ -136,7 +136,22 @@ export async function POST(req: NextRequest) {
   // Strip base64 data URL prefix if present (e.g. "data:image/jpeg;base64,...")
   const base64 = image.includes(',') ? image.split(',')[1] : image;
 
-  const prompt = buildPrompt(shopType);
+  let prompt = buildPrompt(shopType);
+
+  // If the app sent the shop's actual category list, make Gemini choose from it
+  // exactly — otherwise it invents a category (e.g. "Footwear") that doesn't
+  // exist in this shop and the app mis-maps it (shoes ending up as "Hair
+  // Accessories"). Empty string is allowed when nothing fits, which the app
+  // shows as a blank the owner can fill — far better than a wrong guess.
+  if (Array.isArray(categories) && categories.length > 0) {
+    const list = categories.filter((c) => typeof c === 'string' && c.trim()).slice(0, 40);
+    if (list.length > 0) {
+      prompt +=
+        `\n\nFor the "category" field you MUST choose exactly one value from this ` +
+        `shop's own category list (copy it verbatim), or use "" if none genuinely ` +
+        `fit. Do not invent a category outside this list:\n${list.join(' | ')}`;
+    }
+  }
 
   let text = '';
 
@@ -228,25 +243,12 @@ export async function POST(req: NextRequest) {
         } catch { /* best-effort */ }
       }
 
-      // 3. Wikipedia — covers famous brands, shoes, electronics, food brands worldwide.
-      // Uses Wikipedia's generator search so it finds the best-matching article image
-      // without needing an exact page title. Works from Vercel, no API key needed.
-      if (!parsed.imageUrl) {
-        try {
-          const wikiRes = await fetch(
-            `https://en.wikipedia.org/w/api.php?action=query&prop=pageimages&format=json&piprop=thumbnail&pithumbsize=500&generator=search&gsrsearch=${encodeURIComponent(query)}&gsrlimit=1`,
-            { headers: { 'User-Agent': 'Oratas/1.0 (oratas4ai@gmail.com)' }, signal: AbortSignal.timeout(4000) }
-          );
-          if (wikiRes.ok) {
-            const wikiData = await wikiRes.json() as { query?: { pages?: Record<string, { thumbnail?: { source?: string } }> } };
-            const pages = wikiData.query?.pages;
-            if (pages) {
-              const imgUrl = Object.values(pages)[0]?.thumbnail?.source;
-              if (imgUrl) parsed.imageUrl = imgUrl;
-            }
-          }
-        } catch { /* best-effort */ }
-      }
+      // NOTE: Wikipedia "generator search" was removed — it matched unrelated
+      // articles (e.g. a cityscape for "ASICS GEL-PULSE 16") and produced
+      // badly wrong images. Open Food Facts + Open Library are exact-match
+      // databases; everything else (shoes, clothing, electronics) is searched
+      // on-device via Bing in the app, and the owner can always switch to their
+      // own photo in the review screen.
     }
 
     return NextResponse.json(parsed);

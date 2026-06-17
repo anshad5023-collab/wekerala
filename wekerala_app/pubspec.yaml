@@ -36,6 +36,7 @@ dependencies:
   image_picker: ^1.1.2
   camera: ^0.11.0+2          # live camera stream for walk-past scanning
   image: ^4.2.0             # YUV420 -> JPEG conversion for captured frames
+  google_mlkit_text_recognition: ^0.13.0  # on-device text gate (skip empty floor/wall frames)
   mobile_scanner: ^5.2.3
   qr_flutter: ^4.1.0
   fl_chart: ^0.69.0
