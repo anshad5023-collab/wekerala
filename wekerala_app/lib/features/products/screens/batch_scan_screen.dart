@@ -135,26 +135,47 @@ class _BatchScanScreenState extends ConsumerState<BatchScanScreen> {
             ),
           ),
 
-          // Live walk-past scan — faster: auto-captures as you move the phone
-          if (!hasJobs)
+          // Fast scan mode buttons
+          if (!hasJobs) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
               child: SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: () => context.push('/products/live-scan'),
-                  icon: const Icon(Icons.bolt_rounded),
-                  label: const Text('Try Live Walk-Past Scan (faster)'),
+                  onPressed: () => context.push('/products/live-barcode'),
+                  icon: const Icon(Icons.qr_code_scanner_rounded),
+                  label: const Text('Live Barcode Scan — fastest, free, for packaged products'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.deepPurple,
-                    side: const BorderSide(color: Colors.deepPurple),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    foregroundColor: Colors.green.shade700,
+                    side: BorderSide(color: Colors.green.shade600),
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
+                    textStyle: const TextStyle(fontSize: 13),
                   ),
                 ),
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => context.push('/products/live-scan'),
+                  icon: const Icon(Icons.auto_awesome_rounded),
+                  label: const Text('Live AI Scan — for products without barcodes'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.deepPurple,
+                    side: const BorderSide(color: Colors.deepPurple),
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    textStyle: const TextStyle(fontSize: 13),
+                  ),
+                ),
+              ),
+            ),
+          ],
 
           // Main scan button
           Expanded(

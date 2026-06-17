@@ -131,7 +131,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
       );
       final controller = CameraController(
         back,
-        ResolutionPreset.high,
+        ResolutionPreset.medium, // 640×480 — enough for label reading, 4× faster to process
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.yuv420,
       );
@@ -305,40 +305,41 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
   }
 
   Future<void> _process(ScanJob job) async {
-    final data = await ProductLookupService.lookupByPhoto(
-      job.base64Image,
-      _getCategories(),
-      shopType: _getShopType(),
-    );
-    final done = data != null && data.hasData;
+    try {
+      final data = await ProductLookupService.lookupByPhoto(
+        job.base64Image,
+        _getCategories(),
+        shopType: _getShopType(),
+      );
+      final done = data != null && data.hasData;
 
-    // Name-level duplicate guard: even if two photos passed the visual guard,
-    // if Gemini identifies the same product name we already have, drop it so the
-    // catalog never gets the same item twice.
-    if (done) {
-      final norm = _normName(data!.nameEn);
-      final isDup = norm.isNotEmpty &&
-          _jobs.any((j) =>
-              !identical(j, job) &&
-              j.status == ScanStatus.done &&
-              j.result != null &&
-              _normName(j.result!.nameEn) == norm);
-      if (isDup) {
-        _jobs.remove(job);
-        _duplicatesSkipped++;
-        _toast('Already scanned: ${data.nameEn}');
-        if (mounted) setState(() {});
-        _activeWorkers--;
-        _pump();
-        return;
+      // Name-level duplicate guard.
+      if (done) {
+        final norm = _normName(data!.nameEn);
+        final isDup = norm.isNotEmpty &&
+            _jobs.any((j) =>
+                !identical(j, job) &&
+                j.status == ScanStatus.done &&
+                j.result != null &&
+                _normName(j.result!.nameEn) == norm);
+        if (isDup) {
+          _jobs.remove(job);
+          _duplicatesSkipped++;
+          _toast('Already scanned: ${data.nameEn}');
+          if (mounted) setState(() {});
+          _activeWorkers--;
+          _pump();
+          return;
+        }
       }
-    }
 
-    // Unidentified frames (empty shelf, wall, or an unreadable label) come back
-    // with no product data → marked failed (red) and auto-skipped in review, so
-    // they never reach the catalog.
-    job.status = done ? ScanStatus.done : ScanStatus.failed;
-    job.result = data;
+      job.status = done ? ScanStatus.done : ScanStatus.failed;
+      job.result = data;
+    } catch (e) {
+      // Network error, timeout, etc. — mark failed so the queue keeps moving.
+      job.status = ScanStatus.failed;
+      debugPrint('Live scan identify error: $e');
+    }
     if (mounted) setState(() {});
     _activeWorkers--;
     _pump();

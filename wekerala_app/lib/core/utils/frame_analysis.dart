@@ -186,6 +186,15 @@ Uint8List grayNv21FromFrame(CapturedFrame f) {
 /// handed to `compute()`. Runs the textbook YUV→RGB conversion, honouring the
 /// U/V plane row- and pixel-strides (handles both planar and NV21-interleaved
 /// layouts).
+/// Convert a [CapturedFrame] (YUV420) to an upright JPEG. Top-level so it can be
+/// handed to `compute()`. Runs the textbook YUV→RGB conversion, honouring the
+/// U/V plane row- and pixel-strides (handles both planar and NV21-interleaved
+/// layouts).
+///
+/// Output is capped at 640px on the longest side before encoding — Gemini only
+/// needs enough resolution to read label text and recognise the product shape.
+/// Staying at 640px reduces the base64 request body by ~4–8× vs full 1080p,
+/// which is the main reason live-scan Gemini calls were timing out.
 Uint8List frameToJpeg(CapturedFrame f) {
   final out = img.Image(width: f.width, height: f.height);
   final uMax = f.u.length;
@@ -210,6 +219,18 @@ Uint8List frameToJpeg(CapturedFrame f) {
     }
   }
 
-  final upright = f.rotation == 0 ? out : img.copyRotate(out, angle: f.rotation);
-  return Uint8List.fromList(img.encodeJpg(upright, quality: 80));
+  img.Image upright =
+      f.rotation == 0 ? out : img.copyRotate(out, angle: f.rotation);
+
+  // Downscale to max 640px — keeps the upload small so Gemini responds fast.
+  const maxDim = 640;
+  final longest =
+      upright.width > upright.height ? upright.width : upright.height;
+  if (longest > maxDim) {
+    upright = upright.width >= upright.height
+        ? img.copyResize(upright, width: maxDim)
+        : img.copyResize(upright, height: maxDim);
+  }
+
+  return Uint8List.fromList(img.encodeJpg(upright, quality: 75));
 }
