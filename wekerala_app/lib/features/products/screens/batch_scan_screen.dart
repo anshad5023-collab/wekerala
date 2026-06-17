@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../core/constants/app_colors.dart';
@@ -133,6 +134,27 @@ class _BatchScanScreenState extends ConsumerState<BatchScanScreen> {
               textAlign: TextAlign.center,
             ),
           ),
+
+          // Live walk-past scan — faster: auto-captures as you move the phone
+          if (!hasJobs)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => context.push('/products/live-scan'),
+                  icon: const Icon(Icons.bolt_rounded),
+                  label: const Text('Try Live Walk-Past Scan (faster)'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.deepPurple,
+                    side: const BorderSide(color: Colors.deepPurple),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ),
 
           // Main scan button
           Expanded(

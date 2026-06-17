@@ -129,18 +129,26 @@ class ProductLookupService {
     String shopType = '',
   }) async {
     try {
-      final resp = await http
-          .post(
-            Uri.parse('$_vercelBase/api/gemini-product'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'image': base64Image,
-              'shopType': shopType,
-            }),
-          )
-          .timeout(const Duration(seconds: 25));
+      // Retry on rate-limit / transient errors. Live Walk-Past Scan fires many
+      // requests in a burst; the free Gemini tier (15 req/min) returns 429 when
+      // exceeded, so we back off and retry instead of dropping the product.
+      http.Response? resp;
+      for (var attempt = 0; attempt < 3; attempt++) {
+        resp = await http
+            .post(
+              Uri.parse('$_vercelBase/api/gemini-product'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'image': base64Image,
+                'shopType': shopType,
+              }),
+            )
+            .timeout(const Duration(seconds: 25));
+        if (resp.statusCode != 429 && resp.statusCode != 503) break;
+        await Future.delayed(Duration(milliseconds: 900 * (attempt + 1)));
+      }
 
-      if (resp.statusCode == 200) {
+      if (resp != null && resp.statusCode == 200) {
         final data = jsonDecode(resp.body) as Map<String, dynamic>;
         final name = (data['name'] as String? ?? '').trim();
         final brand = (data['brand'] as String? ?? '').trim();
