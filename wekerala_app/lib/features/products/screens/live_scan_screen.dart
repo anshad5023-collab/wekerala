@@ -131,7 +131,7 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
       );
       final controller = CameraController(
         back,
-        ResolutionPreset.medium, // 640×480 — enough for label reading, 4× faster to process
+        ResolutionPreset.high, // 720p — needed for sharpness detection + MLKit text gate + Gemini label reading
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.yuv420,
       );
