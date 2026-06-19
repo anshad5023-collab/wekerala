@@ -18,6 +18,12 @@
 -dontwarn com.google.mlkit.vision.text.japanese.**
 -dontwarn com.google.mlkit.vision.text.korean.**
 
+# TensorFlow Lite (tflite_flutter blur model) — the GPU delegate is optional and
+# we run CPU-only, so those classes aren't bundled. Keep the TFLite classes and
+# tell R8 to ignore the missing GPU-delegate references.
+-keep class org.tensorflow.lite.** { *; }
+-dontwarn org.tensorflow.lite.**
+
 # Flutter Play Store split install (not used, suppress R8 warnings)
 -dontwarn com.google.android.play.core.splitcompat.SplitCompatApplication
 -dontwarn com.google.android.play.core.splitinstall.SplitInstallException
