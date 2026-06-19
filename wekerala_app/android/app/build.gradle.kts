@@ -29,6 +29,11 @@ android {
         jvmTarget = JavaVersion.VERSION_11.toString()
     }
 
+    // Keep the .tflite model uncompressed so tflite_flutter can memory-map it.
+    androidResources {
+        noCompress += "tflite"
+    }
+
     defaultConfig {
         applicationId = "com.wekerala.app"
         minSdk = 23

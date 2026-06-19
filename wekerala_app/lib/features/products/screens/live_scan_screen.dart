@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/blur_model_service.dart';
 import '../../../core/services/product_lookup_service.dart';
 import '../../../core/utils/frame_analysis.dart';
 import '../../../models/shop_model.dart';
@@ -69,6 +70,16 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
 
   // Throttle UI rebuilds for the live sharpness bar.
   DateTime _lastBarUpdate = DateTime.fromMillisecondsSinceEpoch(0);
+
+  // Best-shot burst: once a product is detected, sample frames for a short
+  // window and keep the SHARPEST one before sending — much better than grabbing
+  // whatever single frame happened to trip the trigger.
+  bool _collecting = false;
+  DateTime _burstStart = DateTime.fromMillisecondsSinceEpoch(0);
+  double _burstBestSharp = 0;
+  CapturedFrame? _burstBest;
+  int _burstHash = 0;
+  static const _burstMs = 450;
 
   @override
   void initState() {
@@ -163,10 +174,32 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
 
   void _onFrame(CameraImage image) {
     final now = DateTime.now();
-    // Sample ~5 frames/sec — plenty to catch a settled product, light on CPU.
+    if (_paused) return;
+
+    // ── Best-shot burst in progress: sample every frame, keep the sharpest ──
+    if (_collecting) {
+      final s = computeSharpness(image);
+      if (s > _burstBestSharp) {
+        _burstBestSharp = s;
+        final so = _controller?.description.sensorOrientation ?? 90;
+        _burstBest = extractFrame(image, so);
+      }
+      if (now.difference(_burstStart).inMilliseconds >= _burstMs) {
+        _collecting = false;
+        final best = _burstBest;
+        _burstBest = null;
+        if (best != null) {
+          _converting = true;
+          _handleCandidate(best, _burstHash);
+        }
+      }
+      return;
+    }
+
+    // Sample ~5 frames/sec for detection — light on CPU.
     if (now.difference(_lastProcess).inMilliseconds < 180) return;
     _lastProcess = now;
-    if (_paused || _converting) return;
+    if (_converting) return;
 
     final sharp = computeSharpness(image);
     _lastSharpness = sharp;
@@ -177,29 +210,28 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
       _sharpStreak = 0;
     }
 
-    final cooldownOk =
-        now.difference(_lastCaptureAt).inMilliseconds > 1100;
+    final cooldownOk = now.difference(_lastCaptureAt).inMilliseconds > 1100;
 
     // Three consecutive sharp samples = the camera has genuinely settled on a
     // product, not a blur passing through focus during a fast pan or a brief
     // glance at the floor while walking.
     if (_sharpStreak >= 3 && cooldownOk) {
       _sharpStreak = 0;
-      // Duplicate guard: if this frame looks like a product we just captured
-      // (camera still lingering on the same item), skip it — no capture, no
-      // Gemini cost. The owner has to move to a different product to trigger
-      // the next capture.
+      // Duplicate guard: skip if it looks like the product we just captured.
       final hash = averageHashY(image);
       if (_isDuplicateScene(hash)) {
         _lastCaptureAt = now;
         return;
       }
       _lastCaptureAt = now;
-      _converting = true; // block further frames until this candidate resolves
-      final sensorOrientation = _controller?.description.sensorOrientation ?? 90;
-      // Snapshot the frame synchronously — CameraImage is only valid here.
-      final frame = extractFrame(image, sensorOrientation);
-      _handleCandidate(frame, hash);
+      // Start a best-shot burst: seed with this frame, then keep the sharpest
+      // over the next ~450ms before handing off for capture.
+      final so = _controller?.description.sensorOrientation ?? 90;
+      _burstBest = extractFrame(image, so);
+      _burstBestSharp = sharp;
+      _burstHash = hash;
+      _burstStart = now;
+      _collecting = true;
     }
 
     // Throttle the sharpness-bar rebuild to ~8 fps.
@@ -266,6 +298,15 @@ class _LiveScanScreenState extends ConsumerState<LiveScanScreen>
     if (mounted) setState(() => _flash = true);
     try {
       final jpeg = await compute(frameToJpeg, frame);
+
+      // Lenient blur gate (fail-open): only discard if the on-device model is
+      // confident the shot is blurry. null = model unavailable → don't block.
+      final sharpProb = await BlurModelService.sharpProbabilityFromJpeg(jpeg);
+      if (sharpProb != null && sharpProb < 0.25) {
+        debugPrint('Blur model rejected frame (P_sharp=$sharpProb)');
+        return;
+      }
+
       final dir = await getTemporaryDirectory();
       final path =
           '${dir.path}/livescan_${DateTime.now().microsecondsSinceEpoch}.jpg';
