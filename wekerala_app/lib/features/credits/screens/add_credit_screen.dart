@@ -67,6 +67,37 @@ class _AddCreditScreenState extends ConsumerState<AddCreditScreen> {
   Future<void> _save(String shopId) async {
     if (!_formKey.currentState!.validate()) return;
 
+    final amount = double.parse(_amountCtrl.text.trim());
+    final phone = _phoneCtrl.text.trim();
+
+    // ── Credit limit enforcement ─────────────────────────────────────────────
+    // Block if this new udhar would push the customer's outstanding balance over
+    // their set credit limit. Warn (but allow) when reaching 80%.
+    bool nearLimitWarning = false;
+    if (phone.isNotEmpty) {
+      try {
+        final custSnap = await FirebaseFirestore.instance
+            .collection('shops').doc(shopId)
+            .collection('customers').doc(phone).get();
+        if (custSnap.exists) {
+          final d = custSnap.data()!;
+          final limit = (d['creditLimit'] as num?)?.toDouble() ?? 0;
+          final balance = (d['udharBalance'] as num?)?.toDouble() ?? 0;
+          if (limit > 0) {
+            final newTotal = balance + amount;
+            if (newTotal > limit) {
+              if (mounted) {
+                _showLimitBlockedDialog(balance, amount, limit);
+              }
+              return; // hard block
+            } else if (newTotal >= limit * 0.8) {
+              nearLimitWarning = true;
+            }
+          }
+        }
+      } catch (_) {/* if the check fails, don't block a legitimate sale */}
+    }
+
     setState(() => _isSaving = true);
 
     try {
@@ -79,8 +110,8 @@ class _AddCreditScreenState extends ConsumerState<AddCreditScreen> {
       final credit = CreditModel(
         creditId: creditId,
         customerName: _nameCtrl.text.trim(),
-        customerPhone: _phoneCtrl.text.trim(),
-        amount: double.parse(_amountCtrl.text.trim()),
+        customerPhone: phone,
+        amount: amount,
         paidAmount: 0,
         note: _noteCtrl.text.trim(),
         status: 'open',
@@ -101,9 +132,12 @@ class _AddCreditScreenState extends ConsumerState<AddCreditScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Credit added successfully'),
-            backgroundColor: AppColors.success,
+          SnackBar(
+            content: Text(nearLimitWarning
+                ? 'Credit added — customer is near their credit limit ⚠️'
+                : 'Credit added successfully'),
+            backgroundColor:
+                nearLimitWarning ? Colors.orange.shade800 : AppColors.success,
           ),
         );
         Navigator.pop(context);
@@ -120,6 +154,29 @@ class _AddCreditScreenState extends ConsumerState<AddCreditScreen> {
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  void _showLimitBlockedDialog(double balance, double amount, double limit) {
+    final f = NumberFormat.currency(symbol: '₹', decimalDigits: 0, locale: 'en_IN');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.block, color: AppColors.error, size: 40),
+        title: const Text('Credit limit reached'),
+        content: Text(
+          'This customer already owes ${f.format(balance)}.\n'
+          'Adding ${f.format(amount)} would exceed their credit limit of '
+          '${f.format(limit)}.\n\nCollect a payment first, or raise the limit '
+          'from the customer\'s page.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   // ─── Build ─────────────────────────────────────────────────────────────────

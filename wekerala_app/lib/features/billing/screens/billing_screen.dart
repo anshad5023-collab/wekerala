@@ -229,6 +229,14 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
 
     if (!confirmed || !mounted) return;
 
+    // Credit-limit enforcement: block a new udhar that would push this
+    // customer over their set limit.
+    if (method == 'udhar' && customerPhone.isNotEmpty) {
+      final blocked = await _checkCreditLimitBlocked(
+          shopId, customerPhone, ref.read(billingProvider).total);
+      if (blocked || !mounted) return;
+    }
+
     // Fetch shop name and GSTIN for receipt
     final shopAsync = ref.read(shopStreamProvider(shopId));
     final shop = shopAsync.value;
@@ -400,6 +408,56 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
         ],
       ),
     );
+  }
+
+  /// Returns true (and shows a blocking dialog) if adding [addAmount] of udhar
+  /// would push this customer over their credit limit. 0 limit = no limit.
+  Future<bool> _checkCreditLimitBlocked(
+      String shopId, String phone, double addAmount) async {
+    final customers =
+        ref.read(customersStreamProvider(shopId)).valueOrNull ?? const [];
+    double limit = 0;
+    for (final c in customers) {
+      if (c.phone == phone) {
+        limit = c.creditLimit;
+        break;
+      }
+    }
+    if (limit <= 0) return false; // no limit set
+
+    final credits =
+        ref.read(allCreditsStreamProvider(shopId)).valueOrNull ?? const [];
+    double outstanding = 0;
+    for (final c in credits) {
+      if (c.customerPhone == phone && c.status != 'paid') {
+        outstanding += c.outstanding;
+      }
+    }
+
+    if (outstanding + addAmount <= limit) return false; // within limit
+
+    if (mounted) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.block, color: AppColors.error, size: 40),
+          title: const Text('Credit limit reached'),
+          content: Text(
+            'This customer already owes ₹${outstanding.toStringAsFixed(0)}.\n'
+            'This ₹${addAmount.toStringAsFixed(0)} udhar would exceed their '
+            'limit of ₹${limit.toStringAsFixed(0)}.\n\n'
+            'Collect a payment, raise the limit on the customer\'s page, or '
+            'take this bill as Cash/UPI instead.',
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('OK')),
+          ],
+        ),
+      );
+    }
+    return true;
   }
 
   Future<bool> _showCustomerDialog(

@@ -10,6 +10,10 @@ class CustomerModel {
   final DateTime firstOrderDate;
   final int loyaltyPoints;
 
+  /// Maximum outstanding credit (udhar) allowed for this customer.
+  /// 0 = no limit set. Enforced when recording new credit.
+  final double creditLimit;
+
   const CustomerModel({
     required this.customerId,
     required this.name,
@@ -19,6 +23,7 @@ class CustomerModel {
     required this.lastOrderDate,
     required this.firstOrderDate,
     this.loyaltyPoints = 0,
+    this.creditLimit = 0,
   });
 
   // ── Computed getters ──────────────────────────────────────────────────────
@@ -51,6 +56,7 @@ class CustomerModel {
       lastOrderDate: _parseDate(m['lastOrderDate']),
       firstOrderDate: _parseDate(m['firstOrderDate']),
       loyaltyPoints: (m['loyaltyPoints'] as num?)?.toInt() ?? 0,
+      creditLimit: (m['creditLimit'] as num?)?.toDouble() ?? 0,
     );
   }
 
@@ -63,6 +69,7 @@ class CustomerModel {
         'lastOrderDate': Timestamp.fromDate(lastOrderDate),
         'firstOrderDate': Timestamp.fromDate(firstOrderDate),
         'loyaltyPoints': loyaltyPoints,
+        'creditLimit': creditLimit,
       };
 
   CustomerModel copyWith({
@@ -74,6 +81,7 @@ class CustomerModel {
     DateTime? lastOrderDate,
     DateTime? firstOrderDate,
     int? loyaltyPoints,
+    double? creditLimit,
   }) =>
       CustomerModel(
         customerId: customerId ?? this.customerId,
@@ -84,6 +92,7 @@ class CustomerModel {
         lastOrderDate: lastOrderDate ?? this.lastOrderDate,
         firstOrderDate: firstOrderDate ?? this.firstOrderDate,
         loyaltyPoints: loyaltyPoints ?? this.loyaltyPoints,
+        creditLimit: creditLimit ?? this.creditLimit,
       );
 
   // ── Upsert ────────────────────────────────────────────────────────────────

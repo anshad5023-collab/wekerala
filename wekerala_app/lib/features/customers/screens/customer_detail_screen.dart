@@ -24,6 +24,23 @@ final _customerBillsProvider = FutureProvider.family<List<BillModel>,
   return snap.docs.map(BillModel.fromFirestore).toList();
 });
 
+// Provider: live credit-limit + outstanding balance for a customer.
+final _customerLimitProvider = FutureProvider.family<
+    ({double creditLimit, double udharBalance}),
+    ({String shopId, String phone})>((ref, args) async {
+  final snap = await FirebaseFirestore.instance
+      .collection('shops')
+      .doc(args.shopId)
+      .collection('customers')
+      .doc(args.phone)
+      .get();
+  final d = snap.data() ?? {};
+  return (
+    creditLimit: (d['creditLimit'] as num?)?.toDouble() ?? 0,
+    udharBalance: (d['udharBalance'] as num?)?.toDouble() ?? 0,
+  );
+});
+
 // Provider: open credits for a specific customer
 final _customerCreditsProvider = FutureProvider.family<List<CreditModel>,
     ({String shopId, String phone})>((ref, args) async {
@@ -173,6 +190,10 @@ class CustomerDetailScreen extends ConsumerWidget {
               ),
               const SizedBox(height: 20),
 
+              // ── Credit limit ──────────────────────────────────────────
+              _CreditLimitCard(shopId: shopId, phone: customer.phone),
+              const SizedBox(height: 20),
+
               // ── Open Credits ──────────────────────────────────────────
               creditsAsync.when(
                 data: (credits) {
@@ -258,6 +279,156 @@ class _SectionLabel extends StatelessWidget {
             fontWeight: FontWeight.w700,
             letterSpacing: 1.2,
             color: AppColors.textSecondary));
+  }
+}
+
+class _CreditLimitCard extends ConsumerWidget {
+  final String shopId;
+  final String phone;
+  const _CreditLimitCard({required this.shopId, required this.phone});
+
+  Future<void> _edit(BuildContext context, WidgetRef ref, double current) async {
+    final ctrl = TextEditingController(
+        text: current > 0 ? current.toStringAsFixed(0) : '');
+    final newLimit = await showDialog<double>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Set Credit Limit'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+                'Maximum udhar this customer can owe at once. '
+                'New credit is blocked above this. Set 0 for no limit.',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                labelText: 'Credit limit (₹)',
+                prefixText: '₹ ',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(context, double.tryParse(ctrl.text.trim()) ?? 0),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (newLimit == null) return;
+    await FirebaseFirestore.instance
+        .collection('shops').doc(shopId)
+        .collection('customers').doc(phone)
+        .set({'creditLimit': newLimit}, SetOptions(merge: true));
+    ref.invalidate(_customerLimitProvider((shopId: shopId, phone: phone)));
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(newLimit > 0
+            ? 'Credit limit set to ₹${newLimit.toStringAsFixed(0)}'
+            : 'Credit limit removed'),
+        backgroundColor: AppColors.success,
+      ));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dataAsync =
+        ref.watch(_customerLimitProvider((shopId: shopId, phone: phone)));
+    return dataAsync.maybeWhen(
+      orElse: () => const SizedBox.shrink(),
+      data: (d) {
+        final f = NumberFormat('#,##0', 'en_IN');
+        final hasLimit = d.creditLimit > 0;
+        final ratio =
+            hasLimit ? (d.udharBalance / d.creditLimit).clamp(0.0, 1.0) : 0.0;
+        final over = hasLimit && d.udharBalance > d.creditLimit;
+        final near = hasLimit && !over && ratio >= 0.8;
+        final barColor = over || near ? AppColors.error : AppColors.success;
+        return Card(
+          color: AppColors.surface,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14)),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.credit_score,
+                        size: 18, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text('Credit Limit',
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700, fontSize: 14)),
+                    ),
+                    TextButton(
+                      onPressed: () => _edit(context, ref, d.creditLimit),
+                      child: Text(hasLimit ? 'Edit' : 'Set limit'),
+                    ),
+                  ],
+                ),
+                if (hasLimit) ...[
+                  const SizedBox(height: 4),
+                  Text('Owes ₹${f.format(d.udharBalance)} of '
+                      '₹${f.format(d.creditLimit)}',
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: barColor,
+                          fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: ratio,
+                      minHeight: 8,
+                      backgroundColor: Colors.grey.shade200,
+                      valueColor: AlwaysStoppedAnimation(barColor),
+                    ),
+                  ),
+                  if (over)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 6),
+                      child: Text('Over limit — new udhar is blocked',
+                          style: TextStyle(
+                              fontSize: 11, color: AppColors.error)),
+                    )
+                  else if (near)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 6),
+                      child: Text('Near limit',
+                          style: TextStyle(
+                              fontSize: 11, color: AppColors.error)),
+                    ),
+                ] else
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text('No limit set — customer can take unlimited udhar',
+                        style: TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary)),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 
