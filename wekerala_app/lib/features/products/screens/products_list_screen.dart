@@ -102,6 +102,11 @@ class _ProductsBody extends ConsumerWidget {
             onPressed: () => context.push('/products/import'),
           ),
           IconButton(
+            icon: const Icon(Icons.print_outlined),
+            tooltip: 'Print Price Labels',
+            onPressed: () => context.push('/products/print-labels'),
+          ),
+          IconButton(
             icon: const Icon(Icons.auto_awesome_outlined),
             tooltip: 'Starter Catalog',
             onPressed: () => context.push('/products/catalog'),

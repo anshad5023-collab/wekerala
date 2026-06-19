@@ -196,7 +196,7 @@ class _StockAlertsBody extends ConsumerWidget {
                             ],
                           ),
                         ),
-                        ...expiringProducts.map((p) => _ExpiryTile(product: p)),
+                        ...expiringProducts.map((p) => _ExpiryTile(shopId: shopId, product: p)),
                         const Divider(height: 1),
                       ],
                       // Low Stock section
@@ -429,11 +429,82 @@ class _StockAlertTile extends StatelessWidget {
 }
 
 class _ExpiryTile extends StatelessWidget {
+  final String shopId;
   final ProductModel product;
-  const _ExpiryTile({required this.product});
+  const _ExpiryTile({required this.shopId, required this.product});
 
   int get _daysLeft =>
       product.expiryDate?.difference(DateTime.now()).inDays ?? 0;
+
+  Future<void> _applyDiscount(BuildContext context) async {
+    if (product.price <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Set a price for this product first')));
+      return;
+    }
+    final percent = await showModalBottomSheet<int>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Clearance discount — ${product.nameEn}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 15)),
+              const SizedBox(height: 4),
+              Text('Current price ₹${product.price.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                      color: AppColors.textSecondary, fontSize: 12)),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [10, 20, 30, 40, 50].map((d) {
+                  final newPrice = (product.price * (1 - d / 100)).round();
+                  return ActionChip(
+                    label: Text('$d% → ₹$newPrice'),
+                    backgroundColor: const Color(0xFFF57C00).withValues(alpha: 0.1),
+                    side: const BorderSide(color: Color(0xFFF57C00)),
+                    labelStyle: const TextStyle(
+                        color: Color(0xFFF57C00), fontWeight: FontWeight.w600),
+                    onPressed: () => Navigator.pop(ctx, d),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 8),
+              if (product.offerPrice > 0)
+                TextButton.icon(
+                  icon: const Icon(Icons.clear, size: 16),
+                  label: const Text('Remove offer'),
+                  onPressed: () => Navigator.pop(ctx, 0),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (percent == null) return;
+
+    final newOffer =
+        percent == 0 ? 0.0 : (product.price * (1 - percent / 100)).roundToDouble();
+    await FirebaseFirestore.instance
+        .collection('shops').doc(shopId)
+        .collection('products').doc(product.productId)
+        .update({'offerPrice': newOffer, 'updatedAt': FieldValue.serverTimestamp()});
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(percent == 0
+            ? 'Offer removed'
+            : '$percent% clearance offer applied — now ₹${newOffer.toStringAsFixed(0)}'),
+        backgroundColor: AppColors.success,
+      ));
+    }
+  }
 
   String _daysUntilExpiry() {
     final days = _daysLeft;
@@ -490,11 +561,31 @@ class _ExpiryTile extends StatelessWidget {
             Text('Batch: ${product.batchNumber}',
                 style: const TextStyle(
                     color: AppColors.textSecondary, fontSize: 11)),
+          Text(
+            product.offerPrice > 0
+                ? '${product.stockQty ?? '–'} ${product.unit} · offer ₹${product.offerPrice.toStringAsFixed(0)}'
+                : '${product.stockQty ?? '–'} ${product.unit} in stock',
+            style: TextStyle(
+                color: product.offerPrice > 0
+                    ? AppColors.success
+                    : AppColors.textSecondary,
+                fontSize: 11,
+                fontWeight:
+                    product.offerPrice > 0 ? FontWeight.w600 : FontWeight.normal),
+          ),
         ],
       ),
-      trailing: Text(
-        '${product.stockQty ?? '–'} ${product.unit}',
-        style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+      trailing: OutlinedButton(
+        onPressed: () => _applyDiscount(context),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: const Color(0xFFF57C00),
+          side: const BorderSide(color: Color(0xFFF57C00)),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+        child: const Text('Discount',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
       ),
     );
   }

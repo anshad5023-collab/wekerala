@@ -21,6 +21,7 @@ import '../../features/products/screens/products_list_screen.dart';
 import '../../features/products/screens/add_product_screen.dart';
 import '../../features/products/screens/batch_scan_screen.dart';
 import '../../features/products/screens/live_scan_screen.dart';
+import '../../features/products/screens/print_labels_screen.dart';
 import '../../features/products/screens/live_barcode_scan_screen.dart';
 import '../../features/products/screens/import_products_screen.dart';
 import '../../features/products/screens/starter_catalog_screen.dart';
@@ -137,6 +138,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/products/batch', builder: (_, __) => const BatchScanScreen()),
       GoRoute(path: '/products/live-scan', builder: (_, __) => const LiveScanScreen()),
       GoRoute(path: '/products/live-barcode', builder: (_, __) => const LiveBarcodeScanScreen()),
+      GoRoute(path: '/products/print-labels', builder: (_, __) => const PrintLabelsScreen()),
       GoRoute(path: '/products/import', builder: (_, __) => const ImportProductsScreen()),
       GoRoute(path: '/products/catalog', builder: (_, __) => const StarterCatalogScreen()),
       GoRoute(path: '/stock-alerts', builder: (_, __) => const StockAlertsScreen()),
