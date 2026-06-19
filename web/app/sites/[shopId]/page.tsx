@@ -215,25 +215,32 @@ export default async function SitePage({
 
   const productsRes = await productsPromise;
   const productsData = await productsRes.json();
-  const products = ((productsData.documents || []) as Array<{ name: string; fields: Record<string, unknown> }>).map((doc) => {
-    const p = parseFields(doc.fields || {});
-    return {
-      productId: doc.name.split('/').pop() ?? '',
-      name: (p.nameEn as string) || (p.name as string) || '',
-      price: (p.price as number) || 0,
-      offerPrice: (p.offerPrice as number) || 0,
-      unit: (p.unit as string) || '',
-      imageUrl: (p.imageUrl as string) || '',
-      category: (p.category as string) || '',
-      isOutOfStock: (p.isOutOfStock as boolean) || false,
-      isFeatured: (p.isFeatured as boolean) || false,
-      isNew: (p.isNew as boolean) || false,
-      description: (p.description as string) || '',
-      attributes: p.attributes && typeof p.attributes === 'object' && !Array.isArray(p.attributes)
-        ? p.attributes as Record<string, unknown>
-        : undefined,
-    };
-  });
+  const products = ((productsData.documents || []) as Array<{ name: string; fields: Record<string, unknown> }>)
+    .map((doc) => {
+      const p = parseFields(doc.fields || {});
+      // Hide products the owner hid OR that are out of stock — out-of-stock
+      // items are removed from the storefront entirely (owner's choice).
+      if ((p.isHidden as boolean) === true || (p.isOutOfStock as boolean) === true) {
+        return null;
+      }
+      return {
+        productId: doc.name.split('/').pop() ?? '',
+        name: (p.nameEn as string) || (p.name as string) || '',
+        price: (p.price as number) || 0,
+        offerPrice: (p.offerPrice as number) || 0,
+        unit: (p.unit as string) || '',
+        imageUrl: (p.imageUrl as string) || '',
+        category: (p.category as string) || '',
+        isOutOfStock: false,
+        isFeatured: (p.isFeatured as boolean) || false,
+        isNew: (p.isNew as boolean) || false,
+        description: (p.description as string) || '',
+        attributes: p.attributes && typeof p.attributes === 'object' && !Array.isArray(p.attributes)
+          ? p.attributes as Record<string, unknown>
+          : undefined,
+      };
+    })
+    .filter((p): p is NonNullable<typeof p> => p !== null);
 
   const shop = {
     shopName: (parsed.shopName as string) || '',

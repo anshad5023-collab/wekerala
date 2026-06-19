@@ -713,6 +713,23 @@ exports.onProductStockUpdate = onDocumentUpdated(
       // Only trigger if stockQty actually changed
       if (newQty === oldQty) return;
 
+      // ── Stock sync: keep isOutOfStock in step with stock for the storefront ──
+      // Out-of-stock products are hidden from the website (web page filter), so
+      // we must flip the flag both ways: set true at 0, clear on restock. This
+      // covers POS billing, website orders, stock-receive and manual edits.
+      // (When stockQty is unchanged the function already returned above, so the
+      // update below — which doesn't touch stockQty — won't loop.)
+      if (newQty !== null && newQty !== undefined) {
+        const ref = getFirestore()
+          .collection('shops').doc(event.params.shopId)
+          .collection('products').doc(event.params.productId);
+        if (newQty <= 0 && newData.isOutOfStock !== true) {
+          await ref.update({ isOutOfStock: true });
+        } else if (newQty > 0 && newData.isOutOfStock === true) {
+          await ref.update({ isOutOfStock: false });
+        }
+      }
+
       // Only trigger if stockQty went DOWN (not a restock)
       if (newQty >= oldQty) return;
 
