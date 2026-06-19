@@ -1329,9 +1329,13 @@ exports.checkReorderAlerts = onSchedule(
         if (!shop.ownerPhone) continue;
         if (!isPrefOn(shop, 'reorderAlert', false)) continue; // OFF by default — can be spammy
 
+        // Pull anything at/below 50 units, then keep only those at/below their
+        // own low-stock threshold — so owners are warned BEFORE fully out of
+        // stock, not only after. (Firestore can't compare two fields in a query,
+        // so the 50-cap pre-filter + in-code threshold check does it.)
         const productsSnap = await db.collection('shops').doc(shopDoc.id)
           .collection('products')
-          .where('stockQty', '<=', 0)
+          .where('stockQty', '<=', 50)
           .get();
 
         if (productsSnap.empty) continue;
@@ -1340,16 +1344,26 @@ exports.checkReorderAlerts = onSchedule(
         const toAlert = [];
 
         for (const pDoc of productsSnap.docs) {
+          const pd = pDoc.data();
+          const stock = pd.stockQty;
+          if (stock === null || stock === undefined) continue;
+          const threshold = (pd.lowStockThreshold === undefined || pd.lowStockThreshold === null)
+            ? 5 : pd.lowStockThreshold;
+          if (stock > threshold) continue; // still has enough
+
           const alertDoc = await alertsRef.doc(pDoc.id).get();
           if (alertDoc.exists && alertDoc.data().sentAt.toDate() > sixHoursAgo) continue;
-          toAlert.push(pDoc.data().productName || pDoc.data().name || pDoc.id);
+          const name = pd.productName || pd.name || pd.nameEn || pDoc.id;
+          toAlert.push(stock <= 0
+            ? `• ${name} — OUT OF STOCK`
+            : `• ${name} — only ${stock} left`);
           await alertsRef.doc(pDoc.id).set({ sentAt: FieldValue.serverTimestamp() });
         }
 
         if (toAlert.length === 0) continue;
 
-        const itemList = toAlert.map(n => `• ${n} — OUT OF STOCK`).join('\n');
-        const message = `⚠️ *Out of Stock Alert — ${shop.shopName || 'Your Shop'}*\n\nThese items need restocking:\n${itemList}\n\nOpen weKerala app to update stock.`;
+        const itemList = toAlert.join('\n');
+        const message = `⚠️ *Low Stock Alert — ${shop.shopName || 'Your Shop'}*\n\nThese items are running low or out:\n${itemList}\n\nOpen weKerala app to restock.`;
         await sendWhatsApp(shop.ownerPhone, message);
         await new Promise(r => setTimeout(r, 300));
       } catch (err) {
