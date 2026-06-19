@@ -63,6 +63,9 @@ class ShopModel {
   final String? googleMapsLink;
   // Subscription plan: 'trial' | 'lite' | 'standard' | 'pro' | 'chain'
   final String plan;
+  // Days of stock cover to target for reorder suggestions (0 = owner not set yet;
+  // forecasting falls back to 14). Drives recommendedOrderQty.
+  final int targetDaysCover;
 
   /// Returns true if this shop has WhatsApp AI access (Standard and above, or on trial).
   bool get hasWhatsAppAccess =>
@@ -137,6 +140,7 @@ class ShopModel {
     this.loyaltySettings = const {},
     this.googleMapsLink,
     this.plan = 'trial',
+    this.targetDaysCover = 0,
   });
 
   static DateTime _parseDate(dynamic v, DateTime fallback) {
@@ -200,6 +204,7 @@ class ShopModel {
       loyaltySettings: Map<String, dynamic>.from(d['loyaltySettings'] as Map? ?? {}),
       googleMapsLink: d['googleMapsLink'] as String?,
       plan: d['plan'] as String? ?? 'trial',
+      targetDaysCover: (d['targetDaysCover'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -258,6 +263,7 @@ class ShopModel {
       'loyaltySettings': loyaltySettings,
       if (googleMapsLink != null && googleMapsLink!.isNotEmpty) 'googleMapsLink': googleMapsLink,
       'plan': plan,
+      'targetDaysCover': targetDaysCover,
     };
   }
 
@@ -290,6 +296,7 @@ class ShopModel {
     Map<String, dynamic>? loyaltySettings,
     Object? googleMapsLink = _shopSentinel,
     String? plan,
+    int? targetDaysCover,
   }) {
     return ShopModel(
       shopId: shopId,
@@ -343,6 +350,7 @@ class ShopModel {
       loyaltySettings: loyaltySettings ?? this.loyaltySettings,
       googleMapsLink: googleMapsLink == _shopSentinel ? this.googleMapsLink : googleMapsLink as String?,
       plan: plan ?? this.plan,
+      targetDaysCover: targetDaysCover ?? this.targetDaysCover,
     );
   }
 }

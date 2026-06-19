@@ -2015,16 +2015,139 @@ exports.expiryFlashSaleCheck = onSchedule(
   }
 );
 
-// ─── S5.6: Weekly Restock Velocity Suggestions (Sunday 8 AM IST = 02:30 UTC) ─
-// Analyzes last 30 days of bills per product → sends ranked restock list for
-// any item with < 7 days of stock left at current sales velocity.
+// ─── Demand Forecasting Engine (daily 06:30 IST = 01:00 UTC) ─────────────────
+// For every shop, analyses the last 60 days of POS bills + online orders to
+// estimate each tracked product's daily demand, then writes a forecast doc to
+// shops/{shopId}/forecasts/{productId}. Kept in its own subcollection so product
+// edits never overwrite it. The in-app Smart Reorder screen and the weekly
+// WhatsApp summary both read these docs.
+//
+// Method (no ML server, all simple time-series math):
+//  • Recency-weighted average daily demand (recent half of the window weighted 2x).
+//  • Intermittent items (sell on <30% of days) use a Croston-style rate
+//    = avg sale size / avg interval between sales — far more stable than a plain
+//    average when most days are zero.
+//  • daysCover = stock / dailyDemand ; recommendedQty = ceil(targetDays*demand) - stock.
+const FORECAST_WINDOW_DAYS = 60;
+
+exports.computeForecasts = onSchedule(
+  { schedule: '0 1 * * *', timeZone: 'UTC' },
+  async () => {
+    const db = getFirestore();
+    const windowStart = new Date(Date.now() - FORECAST_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+    const dayMs = 24 * 60 * 60 * 1000;
+    const shopsSnap = await db.collection('shops').get();
+
+    for (const shopDoc of shopsSnap.docs) {
+      try {
+        const shop = shopDoc.data();
+        const shopId = shopDoc.id;
+        const targetDays = (shop.targetDaysCover && shop.targetDaysCover > 0)
+          ? shop.targetDaysCover : 14;
+
+        // Aggregate qty sold per product per day-index from bills + orders.
+        const dailyQty = {}; // pid -> { dayIndex: qty }
+        const names = {};
+        const ingest = async (collName) => {
+          const snap = await db.collection('shops').doc(shopId).collection(collName)
+            .where('createdAt', '>=', windowStart).get();
+          for (const doc of snap.docs) {
+            const data = doc.data();
+            if (data.isVoided) continue;
+            const created = data.createdAt && data.createdAt.toDate
+              ? data.createdAt.toDate() : new Date(data.createdAt);
+            if (!created || isNaN(created.getTime())) continue;
+            const dayIdx = Math.floor((created.getTime() - windowStart.getTime()) / dayMs);
+            if (dayIdx < 0 || dayIdx >= FORECAST_WINDOW_DAYS) continue;
+            for (const item of (data.items || [])) {
+              const pid = item.productId;
+              if (!pid) continue;
+              const qty = item.qty || item.quantity || 0;
+              if (!dailyQty[pid]) dailyQty[pid] = {};
+              dailyQty[pid][dayIdx] = (dailyQty[pid][dayIdx] || 0) + qty;
+              if (!names[pid]) names[pid] = item.productName || item.name || pid;
+            }
+          }
+        };
+        await ingest('bills');
+        await ingest('orders');
+
+        if (Object.keys(dailyQty).length === 0) continue;
+
+        // Load all products once (avoid per-product reads).
+        const prodSnap = await db.collection('shops').doc(shopId).collection('products').get();
+        const products = {};
+        for (const d of prodSnap.docs) products[d.id] = d.data();
+
+        const fcCol = db.collection('shops').doc(shopId).collection('forecasts');
+        let batch = db.batch();
+        let ops = 0;
+        let count = 0;
+
+        for (const pid of Object.keys(dailyQty)) {
+          const p = products[pid];
+          if (!p) continue;
+          const stock = p.stockQty;
+          if (stock === null || stock === undefined) continue; // untracked / service
+
+          const days = dailyQty[pid];
+          const totalQty = Object.values(days).reduce((a, b) => a + b, 0);
+          const saleEvents = Object.keys(days).length;
+
+          // Recency-weighted average (recent half weighted double).
+          let weightedSum = 0, weightTotal = 0;
+          for (let i = 0; i < FORECAST_WINDOW_DAYS; i++) {
+            const q = days[i] || 0;
+            const w = i >= FORECAST_WINDOW_DAYS / 2 ? 2 : 1;
+            weightedSum += q * w;
+            weightTotal += w;
+          }
+          let dailyDemand = weightTotal > 0 ? weightedSum / weightTotal : 0;
+
+          // Intermittent demand → Croston-style rate.
+          const zeroRatio = 1 - saleEvents / FORECAST_WINDOW_DAYS;
+          if (zeroRatio > 0.7 && saleEvents >= 2) {
+            const avgSize = totalQty / saleEvents;
+            const avgInterval = FORECAST_WINDOW_DAYS / saleEvents;
+            dailyDemand = avgSize / avgInterval;
+          }
+
+          const daysCover = dailyDemand > 0 ? stock / dailyDemand : -1;
+          const recommendedQty = dailyDemand > 0
+            ? Math.max(0, Math.ceil(targetDays * dailyDemand) - stock) : 0;
+          let confidence = 'low';
+          if (saleEvents >= 12) confidence = 'high';
+          else if (saleEvents >= 5) confidence = 'medium';
+
+          batch.set(fcCol.doc(pid), {
+            productId: pid,
+            name: names[pid] || p.nameEn || pid,
+            dailyDemand: Math.round(dailyDemand * 100) / 100,
+            daysCover: daysCover < 0 ? -1 : Math.round(daysCover * 10) / 10,
+            recommendedQty,
+            confidence,
+            stockAtCompute: stock,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+          ops++; count++;
+          if (ops >= 400) { await batch.commit(); batch = db.batch(); ops = 0; }
+        }
+        if (ops > 0) await batch.commit();
+        console.log(`[computeForecasts] shop ${shopId}: ${count} forecasts (target ${targetDays}d)`);
+      } catch (err) {
+        console.error(`[computeForecasts] Error for shop ${shopDoc.id}:`, err.message);
+      }
+    }
+  }
+);
+
+// ─── S5.6: Weekly Restock Summary (Sunday 8 AM IST = 02:30 UTC) ──────────────
+// Reads the daily forecasts (above) and WhatsApps the owner a ranked list of
+// items running low (<= 7 days of cover) with the suggested order quantity.
 exports.weeklyRestockSuggestions = onSchedule(
   { schedule: '30 2 * * 0', timeZone: 'UTC' },
   async () => {
     const db = getFirestore();
-    const { startUTC } = getTodayISTRange();
-    const thirtyDaysAgo = new Date(startUTC.getTime() - 30 * 24 * 60 * 60 * 1000);
-
     const shopsSnap = await db.collection('shops').get();
 
     for (const shopDoc of shopsSnap.docs) {
@@ -2035,46 +2158,21 @@ exports.weeklyRestockSuggestions = onSchedule(
         if (!ownerPhone || ownerPhone.length < 10) continue;
         if (!isPrefOn(shop, 'restockSuggestions', true)) continue;
 
-        const billsSnap = await db
-          .collection('shops').doc(shopId)
-          .collection('bills')
-          .where('createdAt', '>=', thirtyDaysAgo)
-          .get();
-
-        if (billsSnap.empty) continue;
-
-        // Sales velocity per product over last 30 days
-        const velocityMap = {};
-        for (const billDoc of billsSnap.docs) {
-          const bill = billDoc.data();
-          if (bill.isVoided) continue;
-          for (const item of (bill.items || [])) {
-            const pid = item.productId;
-            if (!pid) continue;
-            if (!velocityMap[pid]) {
-              velocityMap[pid] = { name: item.productName || item.name || pid, totalQty: 0 };
-            }
-            velocityMap[pid].totalQty += (item.qty || item.quantity || 0);
-          }
-        }
-
-        if (Object.keys(velocityMap).length === 0) continue;
+        const fcSnap = await db.collection('shops').doc(shopId).collection('forecasts').get();
+        if (fcSnap.empty) continue;
 
         const needRestock = [];
-        for (const [pid, data] of Object.entries(velocityMap)) {
-          const pSnap = await db
-            .collection('shops').doc(shopId)
-            .collection('products').doc(pid)
-            .get();
-          if (!pSnap.exists) continue;
-          const p = pSnap.data();
-          const currentStock = p.stockQty ?? null;
-          if (currentStock === null) continue; // service items have no stock
-
-          const avgDaily = data.totalQty / 30;
-          const daysLeft = avgDaily > 0 ? Math.floor(currentStock / avgDaily) : 999;
-          if (daysLeft <= 7) {
-            needRestock.push({ name: data.name, currentStock, avgDaily: Math.round(avgDaily * 10) / 10, daysLeft });
+        for (const doc of fcSnap.docs) {
+          const f = doc.data();
+          const cover = f.daysCover;
+          if (cover === undefined || cover === null || cover < 0) continue; // no demand
+          if (cover <= 7) {
+            needRestock.push({
+              name: f.name || doc.id,
+              daysLeft: Math.floor(cover),
+              orderQty: f.recommendedQty || 0,
+              stock: f.stockAtCompute ?? 0,
+            });
           }
         }
 
@@ -2083,7 +2181,8 @@ exports.weeklyRestockSuggestions = onSchedule(
         needRestock.sort((a, b) => a.daysLeft - b.daysLeft);
         const top = needRestock.slice(0, 8);
         const lines = top.map((p) =>
-          `• ${p.name}: *${p.daysLeft}d left* (stock: ${p.currentStock}, ~${p.avgDaily}/day)`
+          `• ${p.name}: *${p.daysLeft}d left* (stock ${p.stock}` +
+          (p.orderQty > 0 ? `, order ~${p.orderQty}` : '') + `)`
         ).join('\n');
 
         const msg =
@@ -2091,7 +2190,7 @@ exports.weeklyRestockSuggestions = onSchedule(
           `${needRestock.length} item(s) may run out within 7 days:\n\n` +
           `${lines}` +
           (needRestock.length > 8 ? `\n+${needRestock.length - 8} more in app` : '') +
-          `\n\nRestock now in weKerala to avoid lost sales! 🛒`;
+          `\n\nOpen weKerala → Smart Reorder to order. 🛒`;
 
         await sendWhatsApp(ownerPhone, msg, shop, 2, { shopId, type: 'utility' });
         console.log(`[RestockSuggestions] ${needRestock.length} items flagged for shop ${shopId}`);
