@@ -77,6 +77,28 @@ class _BatchScanScreenState extends ConsumerState<BatchScanScreen> {
     _processJob(job);
   }
 
+  /// Import many product photos at once from the gallery and queue them all.
+  /// Reuses the same background identification pipeline as camera capture.
+  Future<void> _importFromGallery() async {
+    final files = await _picker.pickMultiImage(maxWidth: 800, imageQuality: 80);
+    if (!mounted || files.isEmpty) return;
+    setState(() => _scanning = true);
+    for (final file in files) {
+      final id = 'job_${++_jobCounter}';
+      final bytes = await file.readAsBytes();
+      final base64Image = base64Encode(bytes);
+      final job = ScanJob(
+        id: id,
+        imagePath: file.path,
+        base64Image: base64Image,
+      );
+      if (!mounted) return;
+      setState(() => _jobs.add(job));
+      _processJob(job); // background; lookup retries on rate-limit
+    }
+    if (mounted) setState(() => _scanning = false);
+  }
+
   Future<void> _processJob(ScanJob job) async {
     final data = await ProductLookupService.lookupByPhoto(
       job.base64Image,
@@ -167,6 +189,25 @@ class _BatchScanScreenState extends ConsumerState<BatchScanScreen> {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.deepPurple,
                     side: const BorderSide(color: Colors.deepPurple),
+                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    textStyle: const TextStyle(fontSize: 13),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _scanning ? null : _importFromGallery,
+                  icon: const Icon(Icons.photo_library_outlined),
+                  label: const Text('Import photos from gallery — pick many at once'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.blue.shade700,
+                    side: BorderSide(color: Colors.blue.shade600),
                     padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),

@@ -37,31 +37,61 @@ Future<VariantModel?> _showVariantPicker(
     shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
     builder: (ctx) => SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-            child: Text(
-              'Select ${product.nameEn} variant',
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 14),
+              child: Text(
+                'Select ${product.nameEn} variant',
+                style:
+                    const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+              ),
             ),
-          ),
-          const Divider(height: 1),
-          ...product.variants.map((v) => ListTile(
-                title: Text(v.name),
-                trailing: Text(
-                  '₹${(v.offerPrice > 0 ? v.offerPrice : v.price).toStringAsFixed(0)}',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.primary,
-                      fontSize: 16),
-                ),
-                onTap: () => Navigator.pop(ctx, v),
-              )),
-          const SizedBox(height: 8),
-        ],
+            // Tap-friendly grid of variant chips — faster than a long list for
+            // size/colour selection at the counter.
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: product.variants.map((v) {
+                final price = v.offerPrice > 0 ? v.offerPrice : v.price;
+                return InkWell(
+                  onTap: () => Navigator.pop(ctx, v),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    constraints: const BoxConstraints(minWidth: 92),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.35)),
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(v.name,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 14)),
+                        const SizedBox(height: 2),
+                        Text('₹${price.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13)),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
       ),
     ),
   );
