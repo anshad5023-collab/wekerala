@@ -251,6 +251,25 @@ class BillingNotifier extends Notifier<BillingState> {
     _persistCart(items);
   }
 
+  /// Load items from a previous bill into the cart ("reorder from last time").
+  /// Merges with any current cart: existing lines get more qty, new lines added.
+  /// Uses the previous bill's stored prices (owner can adjust before saving).
+  void reorder(List<BillItemModel> previousItems) {
+    final cart = List<BillItemModel>.from(state.cartItems);
+    for (final it in previousItems) {
+      final idx = cart.indexWhere((c) => c.productId == it.productId);
+      if (idx >= 0) {
+        final newQty = cart[idx].qty + it.qty;
+        cart[idx] =
+            cart[idx].copyWith(qty: newQty, subtotal: newQty * cart[idx].price);
+      } else {
+        cart.add(it.copyWith());
+      }
+    }
+    state = state.copyWith(cartItems: cart);
+    _persistCart(cart);
+  }
+
   /// Set a flat discount amount on the current cart.
   void setDiscount(double amount) {
     state = state.copyWith(discountAmount: amount < 0 ? 0 : amount);

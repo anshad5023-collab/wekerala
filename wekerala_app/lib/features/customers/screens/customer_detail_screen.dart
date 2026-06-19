@@ -9,6 +9,7 @@ import '../../../models/customer_model.dart';
 import '../../../models/bill_model.dart';
 import '../../../models/credit_model.dart';
 import '../../../providers/shop_provider.dart';
+import '../../../providers/billing_provider.dart';
 
 // Provider: bills for a specific customer phone in a shop
 final _customerBillsProvider = FutureProvider.family<List<BillModel>,
@@ -189,6 +190,42 @@ class CustomerDetailScreen extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 20),
+
+              // ── Reorder last order ────────────────────────────────────
+              billsAsync.maybeWhen(
+                orElse: () => const SizedBox.shrink(),
+                data: (bills) {
+                  if (bills.isEmpty) return const SizedBox.shrink();
+                  final last = bills.first;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 20),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        icon: const Icon(Icons.replay_rounded, size: 18),
+                        label: Text(
+                            'Reorder last order (${last.items.length} item${last.items.length == 1 ? '' : 's'})'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        onPressed: () {
+                          ref.read(billingProvider.notifier).reorder(last.items);
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                            content: Text(
+                                'Added ${last.items.length} item${last.items.length == 1 ? '' : 's'} to the bill'),
+                            backgroundColor: AppColors.success,
+                          ));
+                          context.push('/billing');
+                        },
+                      ),
+                    ),
+                  );
+                },
+              ),
 
               // ── Credit limit ──────────────────────────────────────────
               _CreditLimitCard(shopId: shopId, phone: customer.phone),
