@@ -190,6 +190,7 @@
   "status_confirmed": "Confirmed",
   "status_processing": "Processing",
   "status_ready": "Ready",
+  "status_out_for_delivery": "Out for Delivery",
   "status_delivered": "Delivered",
   "status_cancelled": "Cancelled",
 

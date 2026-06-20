@@ -70,6 +70,10 @@ class OrderModel {
   final DateTime createdAt;
   final DateTime updatedAt;
   final DateTime? scheduledFor; // pre-order delivery date/time
+  /// How a delivery order is fulfilled: '' (unset) | 'self' | 'partner'.
+  final String fulfillmentType;
+  /// Delivery partner name/number when fulfillmentType == 'partner'.
+  final String deliveryPartner;
 
   const OrderModel({
     required this.orderId,
@@ -89,7 +93,11 @@ class OrderModel {
     required this.createdAt,
     required this.updatedAt,
     this.scheduledFor,
+    this.fulfillmentType = '',
+    this.deliveryPartner = '',
   });
+
+  bool get isDelivery => deliveryType == 'delivery';
 
   static Color statusColor(String status) {
     switch (status) {
@@ -98,28 +106,33 @@ class OrderModel {
       case 'processing': return const Color(0xFFFFA000); // dark amber
       case 'preparing':  return const Color(0xFFFFA000); // same as processing
       case 'ready':      return const Color(0xFF43A047); // green
+      case 'out_for_delivery': return const Color(0xFF3949AB); // indigo
       case 'delivered':  return const Color(0xFF757575); // grey
       case 'cancelled':  return const Color(0xFFD32F2F); // red
       default:           return const Color(0xFF757575);
     }
   }
 
-  static String? nextStatus(String status) {
+  /// Next status in the flow. Delivery orders get an extra "out for delivery"
+  /// stage between ready and delivered.
+  static String? nextStatus(String status, {bool isDelivery = false}) {
     switch (status) {
       case 'new':        return 'confirmed';
       case 'confirmed':  return 'processing';
       case 'processing': return 'ready';
-      case 'ready':      return 'delivered';
+      case 'ready':      return isDelivery ? 'out_for_delivery' : 'delivered';
+      case 'out_for_delivery': return 'delivered';
       default:           return null;
     }
   }
 
-  static String nextStatusLabel(String status) {
+  static String nextStatusLabel(String status, {bool isDelivery = false}) {
     switch (status) {
       case 'new':        return 'Confirm';
       case 'confirmed':  return 'Processing';
       case 'processing': return 'Mark Ready';
-      case 'ready':      return 'Deliver';
+      case 'ready':      return isDelivery ? 'Out for Delivery' : 'Deliver';
+      case 'out_for_delivery': return 'Mark Delivered';
       default:           return '';
     }
   }
@@ -154,6 +167,8 @@ class OrderModel {
       scheduledFor: m['scheduledFor'] != null
           ? _parseDate(m['scheduledFor'], DateTime.now())
           : null,
+      fulfillmentType: m['fulfillmentType'] as String? ?? '',
+      deliveryPartner: m['deliveryPartner'] as String? ?? '',
     );
   }
 
@@ -173,9 +188,17 @@ class OrderModel {
         'createdAt': Timestamp.fromDate(createdAt),
         'updatedAt': Timestamp.fromDate(updatedAt),
         if (scheduledFor != null) 'scheduledFor': Timestamp.fromDate(scheduledFor!),
+        if (fulfillmentType.isNotEmpty) 'fulfillmentType': fulfillmentType,
+        if (deliveryPartner.isNotEmpty) 'deliveryPartner': deliveryPartner,
       };
 
-  OrderModel copyWith({String? status, String? paymentStatus, String? cancelReason}) => OrderModel(
+  OrderModel copyWith({
+    String? status,
+    String? paymentStatus,
+    String? cancelReason,
+    String? fulfillmentType,
+    String? deliveryPartner,
+  }) => OrderModel(
         orderId: orderId,
         shopId: shopId,
         orderNumber: orderNumber,
@@ -192,5 +215,8 @@ class OrderModel {
         cancelReason: cancelReason ?? this.cancelReason,
         createdAt: createdAt,
         updatedAt: updatedAt,
+        scheduledFor: scheduledFor,
+        fulfillmentType: fulfillmentType ?? this.fulfillmentType,
+        deliveryPartner: deliveryPartner ?? this.deliveryPartner,
       );
 }

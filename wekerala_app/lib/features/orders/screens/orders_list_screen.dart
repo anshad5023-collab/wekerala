@@ -316,7 +316,7 @@ class _OrdersBody extends ConsumerWidget {
                                   color: Color(0xFF2E7D32), size: 28),
                               const SizedBox(width: 8),
                               Text(
-                                OrderModel.nextStatusLabel(order.status),
+                                OrderModel.nextStatusLabel(order.status, isDelivery: order.isDelivery),
                                 style: const TextStyle(
                                     color: Color(0xFF2E7D32),
                                     fontWeight: FontWeight.w600),
@@ -346,7 +346,7 @@ class _OrdersBody extends ConsumerWidget {
                         ),
                         confirmDismiss: (direction) async {
                           if (direction == DismissDirection.startToEnd) {
-                            final nextStatus = OrderModel.nextStatus(order.status);
+                            final nextStatus = OrderModel.nextStatus(order.status, isDelivery: order.isDelivery);
                             if (nextStatus != null) {
                               final prevStatus = order.status;
                               await updateOrderStatus(shopId, order.orderId, nextStatus);

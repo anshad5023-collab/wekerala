@@ -190,6 +190,7 @@
   "status_confirmed": "സ്ഥിരീകരിച്ചത്",
   "status_processing": "പ്രോസസ്സിംഗ്",
   "status_ready": "തയ്യാർ",
+  "status_out_for_delivery": "ഡെലിവറിക്ക് പുറപ്പെട്ടു",
   "status_delivered": "ഡെലിവർ ചെയ്തത്",
   "status_cancelled": "റദ്ദ് ചെയ്തത്",
 

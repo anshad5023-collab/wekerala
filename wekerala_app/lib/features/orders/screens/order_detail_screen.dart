@@ -258,6 +258,12 @@ class _OrderContent extends StatelessWidget {
           ),
         ),
 
+        // Delivery management — only for delivery orders
+        if (order.isDelivery) ...[
+          const SizedBox(height: 12),
+          _DeliverySection(order: order, shopId: shopId),
+        ],
+
         if (order.cancelReason.isNotEmpty) ...[
           const SizedBox(height: 12),
           _SectionCard(
@@ -292,7 +298,7 @@ class _ActionButtons extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final next = OrderModel.nextStatus(order.status);
+    final next = OrderModel.nextStatus(order.status, isDelivery: order.isDelivery);
     final nextLabel = _nextLabel(order.status, t);
 
     if (next == null) return const SizedBox.shrink();
@@ -428,9 +434,114 @@ class _ActionButtons extends StatelessWidget {
       case 'new': return t('order_btn_confirm');
       case 'confirmed': return t('order_btn_processing');
       case 'processing': return t('order_btn_ready');
-      case 'ready': return t('order_btn_delivered');
+      case 'ready':
+        return order.isDelivery ? 'Out for Delivery' : t('order_btn_delivered');
+      case 'out_for_delivery': return t('order_btn_delivered');
       default: return '';
     }
+  }
+}
+
+/// Delivery management for a delivery order: who fulfils it (self vs a delivery
+/// partner) and the partner's name/number. Saved to the order so it's visible
+/// and can be included in customer WhatsApp updates.
+class _DeliverySection extends StatefulWidget {
+  final OrderModel order;
+  final String shopId;
+  const _DeliverySection({required this.order, required this.shopId});
+
+  @override
+  State<_DeliverySection> createState() => _DeliverySectionState();
+}
+
+class _DeliverySectionState extends State<_DeliverySection> {
+  late String _type = widget.order.fulfillmentType;
+  late final TextEditingController _partnerCtrl =
+      TextEditingController(text: widget.order.deliveryPartner);
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _partnerCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    try {
+      await FirebaseFirestore.instance
+          .collection('shops').doc(widget.shopId)
+          .collection('orders').doc(widget.order.orderId)
+          .update({
+        'fulfillmentType': _type,
+        'deliveryPartner': _type == 'partner' ? _partnerCtrl.text.trim() : '',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Delivery details saved'),
+            backgroundColor: AppColors.success));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Save failed: $e'), backgroundColor: AppColors.error));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _SectionCard(
+      title: 'Delivery',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            children: [
+              ChoiceChip(
+                label: const Text('I / my staff deliver'),
+                selected: _type == 'self',
+                onSelected: (_) => setState(() => _type = 'self'),
+              ),
+              ChoiceChip(
+                label: const Text('Delivery partner'),
+                selected: _type == 'partner',
+                onSelected: (_) => setState(() => _type = 'partner'),
+              ),
+            ],
+          ),
+          if (_type == 'partner') ...[
+            const SizedBox(height: 10),
+            TextField(
+              controller: _partnerCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Partner name / number',
+                hintText: 'e.g. Porter, Ravi (98xxxxxx)',
+                isDense: true,
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: _saving || _type.isEmpty ? null : _save,
+              icon: _saving
+                  ? const SizedBox(
+                      width: 14, height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.save_outlined, size: 16),
+              label: const Text('Save delivery'),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

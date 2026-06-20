@@ -824,8 +824,16 @@ exports.onOrderStatusChange = onDocumentUpdated(
         out_for_delivery: `🚗 *Out for Delivery!*\n\nHi ${customerName}, your order from *${shopName}* is on its way! 🚀\n\nExpect delivery very soon. Get ready! 🎁`,
       };
 
-      const message = statusMessages[newStatus];
+      let message = statusMessages[newStatus];
       if (!message) return null;
+
+      // For delivery orders, append the delivery partner so the customer knows
+      // who's bringing it (e.g. "Delivered by Porter").
+      if (newStatus === 'out_for_delivery' &&
+          after.fulfillmentType === 'partner' &&
+          after.deliveryPartner) {
+        message += `\n\nDelivery by: ${after.deliveryPartner}`;
+      }
 
       try {
         // Send WhatsApp to customer — pass shopData so correct Phone Number ID is used
