@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/product_lookup_service.dart';
 import '../../../core/services/storage_service.dart';
 import '../../../models/product_model.dart';
 import '../../../providers/products_provider.dart';
@@ -222,8 +223,20 @@ class _EditState {
             e.key: TextEditingController(text: e.value?.toString() ?? '')
         },
         skip = job.status == ScanStatus.failed,
-        useWebImage = job.result?.imageUrl.isNotEmpty ?? false,
+        useWebImage = (job.result?.imageUrl.isNotEmpty ?? false) &&
+            !_isApparelResult(job.result),
         expanded = false;
+}
+
+/// Footwear / clothing: web image search returns the wrong variant, so default
+/// to the owner's own photo (the toggle still lets them switch).
+bool _isApparelResult(ProductData? r) {
+  if (r == null) return false;
+  final c = r.category.toLowerCase();
+  if (RegExp(r'footwear|shoe|wear|apparel|cloth|saree|shirt|dress|sandal|slipper|fabric')
+      .hasMatch(c)) return true;
+  return r.attributes.keys
+      .any((k) => k == 'gender' || k == 'fabric' || k == 'sizes');
 }
 
 /// Turn an attribute key like `care_instructions` into `Care Instructions`.

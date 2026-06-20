@@ -169,13 +169,24 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     return ref.read(shopStreamProvider(shopId)).valueOrNull?.categories ?? [];
   }
 
-  void _applyLookup(ProductData data) {
+  /// True for footwear / clothing — where a web image search returns the wrong
+  /// colour/model, so we should keep the owner's own photo instead.
+  bool _isApparelProduct(ProductData data) {
+    final c = data.category.toLowerCase();
+    if (RegExp(r'footwear|shoe|wear|apparel|cloth|saree|shirt|dress|sandal|slipper|fabric')
+        .hasMatch(c)) return true;
+    // Attribute hints (only present on clothing/footwear)
+    return data.attributes.keys
+        .any((k) => k == 'gender' || k == 'fabric' || k == 'sizes');
+  }
+
+  void _applyLookup(ProductData data, {bool skipImage = false}) {
     setState(() {
       if (data.nameEn.isNotEmpty) _nameEnCtrl.text = data.nameEn;
       if (data.description.isNotEmpty && _descriptionCtrl.text.trim().isEmpty) {
         _descriptionCtrl.text = data.description;
       }
-      if (data.imageUrl.isNotEmpty) {
+      if (!skipImage && data.imageUrl.isNotEmpty) {
         _imageUrl = data.imageUrl;
         _imageSource = 'barcode';
         _imageFile = null;
@@ -303,17 +314,18 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     );
     if (!mounted) return;
     if (data != null && data.hasData) {
-      if (data.imageUrl.isEmpty) {
-        // Internet search found nothing — keep the owner's own photo as the image.
+      // Web image search can't reliably find the exact variant of footwear /
+      // clothing (it returns a different colour/model), so for apparel we keep
+      // the owner's own photo — it always matches the actual product.
+      final apparel = _isApparelProduct(data);
+      _applyLookup(data, skipImage: apparel);
+      if (apparel || data.imageUrl.isEmpty) {
         setState(() {
           _imageFile = File(file.path);
           _imageUrl = '';
           _imageSource = 'owner';
         });
       }
-      // _applyLookup fills name/brand/category and, if imageUrl is present,
-      // sets _imageUrl and clears _imageFile so the internet image wins.
-      _applyLookup(data);
     } else {
       setState(() => _loadingImage = false);
       _showError('Could not identify product. Try scanning the barcode instead.');
