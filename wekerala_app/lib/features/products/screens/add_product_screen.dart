@@ -71,6 +71,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   // Shop-type dynamic attributes (keys from kShopTypeProductSchema)
   Map<String, String> _attributes = {};
 
+  // Field keys the AI flagged as uncertain (lowercased) — shown amber for review.
+  Set<String> _aiUncertainFields = {};
+
   @override
   void dispose() {
     _nameEnCtrl.dispose();
@@ -179,6 +182,15 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       }
       if (data.category.isNotEmpty) _category = data.category;
       _unit = data.unit;
+      // Prices: only filled when actually read from the photo (never guessed).
+      if (data.price > 0 && _priceCtrl.text.trim().isEmpty) {
+        _priceCtrl.text = _fmtPrice(data.price);
+      }
+      if (data.offerPrice > 0 && _offerPriceCtrl.text.trim().isEmpty) {
+        _offerPriceCtrl.text = _fmtPrice(data.offerPrice);
+      }
+      // Fields the AI wasn't confident about — highlighted for review.
+      _aiUncertainFields = data.uncertainFields.map((f) => f.toLowerCase()).toSet();
       _loadingImage = false;
       // Merge shop-type attributes returned by Gemini AI scan
       if (data.attributes.isNotEmpty) {
@@ -192,6 +204,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       _showError('Product found but no name available. Enter name manually.');
     }
   }
+
+  static String _fmtPrice(double v) =>
+      v % 1 == 0 ? v.toInt().toString() : v.toStringAsFixed(2);
 
   String _getShopType() {
     final shopId = ref.read(activeShopIdProvider).valueOrNull ?? '';
@@ -568,6 +583,33 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   onScanPhoto: _scanPhoto,
                   onBarcodeChanged: _lookupBarcode,
                 ),
+                if (_aiUncertainFields.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF8E1),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFF57C00)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline,
+                            color: Color(0xFFF57C00), size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'AI wasn\'t fully sure about: '
+                            '${_aiUncertainFields.map((f) => f.replaceAll('_', ' ')).join(', ')}. '
+                            'Please check the highlighted fields before saving.',
+                            style: const TextStyle(
+                                fontSize: 12, color: Color(0xFF8D6E00)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 Wrap(
                   spacing: 16,
@@ -577,7 +619,8 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                       width: isDesktop(context) ? 320 : double.infinity,
                       child: TextFormField(
                         controller: _nameEnCtrl,
-                        decoration: _inputDecoration(t('product_name_en')),
+                        decoration: _inputDecoration(t('product_name_en'),
+                            uncertain: _uncertain(['name'])),
                         validator: (v) =>
                             (v?.trim().isEmpty ?? true) ? t('product_name_required') : null,
                       ),
@@ -709,7 +752,8 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                         width: isDesktop(context) ? 320 : double.infinity,
                         child: TextFormField(
                           controller: _priceCtrl,
-                          decoration: _inputDecoration(t('product_price')),
+                          decoration: _inputDecoration(t('product_price'),
+                              uncertain: _uncertain(['price'])),
                           keyboardType: TextInputType.number,
                         ),
                       ),
@@ -717,7 +761,8 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                         width: isDesktop(context) ? 320 : double.infinity,
                         child: TextFormField(
                           controller: _offerPriceCtrl,
-                          decoration: _inputDecoration(t('product_offer_price')),
+                          decoration: _inputDecoration(t('product_offer_price'),
+                              uncertain: _uncertain(['offerprice', 'offer_price'])),
                           keyboardType: TextInputType.number,
                         ),
                       ),
@@ -835,19 +880,30 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     );
   }
 
-  InputDecoration _inputDecoration(String label) => InputDecoration(
+  InputDecoration _inputDecoration(String label, {bool uncertain = false}) =>
+      InputDecoration(
         labelText: label,
         filled: true,
-        fillColor: AppColors.surface,
+        fillColor: uncertain ? const Color(0xFFFFF8E1) : AppColors.surface,
+        helperText: uncertain ? '⚠ AI unsure — please check' : null,
+        helperStyle: const TextStyle(color: Color(0xFFF57C00), fontSize: 11),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide.none,
+          borderSide: uncertain
+              ? const BorderSide(color: Color(0xFFF57C00))
+              : BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide.none,
+          borderSide: uncertain
+              ? const BorderSide(color: Color(0xFFF57C00))
+              : BorderSide.none,
         ),
       );
+
+  /// True if the AI flagged any of [keys] as uncertain.
+  bool _uncertain(List<String> keys) =>
+      keys.any((k) => _aiUncertainFields.contains(k.toLowerCase()));
 }
 
 // ─── Shop-Type Schema Attributes Section ─────────────────────────────────────

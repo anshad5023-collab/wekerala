@@ -209,7 +209,12 @@ class _EditState {
 
   _EditState({required this.job})
       : nameCtrl = TextEditingController(text: job.result?.nameEn ?? ''),
-        priceCtrl = TextEditingController(),
+        priceCtrl = TextEditingController(
+            text: (job.result?.price ?? 0) > 0
+                ? ((job.result!.price % 1 == 0)
+                    ? job.result!.price.toInt().toString()
+                    : job.result!.price.toStringAsFixed(2))
+                : ''),
         stockCtrl = TextEditingController(),
         categoryCtrl = TextEditingController(text: job.result?.category ?? ''),
         attrCtrls = {

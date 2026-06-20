@@ -17,8 +17,18 @@ function checkRateLimit(ip: string, maxPerMinute = 10): boolean {
   return true;
 }
 
+// Shared instructions appended to every shop-type prompt: price OCR rules,
+// accurate identification using the model's product knowledge, and per-field
+// uncertainty so the app can flag shaky values instead of trusting them blindly.
+const PRICE_AND_CONFIDENCE = `
+PRICE RULES (read the photo only — never invent a price):
+- "price": the MRP or selling price PRINTED on the label / shelf tag, digits only (e.g. "45"). If no price is visible in the image, use "". Do NOT estimate or guess.
+- "offerPrice": a discounted / offer price PRINTED in the image, digits only. "" if none. Do NOT guess.
+IDENTIFICATION: If you clearly recognise the EXACT product from its brand + name (e.g. a specific medicine, sunscreen, calculator, notebook), use its correct full standard name and you may fill standard attributes you are confident about. If you are not sure, leave a field "" rather than guessing.
+"uncertain_fields": a JSON array listing the names of any fields above whose values you are NOT confident are accurate (e.g. ["price","brand"]). Empty array [] if you are confident about everything you filled.`;
+
 function buildPrompt(shopType: string): string {
-  const base = 'You are analyzing a product photo from an Indian retail store in Kerala. Be as SPECIFIC as possible — read all visible text on the label including model name, variant, size/weight. Return ONLY valid JSON — no markdown, no code fences, no explanation.';
+  const base = 'You are analyzing a product photo from an Indian retail store in Kerala. Be as SPECIFIC as possible — read ALL visible text on the label including brand, model name, variant, size/weight, and any printed price/MRP. Return ONLY valid JSON — no markdown, no code fences, no explanation.';
 
   if (shopType === 'Pharmacy') {
     return `${base}
@@ -34,9 +44,12 @@ Extract medicine/pharmaceutical product details. Use exactly this JSON structure
   "manufacturer": "manufacturing company name",
   "form": "exactly one of: Tablet | Capsule | Syrup | Drops | Ointment / Cream | Injection | Inhaler | Powder | Gel | Spray",
   "schedule": "exactly one of: OTC (Over the Counter) | Prescription Required | H Schedule | X Schedule",
-  "confidence": "high | medium | low"
+  "price": "MRP printed on the strip/box, digits only — empty string if not visible",
+  "offerPrice": "discounted price printed in the photo, digits only — empty string if none",
+  "confidence": "high | medium | low",
+  "uncertain_fields": []
 }
-If any field is not visible/identifiable, use empty string "".`;
+If any field is not visible/identifiable, use empty string "".${PRICE_AND_CONFIDENCE}`;
   }
 
   if (shopType === 'Textile' || shopType === 'Fancy Store') {
@@ -52,9 +65,12 @@ Extract clothing/textile/fashion product details. Use exactly this JSON structur
   "color": "primary colour(s) e.g. Navy Blue, Red & White Stripes",
   "sizes": "available sizes if visible e.g. S M L XL or 28-36",
   "gender": "exactly one of: Men | Women | Kids | Unisex",
-  "confidence": "high | medium | low"
+  "price": "price/MRP printed on the tag, digits only — empty string if not visible",
+  "offerPrice": "discounted price printed on the tag, digits only — empty string if none",
+  "confidence": "high | medium | low",
+  "uncertain_fields": []
 }
-If any field is not visible, use empty string "".`;
+If any field is not visible, use empty string "".${PRICE_AND_CONFIDENCE}`;
   }
 
   if (shopType === 'Hotel / Restaurant' || shopType === 'Bakery') {
@@ -68,9 +84,12 @@ Extract food/dish details. Use exactly this JSON structure:
   "unit": "piece",
   "is_veg": "exactly one of: Veg | Non-Veg | Egg | Vegan",
   "allergens": "allergens if visible e.g. Gluten, Dairy, Nuts — or empty string",
-  "confidence": "high | medium | low"
+  "price": "price printed in the photo, digits only — empty string if not visible",
+  "offerPrice": "discounted price printed in the photo, digits only — empty string if none",
+  "confidence": "high | medium | low",
+  "uncertain_fields": []
 }
-If any field is not visible, use empty string "".`;
+If any field is not visible, use empty string "".${PRICE_AND_CONFIDENCE}`;
   }
 
   if (shopType === 'Electronics') {
@@ -85,9 +104,12 @@ Extract electronics product details. Use exactly this JSON structure:
   "model_number": "model number or SKU if visible",
   "warranty_months": "warranty period in months as number string e.g. 12 — or empty string",
   "compatible_with": "compatible devices if visible e.g. All Android, iPhone 13/14",
-  "confidence": "high | medium | low"
+  "price": "MRP/price printed on the box, digits only — empty string if not visible",
+  "offerPrice": "discounted price printed in the photo, digits only — empty string if none",
+  "confidence": "high | medium | low",
+  "uncertain_fields": []
 }
-If any field is not visible, use empty string "".`;
+If any field is not visible, use empty string "".${PRICE_AND_CONFIDENCE}`;
   }
 
   // Default — generic Indian grocery/retail
@@ -99,9 +121,12 @@ Identify the SPECIFIC product — read the label carefully for brand, variant, w
   "description": "1-2 sentence description of the product: what it is, key features, variant details, weight/size, intended use",
   "category": "exactly one of: Grocery Staples | Beverages | Snacks | Dairy & Eggs | Vegetables | Fruits | Cleaning | Medicines | Chicken | Fish | Breads | Biscuits & Cookies | Mutton | Beef | Prawns & Seafood | Personal Care | Baby Care | General",
   "unit": "exactly one of: piece | kg | g | ml | litre",
-  "confidence": "high | medium | low"
+  "price": "MRP printed on the pack, digits only — empty string if not visible",
+  "offerPrice": "discounted price printed in the photo, digits only — empty string if none",
+  "confidence": "high | medium | low",
+  "uncertain_fields": []
 }
-If the image is unclear or not a product, set confidence to low and use your best guess.`;
+If the image is unclear or not a product, set confidence to low and leave uncertain fields empty.${PRICE_AND_CONFIDENCE}`;
 }
 
 export async function POST(req: NextRequest) {

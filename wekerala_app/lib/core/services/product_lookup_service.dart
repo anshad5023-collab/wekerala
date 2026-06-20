@@ -13,6 +13,12 @@ class ProductData {
   final String description;
   final String source;
   final String barcodeType;
+  /// Price/MRP read from the photo (0 = not visible). Never guessed.
+  final double price;
+  /// Discounted/offer price read from the photo (0 = none).
+  final double offerPrice;
+  /// Field names the AI was NOT confident about — the UI flags these for review.
+  final List<String> uncertainFields;
   /// Shop-type-specific fields extracted by Gemini (composition, strength, fabric, etc.)
   final Map<String, dynamic> attributes;
 
@@ -25,6 +31,9 @@ class ProductData {
     this.description = '',
     this.source = '',
     this.barcodeType = 'CUSTOM',
+    this.price = 0,
+    this.offerPrice = 0,
+    this.uncertainFields = const [],
     this.attributes = const {},
   });
 
@@ -159,6 +168,12 @@ class ProductLookupService {
         final unit = _normaliseUnit(data['unit'] as String? ?? 'piece');
         var imageUrl = (data['imageUrl'] as String? ?? '').trim();
         final description = (data['description'] as String? ?? '').trim();
+        // Prices read from the photo only (never guessed by the model).
+        final price = _parsePrice(data['price']);
+        final offerPrice = _parsePrice(data['offerPrice']);
+        final uncertain = ((data['uncertain_fields'] as List?) ?? const [])
+            .map((e) => e.toString())
+            .toList();
 
         // Server (Vercel) couldn't get a DuckDuckGo image — DDG blocks data-center
         // IPs regardless of headers. Try again from the phone itself: a normal
@@ -216,6 +231,9 @@ class ProductLookupService {
           unit: unit,
           description: description,
           source: 'gemini',
+          price: price,
+          offerPrice: offerPrice,
+          uncertainFields: uncertain,
           attributes: attributes,
         );
       }
@@ -647,6 +665,16 @@ class ProductLookupService {
 
   static String _offUnit(Map<String, dynamic> p) =>
       _normaliseUnit(p['quantity'] as String? ?? '');
+
+  /// Parse a price value that may be a number, "45", "₹45", "45.00" or "" → 0.
+  /// Returns 0 for anything non-numeric (so we never autofill a guessed price).
+  static double _parsePrice(dynamic v) {
+    if (v == null) return 0;
+    if (v is num) return v.toDouble();
+    final s = v.toString().replaceAll(RegExp(r'[^0-9.]'), '');
+    if (s.isEmpty) return 0;
+    return double.tryParse(s) ?? 0;
+  }
 
   static String _normaliseUnit(String raw) {
     final s = raw.toLowerCase();
