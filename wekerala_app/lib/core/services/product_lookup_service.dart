@@ -161,6 +161,9 @@ class ProductLookupService {
 
       if (resp != null && resp.statusCode == 200) {
         final data = jsonDecode(resp.body) as Map<String, dynamic>;
+        // Not a real product (e.g. an animal, a person, a random scene) — don't
+        // create a junk product; the UI shows "could not identify".
+        if (data['is_product'] == false) return null;
         final name = (data['name'] as String? ?? '').trim();
         final brand = (data['brand'] as String? ?? '').trim();
         final rawCat = (data['category'] as String? ?? '').trim();

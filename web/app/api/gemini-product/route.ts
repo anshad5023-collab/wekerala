@@ -17,116 +17,44 @@ function checkRateLimit(ip: string, maxPerMinute = 10): boolean {
   return true;
 }
 
-// Shared instructions appended to every shop-type prompt: price OCR rules,
-// accurate identification using the model's product knowledge, and per-field
-// uncertainty so the app can flag shaky values instead of trusting them blindly.
-const PRICE_AND_CONFIDENCE = `
-PRICE RULES (read the photo only — never invent a price):
-- "price": the MRP or selling price PRINTED on the label / shelf tag, digits only (e.g. "45"). If no price is visible in the image, use "". Do NOT estimate or guess.
-- "offerPrice": a discounted / offer price PRINTED in the image, digits only. "" if none. Do NOT guess.
-IDENTIFICATION: If you clearly recognise the EXACT product from its brand + name (e.g. a specific medicine, sunscreen, calculator, notebook), use its correct full standard name and you may fill standard attributes you are confident about. If you are not sure, leave a field "" rather than guessing.
-"uncertain_fields": a JSON array listing the names of any fields above whose values you are NOT confident are accurate (e.g. ["price","brand"]). Empty array [] if you are confident about everything you filled.`;
-
+// Universal, PRODUCT-AWARE prompt. The old version branched on shop type and
+// forced one rigid schema on every product (a phone in a Fancy Store got a
+// "gender" field + a clothing category, the box was described instead of the
+// product, and a non-product like an animal was still treated as a product).
+// This single prompt detects what the product actually is and returns only the
+// relevant fields, reads printed prices, and can reject non-products.
 function buildPrompt(shopType: string): string {
-  const base = 'You are analyzing a product photo from an Indian retail store in Kerala. Be as SPECIFIC as possible — read ALL visible text on the label including brand, model name, variant, size/weight, and any printed price/MRP. Return ONLY valid JSON — no markdown, no code fences, no explanation.';
+  const hint = shopType
+    ? `\n\nShop type (context hint only — the product may still be anything): ${shopType}.`
+    : '';
+  return `You are identifying ONE retail product from a photo taken at an Indian shop, to auto-fill a product catalogue. The photo may show the product itself OR its box / packaging / printed label — always identify the ACTUAL PRODUCT being sold (e.g. the phone inside the box, the headphones, the talc bottle, the shoe), never the box or packaging itself.
 
-  if (shopType === 'Pharmacy') {
-    return `${base}
-Extract medicine/pharmaceutical product details. Use exactly this JSON structure:
-{
-  "name": "medicine name in English (brand name only, not generic)",
-  "brand": "manufacturer/company name",
-  "description": "1-2 sentence description: what it treats, key active ingredients, dosage form e.g. Paracetamol 500mg tablet for fever and mild pain relief",
-  "category": "exactly one of: Medicines | Personal Care | Baby Care | Health Devices | Vitamins",
-  "unit": "piece",
-  "composition": "active ingredient(s) with strength e.g. Paracetamol 500mg",
-  "strength": "dosage strength e.g. 500mg or 10mg/5ml",
-  "manufacturer": "manufacturing company name",
-  "form": "exactly one of: Tablet | Capsule | Syrup | Drops | Ointment / Cream | Injection | Inhaler | Powder | Gel | Spray",
-  "schedule": "exactly one of: OTC (Over the Counter) | Prescription Required | H Schedule | X Schedule",
-  "price": "MRP printed on the strip/box, digits only — empty string if not visible",
-  "offerPrice": "discounted price printed in the photo, digits only — empty string if none",
-  "confidence": "high | medium | low",
-  "uncertain_fields": []
-}
-If any field is not visible/identifiable, use empty string "".${PRICE_AND_CONFIDENCE}`;
-  }
+Read ALL visible text: brand, model name/number, variant, flavour, size/weight, and any printed price/MRP (for example "MRP ₹899.00" or "₹260").
 
-  if (shopType === 'Textile' || shopType === 'Fancy Store') {
-    return `${base}
-Extract clothing/textile/fashion product details. Use exactly this JSON structure:
-{
-  "name": "specific product name e.g. Men's Cotton Formal Shirt, Ladies Kancheepuram Silk Saree, Kids Cartoon Print T-Shirt",
-  "brand": "brand name if visible",
-  "description": "1-2 sentence description: material, style, occasion, key features visible in the photo",
-  "category": "exactly one of: Men's Wear | Women's Wear | Kids' Wear | Accessories | Fabrics | Cosmetics | Hair Accessories | Artificial Jewelry | Toys & Games | Gift Items",
-  "unit": "piece",
-  "fabric": "material type e.g. Cotton, Silk, Polyester, Khadi",
-  "color": "primary colour(s) e.g. Navy Blue, Red & White Stripes",
-  "sizes": "available sizes if visible e.g. S M L XL or 28-36",
-  "gender": "exactly one of: Men | Women | Kids | Unisex",
-  "price": "price/MRP printed on the tag, digits only — empty string if not visible",
-  "offerPrice": "discounted price printed on the tag, digits only — empty string if none",
-  "confidence": "high | medium | low",
-  "uncertain_fields": []
-}
-If any field is not visible, use empty string "".${PRICE_AND_CONFIDENCE}`;
-  }
+STEP 1 — Is this a real, sellable retail product? If the photo shows a person, body part, animal, plant, furniture, a room, or anything that is not a shop product, set "is_product": false, "confidence": "low", and leave the other fields empty.
 
-  if (shopType === 'Hotel / Restaurant' || shopType === 'Bakery') {
-    return `${base}
-Extract food/dish details. Use exactly this JSON structure:
-{
-  "name": "specific dish or food item name",
-  "brand": "",
-  "description": "1-2 sentence description: key ingredients, taste profile, serving style",
-  "category": "exactly one of: Meals | Snacks | Beverages | Desserts | Special Items | Breads | Cakes & Pastries | Biscuits & Cookies | Savoury Items | Drinks",
-  "unit": "piece",
-  "is_veg": "exactly one of: Veg | Non-Veg | Egg | Vegan",
-  "allergens": "allergens if visible e.g. Gluten, Dairy, Nuts — or empty string",
-  "price": "price printed in the photo, digits only — empty string if not visible",
-  "offerPrice": "discounted price printed in the photo, digits only — empty string if none",
-  "confidence": "high | medium | low",
-  "uncertain_fields": []
-}
-If any field is not visible, use empty string "".${PRICE_AND_CONFIDENCE}`;
-  }
+STEP 2 — If it IS a product, identify it as specifically as you can. If you clearly recognise the exact product (for example POCO M6 5G phone, TRIGGR Trinity 2 headphones, Pond's Dreamflower Talc, a specific medicine), use its correct full retail name. Do NOT guess details you cannot see or do not know — leave them empty.
 
-  if (shopType === 'Electronics') {
-    return `${base}
-Extract electronics product details. Use exactly this JSON structure:
+Return ONLY valid JSON (no markdown, no code fences):
 {
-  "name": "specific product name including model e.g. boAt Rockerz 255 Pro+ Wireless Earphones",
-  "brand": "brand name",
-  "description": "1-2 sentence description: key specs, features, what it does",
-  "category": "exactly one of: Mobile Accessories | Cables & Chargers | Headphones | Smart Devices",
-  "unit": "piece",
-  "model_number": "model number or SKU if visible",
-  "warranty_months": "warranty period in months as number string e.g. 12 — or empty string",
-  "compatible_with": "compatible devices if visible e.g. All Android, iPhone 13/14",
-  "price": "MRP/price printed on the box, digits only — empty string if not visible",
-  "offerPrice": "discounted price printed in the photo, digits only — empty string if none",
+  "is_product": true or false,
+  "name": "specific retail product name with brand + model/variant + size, e.g. POCO M6 5G Smartphone or Pond's Dreamflower Fragrant Talc",
+  "brand": "brand or maker",
+  "category": "choose EXACTLY ONE value from this shop's category list (given below) that fits the ACTUAL product; use empty string if none truly fit — never force a wrong category",
+  "unit": "one of: piece | kg | g | ml | litre | pack",
+  "description": "1-2 plain sentences about the actual product (what it is / does) — not about the box",
+  "price": "printed MRP / selling price, digits only e.g. 899 — empty string if no price is visible. NEVER guess a price",
+  "offerPrice": "printed discounted / offer price, digits only — empty string if none. NEVER guess",
   "confidence": "high | medium | low",
-  "uncertain_fields": []
+  "uncertain_fields": ["names of any fields above you are NOT confident are accurate"]
 }
-If any field is not visible, use empty string "".${PRICE_AND_CONFIDENCE}`;
-  }
 
-  // Default — generic Indian grocery/retail
-  return `${base}
-Identify the SPECIFIC product — read the label carefully for brand, variant, weight/size. Return ONLY valid JSON:
-{
-  "name": "specific product name including variant and size e.g. Parle-G Original Glucose Biscuits 100g or Amul Taaza Homogenised Toned Milk 500ml",
-  "brand": "brand name only",
-  "description": "1-2 sentence description of the product: what it is, key features, variant details, weight/size, intended use",
-  "category": "exactly one of: Grocery Staples | Beverages | Snacks | Dairy & Eggs | Vegetables | Fruits | Cleaning | Medicines | Chicken | Fish | Breads | Biscuits & Cookies | Mutton | Beef | Prawns & Seafood | Personal Care | Baby Care | General",
-  "unit": "exactly one of: piece | kg | g | ml | litre",
-  "price": "MRP printed on the pack, digits only — empty string if not visible",
-  "offerPrice": "discounted price printed in the photo, digits only — empty string if none",
-  "confidence": "high | medium | low",
-  "uncertain_fields": []
-}
-If the image is unclear or not a product, set confidence to low and leave uncertain fields empty.${PRICE_AND_CONFIDENCE}`;
+ALSO add ONLY the attribute keys that are RELEVANT to THIS product type, and omit all the others (for example do NOT put "gender" or "fabric" on a phone, headphones, book or talc):
+- Clothing / footwear: "gender" (Men|Women|Kids|Unisex), "fabric", "color", "sizes"
+- Medicine / health: "composition", "strength", "form", "schedule", "manufacturer"
+- Electronics: "model_number", "warranty_months", "compatible_with"
+- Packaged food: "is_veg" (Veg|Non-Veg|Egg|Vegan), "allergens", "weight_g"
+Only add an attribute when you can actually read it or confidently identify it. Never invent values.${hint}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -163,18 +91,12 @@ export async function POST(req: NextRequest) {
 
   let prompt = buildPrompt(shopType);
 
-  // If the app sent the shop's actual category list, make Gemini choose from it
-  // exactly — otherwise it invents a category (e.g. "Footwear") that doesn't
-  // exist in this shop and the app mis-maps it (shoes ending up as "Hair
-  // Accessories"). Empty string is allowed when nothing fits, which the app
-  // shows as a blank the owner can fill — far better than a wrong guess.
+  // Give Gemini the shop's real category list so it picks the right one for the
+  // ACTUAL product (a General/Fancy store sells phones, books, talc, shoes...).
   if (Array.isArray(categories) && categories.length > 0) {
     const list = categories.filter((c) => typeof c === 'string' && c.trim()).slice(0, 40);
     if (list.length > 0) {
-      prompt +=
-        `\n\nFor the "category" field you MUST choose exactly one value from this ` +
-        `shop's own category list (copy it verbatim), or use "" if none genuinely ` +
-        `fit. Do not invent a category outside this list:\n${list.join(' | ')}`;
+      prompt += `\n\nThis shop's category list (pick the "category" value verbatim from here, or empty string if none fit):\n${list.join(' | ')}`;
     }
   }
 
@@ -216,13 +138,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-
     // Try direct parse first, then extract JSON from response
-    let parsed: Record<string, string>;
+    let parsed: Record<string, unknown>;
     try {
       parsed = JSON.parse(text);
     } catch {
-      const match = text.match(/\{[\s\S]*?\}/);
+      const match = text.match(/\{[\s\S]*\}/);
       if (!match) {
         return NextResponse.json(
           { error: 'Could not parse Gemini response', raw: text },
@@ -232,11 +153,15 @@ export async function POST(req: NextRequest) {
       parsed = JSON.parse(match[0]);
     }
 
-    // After Gemini identifies name+brand, try multiple free image sources server-side.
-    // General web image search (DuckDuckGo/Bing scraping) is done on-device instead —
-    // data-center IPs like Vercel's get blocked, but a phone's mobile/WiFi IP isn't.
-    if (parsed.name || parsed.brand) {
-      const query = [parsed.brand, parsed.name].filter(Boolean).join(' ');
+    const name = typeof parsed.name === 'string' ? parsed.name : '';
+    const brand = typeof parsed.brand === 'string' ? parsed.brand : '';
+    const isProduct = parsed.is_product !== false; // default true unless explicitly false
+
+    // After Gemini identifies the product, try free exact-match image databases
+    // server-side (Open Food Facts for groceries, Open Library for books). Skip
+    // for non-products. General web image search runs on-device in the app.
+    if (isProduct && (name || brand)) {
+      const query = [brand, name].filter(Boolean).join(' ');
 
       // 1. Open Food Facts — best for packaged grocery/food products
       if (!parsed.imageUrl) {
@@ -253,7 +178,7 @@ export async function POST(req: NextRequest) {
         } catch { /* best-effort */ }
       }
 
-      // 2. Open Library — books, textbooks, notebooks (official API, no key needed)
+      // 2. Open Library — books, textbooks (official API, no key needed)
       if (!parsed.imageUrl) {
         try {
           const olRes = await fetch(
@@ -267,13 +192,6 @@ export async function POST(req: NextRequest) {
           }
         } catch { /* best-effort */ }
       }
-
-      // NOTE: Wikipedia "generator search" was removed — it matched unrelated
-      // articles (e.g. a cityscape for "ASICS GEL-PULSE 16") and produced
-      // badly wrong images. Open Food Facts + Open Library are exact-match
-      // databases; everything else (shoes, clothing, electronics) is searched
-      // on-device via Bing in the app, and the owner can always switch to their
-      // own photo in the review screen.
     }
 
     return NextResponse.json(parsed);
