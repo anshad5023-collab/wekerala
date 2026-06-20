@@ -235,6 +235,38 @@ final shopStreamProvider = StreamProvider.family<ShopModel, String>((ref, shopId
       .map(ShopModel.fromFirestore);
 });
 
+/// All shops owned by the current user (from users/{uid}.shopIds, with an
+/// ownerId-query fallback). Used by the multi-shop screen / switcher.
+final myShopsProvider = FutureProvider<List<ShopModel>>((ref) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return [];
+  final db = FirebaseFirestore.instance;
+  final userDoc = await db.collection('users').doc(user.uid).get();
+  final ids = (userDoc.data()?['shopIds'] as List?)?.cast<String>() ?? [];
+
+  if (ids.isEmpty) {
+    final q = await db.collection('shops').where('ownerId', isEqualTo: user.uid).get();
+    return q.docs.map(ShopModel.fromFirestore).toList();
+  }
+  final shops = <ShopModel>[];
+  for (final id in ids) {
+    final d = await db.collection('shops').doc(id).get();
+    if (d.exists) shops.add(ShopModel.fromFirestore(d));
+  }
+  return shops;
+});
+
+/// Switch the active shop for the signed-in owner, then refresh the app's
+/// shop-scoped providers so the whole app reflects the new shop.
+Future<void> switchActiveShop(WidgetRef ref, String shopId) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+  await FirebaseFirestore.instance
+      .collection('users').doc(user.uid)
+      .set({'activeShopId': shopId}, SetOptions(merge: true));
+  ref.invalidate(activeShopIdProvider);
+}
+
 final activeShopIdProvider = StreamProvider<String?>((ref) async* {
   final authStream = FirebaseAuth.instance.authStateChanges();
   await for (final user in authStream) {

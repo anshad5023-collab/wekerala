@@ -70,6 +70,12 @@ class _HubBody extends ConsumerWidget {
             onTap: () => context.push('/settings/shop'),
           ),
           _SettingsTile(
+            icon: Icons.storefront,
+            title: 'My Shops / Switch Shop',
+            iconColor: const Color(0xFF00897B),
+            onTap: () => context.push('/shops'),
+          ),
+          _SettingsTile(
             icon: Icons.web_outlined,
             title: 'Website Builder',
             iconColor: const Color(0xFF1976D2),
