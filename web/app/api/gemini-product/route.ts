@@ -23,28 +23,44 @@ function checkRateLimit(ip: string, maxPerMinute = 10): boolean {
 // product, and a non-product like an animal was still treated as a product).
 // This single prompt detects what the product actually is and returns only the
 // relevant fields, reads printed prices, and can reject non-products.
+// Updated: handles Kerala shop realities — plain bags, no labels, handwritten prices,
+// unlabeled bulk items (rice, spices, produce), dark/blurry single-product photos.
 function buildPrompt(shopType: string): string {
   const hint = shopType
     ? `\n\nShop type (context hint only — the product may still be anything): ${shopType}.`
     : '';
-  return `You are identifying ONE retail product from a photo taken at an Indian shop, to auto-fill a product catalogue. The photo may show the product itself OR its box / packaging / printed label — always identify the ACTUAL PRODUCT being sold (e.g. the phone inside the box, the headphones, the talc bottle, the shoe), never the box or packaging itself.
+  return `You are identifying ONE retail product from a close-up photo taken at an Indian shop, to auto-fill a product catalogue. The photo will be focused on ONE specific item — not a whole room or shelf. The item may be:
+• A branded product with a clear label (e.g. POCO M6 5G, Pond's Dreamflower Talc)
+• A product inside a box or packaging (identify the product INSIDE, not the box)
+• A product in a plain transparent plastic bag or cover with no printed label — identify what is INSIDE the bag (e.g. rice, green chillies, coconut oil)
+• A loose/bulk item with no label at all (e.g. a pile of rice, a bunch of bananas, a container of spices) — still identify it by visual type
+• A product in dim/dark lighting or slightly blurry — still identify if possible; set confidence accordingly
 
-Read ALL visible text: brand, model name/number, variant, flavour, size/weight, and any printed price/MRP (for example "MRP ₹899.00" or "₹260").
+Read ALL visible text: brand, model, variant, flavour, size/weight, and ANY price — whether printed (MRP ₹899), handwritten on a sticker/paper tag, or on a price board next to the product.
 
-STEP 1 — Is this a real, sellable retail product? If the photo shows a person, body part, animal, plant, furniture, a room, or anything that is not a shop product, set "is_product": false, "confidence": "low", and leave the other fields empty.
+STEP 1 — Is this a real, sellable retail product (or sellable item like loose produce, grain, or spice)?
+• YES (is_product: true): any physical item sold in a shop — labelled or unlabelled, branded or generic, packaged or loose.
+• NO (is_product: false): a person, body part, animal, pet, furniture, empty shelf, empty room, outdoor scene, or anything that is clearly NOT a product being sold.
+  → Important: an empty shop with no identifiable product visible = is_product: false.
+  → An item in focus in the frame, even without a label, is almost always a product.
 
-STEP 2 — If it IS a product, identify it as specifically as you can. If you clearly recognise the exact product (for example POCO M6 5G phone, TRIGGR Trinity 2 headphones, Pond's Dreamflower Talc, a specific medicine), use its correct full retail name. Do NOT guess details you cannot see or do not know — leave them empty.
+STEP 2 — Identify as specifically as possible:
+• Branded/labelled: use the exact retail name (POCO M6 5G Smartphone, Walkaroo WY3492 Footwear, Parle-G Biscuits)
+• In a plain bag: name what's inside ("Basmati Rice", "Green Chillies", "Coconut Oil")
+• Loose/bulk item: name the item type ("Red Chilli", "Moong Dal", "Banana", "Coconut")
+• Unknown brand but recognisable item: name the item type ("AA Battery", "USB Cable", "Notebook")
+• Truly unidentifiable: set confidence "low" and give a best-guess generic name
 
 Return ONLY valid JSON (no markdown, no code fences):
 {
   "is_product": true or false,
-  "name": "specific retail product name with brand + model/variant + size, e.g. POCO M6 5G Smartphone or Pond's Dreamflower Fragrant Talc",
-  "brand": "brand or maker",
+  "name": "specific retail name — brand + model/variant/size if readable, else item type e.g. 'Green Chillies' or 'Basmati Rice'",
+  "brand": "brand or maker — empty string if no brand visible",
   "category": "choose EXACTLY ONE value from this shop's category list (given below) that fits the ACTUAL product; use empty string if none truly fit — never force a wrong category",
-  "unit": "one of: piece | kg | g | ml | litre | pack",
-  "description": "1-2 plain sentences about the actual product (what it is / does) — not about the box",
-  "price": "printed MRP / selling price, digits only e.g. 899 — empty string if no price is visible. NEVER guess a price",
-  "offerPrice": "printed discounted / offer price, digits only — empty string if none. NEVER guess",
+  "unit": "one of: piece | kg | g | ml | litre | pack — use kg/g for loose produce/grain, piece for individual items",
+  "description": "1-2 plain sentences about the actual product (what it is / does)",
+  "price": "any visible price (printed MRP, handwritten tag, or price board), digits only e.g. 899 — empty string if NO price visible anywhere. NEVER guess a price",
+  "offerPrice": "printed or written discounted / offer price, digits only — empty string if none. NEVER guess",
   "confidence": "high | medium | low",
   "uncertain_fields": ["names of any fields above you are NOT confident are accurate"]
 }
@@ -53,7 +69,7 @@ ALSO add ONLY the attribute keys that are RELEVANT to THIS product type, and omi
 - Clothing / footwear: "gender" (Men|Women|Kids|Unisex), "fabric", "color", "sizes"
 - Medicine / health: "composition", "strength", "form", "schedule", "manufacturer"
 - Electronics: "model_number", "warranty_months", "compatible_with"
-- Packaged food: "is_veg" (Veg|Non-Veg|Egg|Vegan), "allergens", "weight_g"
+- Packaged food / loose produce: "is_veg" (Veg|Non-Veg|Egg|Vegan), "allergens", "weight_g"
 Only add an attribute when you can actually read it or confidently identify it. Never invent values.${hint}`;
 }
 
