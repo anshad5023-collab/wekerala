@@ -110,8 +110,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Too many requests. Please wait a minute.' }, { status: 429 });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
+  // Collect all configured API keys — will try them in order and rotate on quota exhaustion
+  const apiKeys = [
+    process.env.GEMINI_API_KEY,
+    process.env.GEMINI_API_KEY_2,
+    process.env.GEMINI_API_KEY_3,
+  ].filter((k): k is string => !!k);
+  if (apiKeys.length === 0) {
     return NextResponse.json(
       { error: 'Gemini not configured — add GEMINI_API_KEY to Vercel environment variables' },
       { status: 503 }
@@ -149,35 +154,55 @@ export async function POST(req: NextRequest) {
 
   let text = '';
 
-  try {
-    const res = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-goog-api-key': apiKey,
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { text: prompt },
-              { inline_data: { mime_type: 'image/jpeg', data: base64 } },
-            ],
-          }],
-        }),
-      }
-    );
-    if (!res.ok) {
-      const errBody = await res.text();
-      return NextResponse.json({ error: `Gemini error: ${res.status} ${errBody.slice(0, 300)}` }, { status: 500 });
+  // Try each API key in order; rotate to next key on quota exhaustion (429)
+  let lastErr = '';
+  let allKeysExhausted = true;
+  for (const apiKey of apiKeys) {
+    let geminiRes: Response;
+    try {
+      geminiRes = await fetch(
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-goog-api-key': apiKey,
+          },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                { text: prompt },
+                { inline_data: { mime_type: 'image/jpeg', data: base64 } },
+              ],
+            }],
+          }),
+        }
+      );
+    } catch (e) {
+      lastErr = e instanceof Error ? e.message : String(e);
+      continue;
     }
-    const json = await res.json() as {
+    if (geminiRes.status === 429) {
+      // This key is rate-limited — try the next one
+      lastErr = `quota_exceeded_key_${apiKeys.indexOf(apiKey) + 1}`;
+      continue;
+    }
+    if (!geminiRes.ok) {
+      const errBody = await geminiRes.text();
+      return NextResponse.json({ error: `Gemini error: ${geminiRes.status} ${errBody.slice(0, 300)}` }, { status: 500 });
+    }
+    const json = await geminiRes.json() as {
       candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
     };
     text = json.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? '';
-  } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+    allKeysExhausted = false;
+    break;
+  }
+  if (allKeysExhausted) {
+    return NextResponse.json(
+      { error: 'Daily scan quota reached. Please try again after midnight. ' + lastErr },
+      { status: 429 }
+    );
   }
 
   if (!text) {
