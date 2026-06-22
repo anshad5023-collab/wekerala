@@ -359,7 +359,25 @@ Never add an attribute unless you can actually read or confidently identify it.
 This shop's category list (pick the "category" value verbatim from here, or empty string if none fit):
 ${CATEGORIES.join(' | ')}`;
 
-function fetchBuffer(url, maxBytes = 1_400_000) {
+// Retry wrapper — flaky DNS / transient network errors shouldn't masquerade
+// as scan failures. Retries on ENOTFOUND, ECONNRESET, timeout, ETIMEDOUT.
+async function fetchBuffer(url, maxBytes = 1_400_000, attempts = 3) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fetchBufferOnce(url, maxBytes);
+    } catch (e) {
+      lastErr = e;
+      const msg = String(e.message ?? e);
+      const retryable = /ENOTFOUND|ECONNRESET|ETIMEDOUT|timeout|EAI_AGAIN|socket hang up/i.test(msg);
+      if (!retryable || i === attempts - 1) throw e;
+      await new Promise(s => setTimeout(s, 3000 * (i + 1))); // 3s, 6s backoff
+    }
+  }
+  throw lastErr;
+}
+
+function fetchBufferOnce(url, maxBytes = 1_400_000) {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
     const lib = parsed.protocol === 'https:' ? https : http;
