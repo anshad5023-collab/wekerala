@@ -245,10 +245,11 @@ const TESTS = [
 
   // ═══ GROUP 12: ADDITIONAL EDGE CASES ════════════════════════════════════
   {
-    label: '30 Hostel Maggi instant noodles (Indian packaged food context)',
-    img: W('c/cf/Hostel_Maggi.jpg', 'Hostel_Maggi.jpg'),
+    label: '30 Maggi noodles sealed packet (Indian packaged food)',
+    img: W('b/ba/Vegetable_Maggi_Noodles-Home-AndhraPradesh-010.jpg',
+           'Vegetable_Maggi_Noodles-Home-AndhraPradesh-010.jpg'),
     ok: { isProduct: true, notEmpty: true },
-    why: 'Indian instant noodles — must identify as food product even in daily-life context',
+    why: 'Sealed Maggi packet — must identify the packaged product (not the prepared dish)',
   },
   {
     label: '31 Colgate Hemp Toothpaste (oral care personal hygiene)',
