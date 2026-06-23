@@ -179,12 +179,21 @@ const TESTS = [
   { g: 'Grocery', label: 'Sugar in bag', q: 'sugar white granulated bag', ok: { isProduct: true, notEmpty: true } },
   { g: 'Grocery', label: 'Tea leaves', q: 'tea leaves loose black', ok: { isProduct: true, notEmpty: true } },
 
+  // ═ BOOKS (covers often show people — must still be is_product:true) ═
+  { g: 'Books', label: 'Book cover with people on it', q: 'book cover historical speeches bestseller', ok: { isProduct: true, notEmpty: true } },
+  { g: 'Books', label: 'Textbook / study guide', q: 'CBSE textbook study guide India', ok: { isProduct: true, notEmpty: true } },
+
+  // ═ GULF / ARABIC LABEL PRODUCTS ═
+  { g: 'Gulf', label: 'Talc powder Arabic label', q: 'talcum powder Arabic label', ok: { isProduct: true, notEmpty: true } },
+  { g: 'Gulf', label: 'Perfume Arabic packaging', q: 'Arabic perfume bottle attar', ok: { isProduct: true, notEmpty: true } },
+
   // ═ NON-PRODUCT REJECTION (must be is_product:false) ═
   { g: 'Reject', label: 'Dog (animal)', q: 'labrador dog portrait', ok: { isProduct: false } },
   { g: 'Reject', label: 'Cat (animal)', q: 'domestic cat portrait', ok: { isProduct: false } },
   { g: 'Reject', label: 'Person portrait', q: 'man portrait face person', ok: { isProduct: false } },
   { g: 'Reject', label: 'Potted plant / tree', q: 'potted houseplant indoor', ok: { isProduct: false } },
   { g: 'Reject', label: 'Wide supermarket aisle interior', q: 'supermarket aisle interior', ok: { isProduct: false } },
+  { g: 'Reject', label: 'Cooked food dish (not sellable)', q: 'cooked curry dish plate restaurant', ok: { isProduct: false } },
 ];
 
 // ─── COMMONS IMAGE RESOLVER ───────────────────────────────────────────────────

@@ -59,8 +59,9 @@ Read ANY price for THIS specific product — from wherever it appears:
 • NEVER read a price that clearly belongs to a neighbouring product
 
 ━━━ READING REGIONAL LANGUAGE TEXT ━━━
-Labels may be in Malayalam, Tamil, Kannada, Hindi, or English. Read them all:
+Labels may be in Malayalam, Tamil, Kannada, Hindi, Arabic, Urdu, or English. Read them all:
 • For brand names in regional scripts: transliterate to English (e.g. "നിരപ്പാറ" → "Nirapara")
+• Arabic/Urdu labels are common on Gulf-imported products sold in Kerala — read and transliterate them
 • Common Kerala brands to recognise: Nirapara, Eastern, Milma, Malabar Gold, Double Horse,
   KTC, Cavin's, Palazhi, Ente Keralam
 • If you see both English and regional text for the same name, prefer the English version
@@ -74,12 +75,19 @@ Labels may be in Malayalam, Tamil, Kannada, Hindi, or English. Read them all:
 
 ━━━ WHAT IS NOT A PRODUCT ━━━
 Return is_product: false for:
-• People, body parts, animals, pets, plants/trees, furniture
+• People, body parts, animals, pets, plants/trees, furniture IN THE SCENE
 • Empty shelf or empty floor with no product visible
 • Wide-angle shot of entire shop interior (no single product in focus)
-• Product brochure/flyer/catalogue printed on paper (it's paper, not the product)
+• A promotional flyer, brochure, or advertisement leaflet that is NOT itself for sale
 • Clearly damaged/used/empty container (no longer sellable)
-DO NOT return false just because there is no label. Any item a shop would sell = is_product: true.
+
+IMPORTANT EXCEPTIONS — these MUST return is_product: true:
+• A BOOK, TEXTBOOK, NOTEBOOK, or MAGAZINE being held or displayed on a shelf — even if its cover
+  shows photos of people (Gandhi, Kennedy, etc.) — the book is the product being sold
+• The BACK COVER of a book listing other publications by the same publisher — it IS a book product
+  (look for ISBN barcode, price printed on cover, or publisher name to confirm it's a book)
+• Any item a shop would sell, even without a label = is_product: true
+DO NOT return false just because there is no label or because people's faces appear on a product cover.
 
 ━━━ JSON OUTPUT ━━━
 Return ONLY valid JSON (no markdown, no code fences):
