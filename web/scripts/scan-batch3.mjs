@@ -195,6 +195,48 @@ const TESTS = [
   ['Cat in bush (REJECT)', '39-cat-reject.jpg', false],
   ['Potted plant (REJECT)', '40-plant-reject.jpg', false],
   ['Wide shop interior (REJECT)', '22-shop-reject.jpg', false],
+  // === Personal care sub-types ===
+  ['Dove shampoo bottle', '230-shampoo.jpg', true],
+  ['Hair conditioner bottle', '231-conditioner.jpg', true],
+  ['Face wash / cleanser bottle', '232-face-wash.jpg', true],
+  ['Sunscreen bottle (SPF)', '233-sunscreen.jpg', true],
+  ['Deodorant / body spray', '234-deodorant.jpg', true],
+  ['Nail polish (matte finish)', '235-nail-polish.jpg', true],
+  // === Sports sub-types ===
+  ['Kashmir willow cricket bat', '240-cricket-bat.jpg', true],
+  ['Red leather cricket ball', '241-cricket-ball.jpg', true],
+  ['Badminton racket (aluminium)', '242-badminton.jpg', true],
+  ['Badminton shuttlecock (feather)', '243-shuttlecock.jpg', true],
+  ['Football / soccer ball', '244-football.jpg', true],
+  ['Basketball (orange)', '245-basketball.jpg', true],
+  ['Carrom board (Indian board game)', '246-carrom.jpg', true],
+  ['Chess set (plastic pieces)', '247-chess.jpg', true],
+  ['Table tennis bat (DHS paddle)', '248-tt-bat.jpg', true],
+  // === Tools sub-types ===
+  ['Phillips screwdriver (tool)', '250-screwdriver.jpg', true],
+  ['Combination pliers (Bahco)', '251-pliers.jpg', true],
+  ['Adjustable wrench / spanner', '252-wrench.jpg', true],
+  ['Tape measure (retractable)', '253-tape-measure.jpg', true],
+  // === Kitchen sub-types ===
+  ['Cast iron skillet / kadai', '260-kadai.jpg', true],
+  ['Tawa / flat griddle pan', '261-tawa.jpg', true],
+  ['Tiffin / steel lunch box', '262-lunchbox.jpg', true],
+  ['Thermos / insulated flask', '263-thermos.jpg', true],
+  // === Electronics sub-types ===
+  ['Computer keyboard (USB)', '270-keyboard.jpg', true],
+  ['USB wired optical mouse', '271-mouse.jpg', true],
+  ['USB pen drive / flash drive', '272-pendrive.jpg', true],
+  ['Bluetooth speaker (UE Boom)', '273-speaker.jpg', true],
+  ['Android tablet (Samsung)', '274-tablet.jpg', true],
+  // === Food sub-types ===
+  ['Egg carton (product retail)', '280-eggs.jpg', true],
+  ['Tea bags (packaged)', '282-tea.jpg', true],
+  // === Stationery sub-types ===
+  ['Gel pen (blue, ballpoint)', '290-gel-pen.jpg', true],
+  ['School exercise notebook', '291-notebook.jpg', true],
+  // === Toys ===
+  ['LEGO building blocks', '301-lego.jpg', true],
+  ['Jigsaw puzzle (in progress)', '302-jigsaw.jpg', true],
 ];
 
 console.log('\n╔══════════════════════════════════════════════════════════╗');
