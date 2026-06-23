@@ -66,18 +66,18 @@ async function scanBuf(buf) {
 }
 
 const TESTS = [
-  ['Coconut whole (Kerala staple)', 'coconut whole fruit', '23-coconut.jpg', true],
+  ['Coconut whole (Kerala staple)', 'coconut palm fruit husk brown', '23-coconut.jpg', true],
   ['Bitter gourd (karela)', 'bitter gourd vegetable market', '24-bittergourd.jpg', true],
   ['Ginger root loose', 'ginger root fresh market', '25-ginger.jpg', true],
   ['Jackfruit whole tropical', 'jackfruit whole tropical fruit', '26-jackfruit.jpg', true],
   ['Cardamom pods spice', 'cardamom pods green spice', '27-cardamom.jpg', true],
   ['Black pepper pile', 'black pepper corns pile Kerala', '28-pepper.jpg', true],
-  ['Red lentils dal pile', 'lentils red dal pulses', '29-dal.jpg', true],
+  ['Red lentils dal pile', 'red lentils dry raw masoor dal uncooked', '29-dal.jpg', true],
   ['White rice grains', 'rice grains white pile', '30-rice.jpg', true],
   ['Lipstick cosmetics', 'lipstick product beauty', '31-lipstick.jpg', true],
   ['Nail polish bottle', 'nail polish bottle color beauty', '32-nailpolish.jpg', true],
   ['Dove shampoo bottle', 'Dove shampoo bottle personal care', '33-shampoo.jpg', true],
-  ['Colgate toothpaste', 'Colgate toothpaste tube', '34-colgate.jpg', true],
+  ['Colgate toothpaste', 'Colgate toothpaste tube red white dental', '34-colgate.jpg', true],
   ['Sugar packaged bag', 'sugar white packaged 1kg', '35-sugar.jpg', true],
   ['Tea leaves Red Label', 'tea leaves Red Label Brooke Bond', '36-tea.jpg', true],
   ['Spiral notebook', 'spiral notebook stationery school', '37-notebook.jpg', true],
@@ -154,9 +154,12 @@ if (failures.length) {
   });
 }
 
-const failPath = `${os.tmpdir()}/scan-failures.json`;
-const prev = (() => {
-  try { return JSON.parse(fs.readFileSync(failPath, 'utf8')); } catch { return []; }
-})();
-fs.writeFileSync(failPath, JSON.stringify([...prev, ...failures], null, 2));
+if (failures.length) {
+  const failPath = `test image/scan-failures.json`;
+  const prev = (() => {
+    try { return JSON.parse(fs.readFileSync(failPath, 'utf8')); } catch { return []; }
+  })();
+  fs.writeFileSync(failPath, JSON.stringify([...prev, ...failures], null, 2));
+  console.log('\nFailures saved to:', failPath);
+}
 console.log('\nImages saved to: test image/');
