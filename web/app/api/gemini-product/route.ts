@@ -125,7 +125,7 @@ Return ONLY valid JSON (no markdown, no code fences):
   "is_product": true or false,
   "name": "specific retail name — brand + model/variant/size if readable; else item type like 'Green Chillies' or 'Basmati Rice 1kg'; never leave empty if product identified",
   "brand": "brand or maker — empty string if genuinely none visible",
-  "category": "choose EXACTLY ONE from this shop's category list below; empty string if none truly fits — NEVER force a wrong category",
+  "category": "choose EXACTLY ONE from this shop's category list below; empty string if none truly fits — NEVER force a wrong category. CATEGORY RULES: a book/novel/textbook/magazine → pick the Books category (not Gift Items, not Stationery). A vegetable/fruit → Fresh Produce. A medicine/tablet/syrup → Medicines. A phone/laptop/gadget → Electronics.",
   "unit": "piece | kg | g | ml | litre | pack — use kg/g for produce and loose grain; piece for single items",
   "description": "1-2 plain sentences about what the product IS and what it does",
   "price": "MRP or selling price — digits only e.g. '899'; empty string if no price is visible anywhere. NEVER guess",
@@ -134,12 +134,30 @@ Return ONLY valid JSON (no markdown, no code fences):
   "uncertain_fields": ["field names you are NOT confident about — e.g. ['name', 'price']"]
 }
 
-ADDITIONAL ATTRIBUTES — add ONLY what is relevant and readable for THIS product type:
-- Clothing/footwear only: "gender" (Men|Women|Kids|Unisex), "fabric", "color", "sizes"
-- Medicine/health only: "composition", "strength", "form" (tablet|syrup|cream|powder|drops), "schedule", "manufacturer"
-- Electronics only: "model_number", "warranty_months", "compatible_with"
-- Packaged food / fresh produce only: "is_veg" (Veg|Non-Veg|Egg|Vegan), "allergens", "weight_g"
-Never add an attribute unless you can actually read or confidently identify it.${hint}`;
+━━━ PRODUCT-TYPE ATTRIBUTES (STRICT WHITELIST) ━━━
+Add EXTRA fields ONLY from the list for THIS product type. NEVER add fields from another type.
+
+BOOKS / TEXTBOOKS / MAGAZINES — allowed extras: "author", "publisher", "language", "edition", "isbn"
+  ✗ DO NOT add: color, gender, fabric, model_number, composition, is_veg — books have none of these
+
+CLOTHING / FOOTWEAR — allowed extras: "gender" (Men|Women|Kids|Unisex), "fabric", "color", "sizes"
+  ✗ DO NOT add: author, composition, model_number, is_veg
+
+MEDICINES / HEALTH PRODUCTS — allowed extras: "composition", "strength", "form" (tablet|syrup|cream|powder|drops|capsule), "manufacturer"
+  ✗ DO NOT add: color, gender, author, model_number
+
+ELECTRONICS / GADGETS — allowed extras: "model_number", "warranty_months", "compatible_with", "color"
+  ✗ DO NOT add: author, composition, gender (unless product is specifically for men/women)
+
+PACKAGED FOOD / FRESH PRODUCE / SPICES / DAIRY — allowed extras: "is_veg" (Veg|Non-Veg|Egg|Vegan), "weight_g", "allergens"
+  ✗ DO NOT add: color, gender, author, model_number
+
+KITCHEN / HOUSEHOLD / TOOLS / STATIONERY / SPORTS / PUJA ITEMS — NO extra fields beyond the base JSON.
+  ✗ DO NOT add: color, gender, author, model_number, composition, is_veg
+
+RULE: NEVER add "color" or "gender" to any product that is not Clothing or Electronics.
+RULE: NEVER add "author" or "publisher" to any product that is not a Book or Magazine.
+RULE: If unsure of the product type, add NO extra fields at all.${hint}`;
 }
 
 export async function POST(req: NextRequest) {
