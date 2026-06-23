@@ -126,7 +126,7 @@ const TESTS = [
   { g: 'Branded', label: 'Maggi noodles packet', q: 'Maggi noodles packet India', ok: { isProduct: true, notEmpty: true } },
   { g: 'Branded', label: 'Cadbury chocolate bar', q: 'Cadbury Dairy Milk chocolate bar', ok: { isProduct: true, notEmpty: true } },
   { g: 'Branded', label: 'Coca-Cola can', q: 'Coca-Cola can drink', ok: { isProduct: true, notEmpty: true } },
-  { g: 'Branded', label: 'Energy drink can', q: 'Rockstar energy drink can', ok: { isProduct: true, notEmpty: true } },
+  { g: 'Branded', label: 'Energy drink can', q: 'Red Bull energy drink can aluminum', ok: { isProduct: true, notEmpty: true } },
   { g: 'Branded', label: 'Shampoo bottle', q: 'Dove shampoo bottle', ok: { isProduct: true, notEmpty: true } },
 
   // ═ FRESH PRODUCE (loose, no label) ═
