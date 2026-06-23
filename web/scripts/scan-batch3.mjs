@@ -145,6 +145,14 @@ const TESTS = [
   ['Ghee (clarified butter jar)', '187-ghee.jpg', true],
   ['Wheat grains', '186-wheat.jpg', true],
   ['Table salt (iodised)', '190-salt.jpg', true],
+  ['Coconut milk (tetra pack)', '200-coconut-milk.jpg', true],
+  // === Kerala / Indian daily-use ===
+  ['Sewing thread roll', '191-thread.jpg', true],
+  ['Earthen clay pot (Kerala)', '193-clay-pot.jpg', true],
+  ['Medicine blister strip', '194-medicine-strip.jpg', true],
+  ['Bindi stickers (puja/fashion)', '196-bindis.jpg', true],
+  ['Earthenware pots — Kerala shop', '197-clay-kerala.jpg', true],
+  ['Kumkum powder (red sindoor)', '199-kumkum.jpg', true],
   // === Indian / Kerala specific ===
   ['Coconut oil with raw coconut', '175-coconut-oil.jpg', true],
   ['Camphor cubes (puja item)', '177-camphor.jpg', true],
