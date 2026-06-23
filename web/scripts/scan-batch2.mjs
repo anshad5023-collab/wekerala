@@ -3,6 +3,7 @@
  * Loose produce, spices, fish varieties, fancy shop products.
  */
 import fs from 'fs';
+import os from 'os';
 
 // Keys come from GEMINI_DIRECT_KEY env var (same as test-scan.mjs)
 // Usage: GEMINI_DIRECT_KEY=key1,key2 node web/scripts/scan-batch2.mjs
@@ -26,7 +27,7 @@ async function getCommons(query) {
   const url = 'https://commons.wikimedia.org/w/api.php?action=query&generator=search' +
     '&gsrsearch=' + encodeURIComponent(query) + '&gsrnamespace=6&gsrlimit=15' +
     '&prop=imageinfo&iiprop=url|mime&iiurlwidth=500&format=json';
-  const DISH_RX = /curry|mutton|biryani|cooked|fried|recipe|plate|bowl|meal|restaurant|cafe|prepared|stew|soup|salad|sauce|garnish|_curry|_masala|_fry|_rice_dish|skewer|grill|bbq|barbecue|roast|baked|roasted|grilled|smoked|_food_|street_food/i;
+  const DISH_RX = /curry|mutton|biryani|cooked|fried|recipe|plate|bowl|meal|restaurant|cafe|prepared|stew|soup|salad|sauce|garnish|_curry|_masala|_fry|_rice_dish|skewer|grill|bbq|barbecue|roast|baked|roasted|grilled|smoked|_food_|street_food|cake|pastry|dessert|pudding|pizza|burger|sandwich/i;
   try {
     const d = await fetchRetry(url).then(r => r.json());
     for (const p of Object.values(d.query?.pages ?? {})) {
@@ -83,7 +84,7 @@ const TESTS = [
   ['Ballpoint pen', 'ballpoint pen write', '38-pen.jpg', true],
   ['Cat portrait (REJECT)', 'domestic cat pet portrait', '39-cat-reject.jpg', false],
   ['Potted plant (REJECT)', 'potted houseplant indoor', '40-plant-reject.jpg', false],
-  ['Prawns seafood fresh', 'prawns shrimp fresh seafood market', '42-prawns.jpg', true],
+  ['Prawns seafood fresh', 'prawns raw fresh seafood uncooked', '42-prawns.jpg', true],
   ['Sardine fish fresh', 'sardine fish fresh market India', '43-sardine.jpg', true],
   ['Cough syrup bottle', 'cough syrup medicine bottle', '44-syrup.jpg', true],
   // Kerala shop edge case: cooked dish — shop owner accidentally photographed food
@@ -153,8 +154,9 @@ if (failures.length) {
   });
 }
 
+const failPath = `${os.tmpdir()}/scan-failures.json`;
 const prev = (() => {
-  try { return JSON.parse(fs.readFileSync('/tmp/scan-failures.json', 'utf8')); } catch { return []; }
+  try { return JSON.parse(fs.readFileSync(failPath, 'utf8')); } catch { return []; }
 })();
-fs.writeFileSync('/tmp/scan-failures.json', JSON.stringify([...prev, ...failures], null, 2));
+fs.writeFileSync(failPath, JSON.stringify([...prev, ...failures], null, 2));
 console.log('\nImages saved to: test image/');
