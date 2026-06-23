@@ -41,6 +41,9 @@ The owner pointed their phone at ONE product. It may be:
 7. PRODUCT FACING AWAY — only the back/side visible; read barcode text, ingredients brand, or describe generically
 8. MEDICINE/BLISTER PACK — may show only blisters; identify medicine name if visible
 9. STACKED PRODUCTS — multiple units of the same item; treat as one product type
+10. COMBO / BUNDLE PACK — "2+1 free", "Family Pack", "Value Pack" → name it as sold:
+    e.g. "Lux Soap 3-Pack" or "Parle-G Family Pack 800g"
+11. HAND-HELD / LIFTED UP — owner holding product toward camera; identify the product, ignore the hand
 
 ━━━ MULTIPLE PRODUCTS IN FRAME ━━━
 When you can see more than one product:
