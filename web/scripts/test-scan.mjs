@@ -189,12 +189,14 @@ const TESTS = [
 
 // ─── COMMONS IMAGE RESOLVER ───────────────────────────────────────────────────
 // Returns a 500px thumbnail URL for the first usable photo matching the query.
-// Skips SVG/PNG logos/icons/diagrams (we want real photos).
-const DOC_RX = /\.pdf|\.tif|\bpage\d|djvu|manuscript|\bIA[_ ]/i;       // document/book scans — never products
-const LOGO_RX = /logo|icon|diagram|\bmap\b|chart|svg/i;               // logos/diagrams
+// Skips SVG/PNG logos/icons/diagrams/cooked dishes (we want real sellable products).
+const DOC_RX  = /\.pdf|\.tif|\bpage\d|djvu|manuscript|\bIA[_ ]/i;   // document/book scans
+const LOGO_RX = /logo|icon|diagram|\bmap\b|chart|svg/i;              // logos/diagrams
+// Cooked dishes, prepared food & wide-angle scenes — too often grabbed for spice/produce queries
+const DISH_RX = /curry|mutton|biryani|cooked|fried|recipe|plate|bowl|dish|meal|restaurant|cafe|prepared|masala_dish|cooking_in|cook_and|stew|soup|salad|sauce|garnish|_curry|_masala|_fry|_rice_dish/i;
 async function commonsImageUrl(query) {
   const api = `https://commons.wikimedia.org/w/api.php?action=query&generator=search` +
-    `&gsrsearch=${encodeURIComponent(query)}&gsrnamespace=6&gsrlimit=20` +
+    `&gsrsearch=${encodeURIComponent(query)}&gsrnamespace=6&gsrlimit=25` +
     `&prop=imageinfo&iiprop=url|mime&iiurlwidth=500&format=json`;
   try {
     const buf = await fetchBuffer(api, 600_000);
@@ -203,8 +205,9 @@ async function commonsImageUrl(query) {
       .map(p => p.imageinfo?.[0])
       .filter(Boolean)
       .filter(ii => /jpe?g/i.test(ii.mime ?? '') || /\.jpe?g/i.test(ii.thumburl ?? ''))
-      .filter(ii => !DOC_RX.test(ii.thumburl ?? ''));   // always drop document scans
-    // tier 1: prefer non-logo photos; tier 2: any remaining jpeg
+      .filter(ii => !DOC_RX.test(ii.thumburl ?? ''))
+      .filter(ii => !DISH_RX.test(ii.thumburl ?? ''));   // exclude cooked dishes
+    // tier 1: prefer photos without logos/diagrams; tier 2: any remaining jpeg
     const strict = jpegs.filter(ii => !LOGO_RX.test(ii.thumburl ?? ''));
     return (strict[0] ?? jpegs[0])?.thumburl ?? null;
   } catch {
