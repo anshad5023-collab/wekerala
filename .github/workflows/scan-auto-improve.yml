@@ -1,0 +1,137 @@
+name: scan-auto-improve
+# Runs every 6 hours. Tests the AI scan with 47 Kerala shop scenarios.
+# On failures, asks Gemini itself to improve the prompt, validates the fix,
+# and commits the improved prompt so Vercel auto-deploys it.
+
+on:
+  schedule:
+    - cron: '0 0,6,12,18 * * *'   # 00:00 / 06:00 / 12:00 / 18:00 UTC
+  workflow_dispatch:                 # run manually from the GitHub Actions tab
+
+jobs:
+  test-and-improve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # ── ROUND 1: run all 47 scenarios ─────────────────────────────────────
+      - name: Run scan tests (round 1)
+        id: test1
+        env:
+          GEMINI_DIRECT_KEY: "${{ secrets.GEMINI_API_KEY_2 }},${{ secrets.GEMINI_API_KEY_3 }}"
+        run: |
+          node web/scripts/test-scan.mjs 2>&1 | tee /tmp/scan-round1.txt
+          PASS=$(grep -oP '\d+ passed' /tmp/scan-round1.txt | grep -oP '\d+' | head -1 || echo 0)
+          FAIL=$(grep -oP '\d+ failed' /tmp/scan-round1.txt | grep -oP '\d+' | head -1 || echo 0)
+          echo "pass=${PASS:-0}" >> "$GITHUB_OUTPUT"
+          echo "fail=${FAIL:-0}" >> "$GITHUB_OUTPUT"
+        continue-on-error: true
+
+      - name: Print round-1 summary
+        run: tail -40 /tmp/scan-round1.txt || true
+
+      # ── AUTO-IMPROVE: if failures found, ask Gemini to fix the prompt ─────
+      - name: Auto-improve prompt on failures
+        id: improve
+        if: steps.test1.outputs.fail != '0' && steps.test1.outputs.fail != ''
+        env:
+          GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY_3 }}"
+          FAILURES_FILE: /tmp/scan-round1.txt
+          ROUTE_FILE: web/app/api/gemini-product/route.ts
+          GITHUB_OUTPUT: "${{ env.GITHUB_OUTPUT }}"
+        run: node web/scripts/auto-improve-prompt.mjs
+        continue-on-error: true
+
+      # ── ROUND 2: re-test with the improved prompt ─────────────────────────
+      - name: Re-test after improvement
+        id: test2
+        if: steps.improve.outputs.improved == 'true'
+        env:
+          GEMINI_DIRECT_KEY: "${{ secrets.GEMINI_API_KEY_2 }},${{ secrets.GEMINI_API_KEY_3 }}"
+        run: |
+          node web/scripts/test-scan.mjs 2>&1 | tee /tmp/scan-round2.txt
+          PASS=$(grep -oP '\d+ passed' /tmp/scan-round2.txt | grep -oP '\d+' | head -1 || echo 0)
+          FAIL=$(grep -oP '\d+ failed' /tmp/scan-round2.txt | grep -oP '\d+' | head -1 || echo 0)
+          echo "pass=${PASS:-0}" >> "$GITHUB_OUTPUT"
+          echo "fail=${FAIL:-0}" >> "$GITHUB_OUTPUT"
+        continue-on-error: true
+
+      # ── REVERT if round-2 is worse ─────────────────────────────────────────
+      - name: Revert if round-2 is worse
+        if: |
+          steps.improve.outputs.improved == 'true' &&
+          steps.test2.outputs.fail > steps.test1.outputs.fail
+        run: |
+          git checkout -- web/app/api/gemini-product/route.ts
+          echo "Reverted prompt — round-2 had more failures than round-1"
+
+      # ── COMMIT improved prompt ─────────────────────────────────────────────
+      - name: Commit improved prompt
+        if: |
+          steps.improve.outputs.improved == 'true' &&
+          steps.test2.outputs.fail <= steps.test1.outputs.fail
+        run: |
+          git config user.name  "weKerala Scan Bot"
+          git config user.email "scan-bot@wekerala.app"
+          git add web/app/api/gemini-product/route.ts
+          if git diff --staged --quiet; then
+            echo "No change to commit"
+          else
+            git commit -m "auto(scan): prompt improved — ${{ steps.test2.outputs.pass }} pass / ${{ steps.test2.outputs.fail }} fail (was ${{ steps.test1.outputs.pass }}/${{ steps.test1.outputs.fail }})"
+            git push
+          fi
+
+      # ── SAVE scan history ──────────────────────────────────────────────────
+      - name: Save scan history
+        run: node web/scripts/save-scan-history.mjs
+
+      - name: Commit scan history
+        run: |
+          git config user.name  "weKerala Scan Bot"
+          git config user.email "scan-bot@wekerala.app"
+          git add web/scripts/scan-history.json
+          if git diff --staged --quiet; then
+            echo "No history change"
+          else
+            git commit -m "chore(scan): scan-history.json [skip ci]"
+            git push
+          fi
+
+      # ── GITHUB ACTIONS SUMMARY ─────────────────────────────────────────────
+      - name: Write job summary
+        if: always()
+        run: |
+          R1_PASS="${{ steps.test1.outputs.pass }}"
+          R1_FAIL="${{ steps.test1.outputs.fail }}"
+          R2_PASS="${{ steps.test2.outputs.pass }}"
+          R2_FAIL="${{ steps.test2.outputs.fail }}"
+          IMPROVED="${{ steps.improve.outputs.improved }}"
+          {
+            echo "## weKerala Scan Auto-Improve — $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo ""
+            echo "### Round 1"
+            echo "| Pass | Fail |"
+            echo "|------|------|"
+            echo "| ${R1_PASS:-?} | ${R1_FAIL:-?} |"
+            if [ "$IMPROVED" = "true" ]; then
+              echo ""
+              echo "### Round 2 (after auto-improve)"
+              echo "| Pass | Fail |"
+              echo "|------|------|"
+              echo "| ${R2_PASS:-?} | ${R2_FAIL:-?} |"
+            fi
+            echo ""
+            echo '```'
+            tail -30 /tmp/scan-round1.txt 2>/dev/null || echo "(no output)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
