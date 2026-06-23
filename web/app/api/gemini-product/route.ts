@@ -30,7 +30,8 @@ function buildPrompt(shopType: string): string {
 ━━━ WHAT THE PHOTO MIGHT SHOW ━━━
 The owner pointed their phone at ONE product. It may be:
 1. LABELLED PRODUCT — brand + name visible (Parle-G, Lux Soap, POCO M6 5G, Casio calculator)
-2. PRODUCT IN BOX — identify what is INSIDE the box, not the box itself
+2. PRODUCT IN BOX — read the box label to name the product (the sealed box IS what the shop sells):
+   e.g. POCO M6 5G box → name="POCO M6 5G", Colgate toothpaste box → name="Colgate Total Toothpaste"
 3. PLAIN TRANSPARENT BAG — very common in Kerala; identify what is INSIDE the bag:
    e.g. rice, green chillies, coconut oil, sugar, spices, lemon
 4. LOOSE/BULK ITEM — no packaging at all; identify by visual type:
