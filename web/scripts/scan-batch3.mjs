@@ -161,6 +161,10 @@ const TESTS = [
   ['Cricket bat (sports)', '179-cricket-bat.jpg', true],
   ['Playing cards deck', '180-cards.jpg', true],
   ['Talcum powder tin', '181-talc.jpg', true],
+  // === Kitchen & home appliances ===
+  ['Alarm clock (digital)', '203-alarm-clock.jpg', true],
+  ['Wall clock (round)', '204-wall-clock.jpg', true],
+  ['Pressure cooker (steel)', '206-pressure-cooker.jpg', true],
   // === More stationery / household ===
   ['KitKat chocolate bar', '162-kitkat.jpg', true],
   ['Scotch / sticky tape roll', '167-tape.jpg', true],
