@@ -107,6 +107,13 @@ const TESTS = [
   ['Scissors (stationery)', '131-scissors.jpg', true],
   ['Bread loaf (bakery)', '105-bread.jpg', true],
   ['Water bottle (PET)', '99-water.jpg', true],
+  // === More Kerala specifics ===
+  ['Vicks VapoRub jar', '96-vicks.jpg', true],
+  ['Tamarind fruit (raw)', '132-tamarind.jpg', true],
+  ['Byadgi red chilli powder', '134-chilli-powder.jpg', true],
+  ['Tender coconut (green)', '135-tender-coconut.jpg', true],
+  ['Indian rupee notes (REJECT)', '136-money-reject.jpg', false],
+  ['Torch / flashlight', '129-torch.jpg', true],
   // === REJECT cases (AI must say is_product:false) ===
   ['Dog portrait (REJECT)', '89-dog-reject.jpg', false],
   ['Cat in bush (REJECT)', '39-cat-reject.jpg', false],
