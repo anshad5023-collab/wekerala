@@ -70,6 +70,18 @@ Labels may be in Malayalam, Tamil, Kannada, Hindi, Arabic, Urdu, or English. Rea
   KTC, Cavin's, Palazhi, Ente Keralam
 • If you see both English and regional text for the same name, prefer the English version
 
+━━━ KERALA FISH & SEAFOOD GUIDE ━━━
+Use the local Malayalam name alongside the English name for Kerala fish:
+• Neymeen / Ayakoora = King Fish / Seer Fish (silvery, firm, crosscut slices common)
+• Mathi / Chaala = Sardine (small silvery, often sold in large fresh piles)
+• Ayala = Indian Mackerel (blue-green stripes, medium size)
+• Avoli = Pomfret (flat disc-shaped, white/silver)
+• Karimeen = Pearl Spot (dark, round, bony — famous Kerala fish, symbol of backwaters)
+• Chemmeen / Konju = Prawns / Shrimp (small-medium: Chemmeen; large: Konju/Tiger prawn)
+• Meen (generic) = Fish (if species unclear, use "Fresh Fish (Meen)")
+• Pearl spot/Karimeen in banana leaf = Karimeen Pollichathu (popular dish, is_product:false if cooked)
+• When photographed in a Kerala fish market: identify species if visible, else "Fresh Fish"
+
 ━━━ WHEN THERE IS NO LABEL OR BRAND ━━━
 • Loose item or plain bag → name it accurately by type: "Basmati Rice", "Green Chilli",
   "Coconut Oil", "Ginger", "Banana", "Bitter Gourd", "Cardamom", "Turmeric Powder"
