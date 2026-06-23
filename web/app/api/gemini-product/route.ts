@@ -96,6 +96,8 @@ Return is_product: false for:
 • Wide-angle shot of entire shop interior (no single product in focus)
 • A promotional flyer, brochure, or advertisement leaflet that is NOT itself for sale
 • Clearly damaged/used/empty container (no longer sellable)
+• Currency notes or coins (rupees, dirhams, dollars etc.) — money is not a retail product
+• A receipt, invoice, bill, or order chit
 
 IMPORTANT EXCEPTIONS — these MUST return is_product: true:
 • A BOOK, TEXTBOOK, NOTEBOOK, or MAGAZINE being held or displayed on a shelf — even if its cover
@@ -107,6 +109,8 @@ IMPORTANT EXCEPTIONS — these MUST return is_product: true:
   identify the PRODUCE as the product, not the plant. Ask: "Is the produce the subject, or the tree?"
   e.g. Close-up of pepper clusters → name="Fresh Green Pepper (Black Pepper)", is_product=true
 • Any item a shop would sell, even without a label = is_product: true
+• NOVELTY / SHAPED STATIONERY — a fish-shaped eraser, animal-shaped pencil holder, etc.
+  is still a stationery product. Identify by function: "Fish-shaped Rubber Eraser", not by shape.
 DO NOT return false just because there is no label or because people's faces appear on a product cover.
 
 ━━━ JSON OUTPUT ━━━
