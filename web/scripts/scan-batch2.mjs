@@ -26,7 +26,7 @@ async function getCommons(query) {
   const url = 'https://commons.wikimedia.org/w/api.php?action=query&generator=search' +
     '&gsrsearch=' + encodeURIComponent(query) + '&gsrnamespace=6&gsrlimit=15' +
     '&prop=imageinfo&iiprop=url|mime&iiurlwidth=500&format=json';
-  const DISH_RX = /curry|mutton|biryani|cooked|fried|recipe|plate|bowl|meal|restaurant|cafe|prepared|stew|soup|salad|sauce|garnish|_curry|_masala|_fry|_rice_dish/i;
+  const DISH_RX = /curry|mutton|biryani|cooked|fried|recipe|plate|bowl|meal|restaurant|cafe|prepared|stew|soup|salad|sauce|garnish|_curry|_masala|_fry|_rice_dish|skewer|grill|bbq|barbecue|roast|baked|roasted|grilled|smoked|_food_|street_food/i;
   try {
     const d = await fetchRetry(url).then(r => r.json());
     for (const p of Object.values(d.query?.pages ?? {})) {

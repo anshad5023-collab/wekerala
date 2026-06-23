@@ -90,6 +90,10 @@ IMPORTANT EXCEPTIONS — these MUST return is_product: true:
   shows photos of people (Gandhi, Kennedy, etc.) — the book is the product being sold
 • The BACK COVER of a book listing other publications by the same publisher — it IS a book product
   (look for ISBN barcode, price printed on cover, or publisher name to confirm it's a book)
+• FRESH PRODUCE ON ITS PLANT — if the photo CLEARLY shows harvested or ready-to-harvest produce
+  as the subject (e.g. pepper clusters on vine, coconuts on a branch, bananas in a bunch close-up),
+  identify the PRODUCE as the product, not the plant. Ask: "Is the produce the subject, or the tree?"
+  e.g. Close-up of pepper clusters → name="Fresh Green Pepper (Black Pepper)", is_product=true
 • Any item a shop would sell, even without a label = is_product: true
 DO NOT return false just because there is no label or because people's faces appear on a product cover.
 

@@ -202,7 +202,7 @@ const TESTS = [
 const DOC_RX  = /\.pdf|\.tif|\bpage\d|djvu|manuscript|\bIA[_ ]/i;   // document/book scans
 const LOGO_RX = /logo|icon|diagram|\bmap\b|chart|svg/i;              // logos/diagrams
 // Cooked dishes, prepared food & wide-angle scenes — too often grabbed for spice/produce queries
-const DISH_RX = /curry|mutton|biryani|cooked|fried|recipe|plate|bowl|dish|meal|restaurant|cafe|prepared|masala_dish|cooking_in|cook_and|stew|soup|salad|sauce|garnish|_curry|_masala|_fry|_rice_dish/i;
+const DISH_RX = /curry|mutton|biryani|cooked|fried|recipe|plate|bowl|dish|meal|restaurant|cafe|prepared|masala_dish|cooking_in|cook_and|stew|soup|salad|sauce|garnish|_curry|_masala|_fry|_rice_dish|skewer|grill|bbq|barbecue|roast|baked|roasted|grilled|smoked|_food_|street_food/i;
 async function commonsImageUrl(query) {
   const api = `https://commons.wikimedia.org/w/api.php?action=query&generator=search` +
     `&gsrsearch=${encodeURIComponent(query)}&gsrnamespace=6&gsrlimit=25` +
