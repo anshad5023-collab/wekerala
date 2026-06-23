@@ -134,30 +134,103 @@ Return ONLY valid JSON (no markdown, no code fences):
   "uncertain_fields": ["field names you are NOT confident about — e.g. ['name', 'price']"]
 }
 
-━━━ PRODUCT-TYPE ATTRIBUTES (STRICT WHITELIST) ━━━
-Add EXTRA fields ONLY from the list for THIS product type. NEVER add fields from another type.
+━━━ PRODUCT-TYPE ATTRIBUTES — EXACT PER-PRODUCT WHITELIST ━━━
+Look at what the product IS and add ONLY the fields listed for that exact type.
+NEVER mix attributes from different product types.
 
-BOOKS / TEXTBOOKS / MAGAZINES — allowed extras: "author", "publisher", "language", "edition", "isbn"
-  ✗ DO NOT add: color, gender, fabric, model_number, composition, is_veg — books have none of these
+📚 BOOK / NOVEL / TEXTBOOK / STORYBOOK:
+  Add: "author" (writer name), "publisher" (e.g. DC Books, Oxford), "language" (e.g. Malayalam, English), "edition", "isbn"
+  ✗ NEVER add: color, gender, fabric, model_number, composition, is_veg, warranty_months
 
-CLOTHING / FOOTWEAR — allowed extras: "gender" (Men|Women|Kids|Unisex), "fabric", "color", "sizes"
-  ✗ DO NOT add: author, composition, model_number, is_veg
+📰 MAGAZINE / NEWSPAPER / PERIODICAL:
+  Add: "publisher", "language", "frequency" (e.g. Monthly, Weekly)
+  ✗ NEVER add: color, gender, author (of article), model_number
 
-MEDICINES / HEALTH PRODUCTS — allowed extras: "composition", "strength", "form" (tablet|syrup|cream|powder|drops|capsule), "manufacturer"
-  ✗ DO NOT add: color, gender, author, model_number
+👕 CLOTHING (shirt, t-shirt, saree, lungi, kurta, dress, trouser):
+  Add: "gender" (Men|Women|Kids|Unisex), "fabric" (Cotton|Polyester|Silk|Linen), "color", "sizes" (e.g. S/M/L/XL)
+  ✗ NEVER add: author, model_number, composition, is_veg
 
-ELECTRONICS / GADGETS — allowed extras: "model_number", "warranty_months", "compatible_with", "color"
-  ✗ DO NOT add: author, composition, gender (unless product is specifically for men/women)
+👟 FOOTWEAR (shoe, sandal, chappal, slipper, boot):
+  Add: "gender" (Men|Women|Kids|Unisex), "color", "sizes" (e.g. 6/7/8/9/10), "material" (Leather|Rubber|Synthetic)
+  ✗ NEVER add: author, model_number, composition, is_veg, fabric
 
-PACKAGED FOOD / FRESH PRODUCE / SPICES / DAIRY — allowed extras: "is_veg" (Veg|Non-Veg|Egg|Vegan), "weight_g", "allergens"
-  ✗ DO NOT add: color, gender, author, model_number
+📱 MOBILE PHONE / SMARTPHONE:
+  Add: "model_number", "color", "warranty_months", "compatible_with" (e.g. Android)
+  ✗ NEVER add: author, gender, composition, is_veg
 
-KITCHEN / HOUSEHOLD / TOOLS / STATIONERY / SPORTS / PUJA ITEMS — NO extra fields beyond the base JSON.
-  ✗ DO NOT add: color, gender, author, model_number, composition, is_veg
+💻 LAPTOP / TABLET / DESKTOP:
+  Add: "model_number", "color", "warranty_months"
+  ✗ NEVER add: author, gender, composition, is_veg
 
-RULE: NEVER add "color" or "gender" to any product that is not Clothing or Electronics.
-RULE: NEVER add "author" or "publisher" to any product that is not a Book or Magazine.
-RULE: If unsure of the product type, add NO extra fields at all.${hint}`;
+⌨️ COMPUTER ACCESSORY (keyboard, mouse, pen drive, hard disk, monitor, speaker, webcam):
+  Add: "model_number", "compatible_with" (e.g. USB, Windows/Mac), "color", "warranty_months"
+  ✗ NEVER add: author, gender, composition, is_veg
+
+🎧 EARPHONES / HEADPHONES / EARBUDS:
+  Add: "model_number", "compatible_with" (e.g. 3.5mm / Bluetooth), "color", "warranty_months"
+  ✗ NEVER add: author, gender, composition, is_veg
+
+📺 TV / FAN / ELECTRIC APPLIANCE (iron, mixer, fridge, washing machine):
+  Add: "model_number", "warranty_months", "wattage"
+  ✗ NEVER add: author, gender, composition, is_veg, color (unless clearly visible on product)
+
+💊 MEDICINE — TABLET / CAPSULE / BLISTER PACK:
+  Add: "composition" (active ingredient e.g. Paracetamol 500mg), "strength", "form": "tablet", "manufacturer"
+  ✗ NEVER add: color, gender, author, is_veg, model_number
+
+🍶 MEDICINE — SYRUP / DROPS / LIQUID:
+  Add: "composition", "form": "syrup" or "drops", "manufacturer"
+  ✗ NEVER add: color, gender, author, is_veg, model_number
+
+🧴 MEDICINE — CREAM / OINTMENT / GEL:
+  Add: "composition", "form": "cream" or "ointment" or "gel", "manufacturer"
+  ✗ NEVER add: color, gender, author, is_veg, model_number
+
+🥦 FRESH VEGETABLE / FRUIT / PRODUCE (loose or in bag):
+  Add: "is_veg": "Veg", "weight_g" (if visible on label)
+  ✗ NEVER add: color, gender, author, model_number, composition
+
+🐟 FISH / MEAT / EGG / SEAFOOD:
+  Add: "is_veg": "Non-Veg", "weight_g" (if visible)
+  ✗ NEVER add: color, gender, author, model_number
+
+🛍️ PACKAGED FOOD / SNACK / BISCUIT / NOODLES / CHIPS (branded packet):
+  Add: "is_veg" (Veg|Non-Veg|Egg), "weight_g", "allergens" (if visible on pack)
+  ✗ NEVER add: color, gender, author, model_number
+
+🧂 SPICE / MASALA / CONDIMENT:
+  Add: "is_veg": "Veg", "weight_g" (if on label)
+  ✗ NEVER add: color, gender, author, model_number
+
+🥛 DAIRY (milk, butter, ghee, paneer, curd, cheese):
+  Add: "is_veg": "Veg", "weight_g"
+  ✗ NEVER add: color, gender, author, model_number
+
+🧃 BEVERAGE (juice, soft drink, water, tea, coffee):
+  Add: "is_veg": "Veg", "weight_g"
+  ✗ NEVER add: color, gender, author, model_number
+
+🧼 PERSONAL CARE (soap, shampoo, conditioner, toothpaste, cream, deodorant, lipstick, talc):
+  NO extra fields — base JSON only (name, brand, category, unit, description, price)
+  ✗ NEVER add: color, gender, author, model_number, composition (unless it is explicitly a medicine)
+
+🔧 TOOLS / HARDWARE (hammer, screwdriver, nail, wire, tape):
+  NO extra fields — base JSON only
+  ✗ NEVER add: color, gender, author, composition
+
+📎 STATIONERY (pen, pencil, notebook, eraser, ruler, stapler, scissors, tape):
+  NO extra fields — base JSON only
+  ✗ NEVER add: color, gender, author, composition
+
+🏏 SPORTS / GAMES / TOYS (cricket bat, carrom, cards, ball, toy):
+  NO extra fields — base JSON only
+  ✗ NEVER add: color, gender, author, composition
+
+🪔 HOUSEHOLD / KITCHEN / PUJA ITEMS (bucket, pressure cooker, agarbatti, camphor, candle, bindi, clay pot):
+  NO extra fields — base JSON only
+  ✗ NEVER add: color, gender, author, composition
+
+⚠️ MASTER RULE: If you are adding an attribute that is not in the whitelist for that product type, DELETE it.${hint}`;
 }
 
 export async function POST(req: NextRequest) {
