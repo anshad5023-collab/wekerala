@@ -161,6 +161,11 @@ const TESTS = [
   ['Cricket bat (sports)', '179-cricket-bat.jpg', true],
   ['Playing cards deck', '180-cards.jpg', true],
   ['Talcum powder tin', '181-talc.jpg', true],
+  // === Household items ===
+  ['Plastic bucket', '209-bucket.jpg', true],
+  ['Cooking spatula (kitchen)', '211-spatula.jpg', true],
+  ['Drinking glass (tumbler)', '214-glass.jpg', true],
+  ['Pillow (bedroom)', '215-pillow.jpg', true],
   // === Kitchen & home appliances ===
   ['Alarm clock (digital)', '203-alarm-clock.jpg', true],
   ['Wall clock (round)', '204-wall-clock.jpg', true],
