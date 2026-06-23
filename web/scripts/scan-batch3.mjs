@@ -116,10 +116,31 @@ const TESTS = [
   ['Torch / flashlight', '129-torch.jpg', true],
   // === More household / health ===
   ['Casio calculator', '138-casio.jpg', true],
-  ['Horlicks health drink (biscuits)', '139-horlicks.jpg', true],
+  ['Horlicks health drink', '139-horlicks.jpg', true],
   ['Toothbrush (oral care)', '142-toothbrush.jpg', true],
   ['Electric clothes iron', '128-iron.jpg', true],
   ['Writing journal / diary', '130-diary.jpg', true],
+  // === Snacks / food products ===
+  ['Instant noodles packet (Ramen)', '143-noodles.jpg', true],
+  ['Popcorn snack bag', '144-popcorn.jpg', true],
+  ['Biscuit / cracker pack', '145-biscuit.jpg', true],
+  ['Chocolate bar', '146-chocolate.jpg', true],
+  // === Personal care ===
+  ['Hair conditioner bottle', '149-conditioner.jpg', true],
+  ['Razor (Gillette)', '150-razor.jpg', true],
+  ['Sanitary pad pack', '151-sanitary.jpg', true],
+  // === More fresh produce ===
+  ['Banana bunch (yellow)', '157-banana.jpg', true],
+  ['Green chilli pepper', '155-green-chilli.jpg', true],
+  ['Brinjal / eggplant (purple)', '156-brinjal.jpg', true],
+  ['Peanuts / groundnuts', '110-peanut.jpg', true],
+  ['Dried coconut / copra', '112-dry-coconut.jpg', true],
+  // === Beverages ===
+  ['Sprite soft drink bottle', '158-sprite.jpg', true],
+  ['Pepsi cola can', '159-pepsi.jpg', true],
+  // === Cleaning / household ===
+  ['Washing powder box', '154-detergent.jpg', true],
+  ['Toothpaste tube', '153-colgate.jpg', true],
   // === REJECT cases (AI must say is_product:false) ===
   ['Dog portrait (REJECT)', '89-dog-reject.jpg', false],
   ['Cat in bush (REJECT)', '39-cat-reject.jpg', false],
