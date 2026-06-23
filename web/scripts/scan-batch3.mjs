@@ -99,6 +99,14 @@ const TESTS = [
   ['Leather shoe', '79-leather-shoe.jpg', true],
   ['Flip-flops / sandals', '88-sandals.jpg', true],
   ['White T-shirt (clothing)', '85-tshirt.jpg', true],
+  // === More produce / household ===
+  ['Bitter gourd (karela)', '126-karela.jpg', true],
+  ['Green peas (vegetable)', '125-peas.jpg', true],
+  ['Laptop computer', '121-laptop.jpg', true],
+  ['Table fan (electric)', '127-fan.jpg', true],
+  ['Scissors (stationery)', '131-scissors.jpg', true],
+  ['Bread loaf (bakery)', '105-bread.jpg', true],
+  ['Water bottle (PET)', '99-water.jpg', true],
   // === REJECT cases (AI must say is_product:false) ===
   ['Dog portrait (REJECT)', '89-dog-reject.jpg', false],
   ['Cat in bush (REJECT)', '39-cat-reject.jpg', false],
