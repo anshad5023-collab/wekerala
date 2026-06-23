@@ -141,6 +141,17 @@ const TESTS = [
   // === Cleaning / household ===
   ['Washing powder box', '154-detergent.jpg', true],
   ['Toothpaste tube', '153-colgate.jpg', true],
+  // === More stationery / household ===
+  ['KitKat chocolate bar', '162-kitkat.jpg', true],
+  ['Scotch / sticky tape roll', '167-tape.jpg', true],
+  ['Staple remover (office)', '168-staple-remover.jpg', true],
+  ['Plastic ruler (stationery)', '169-ruler.jpg', true],
+  ['Surgical face mask', '166-facemask.jpg', true],
+  ['Super glue / adhesive tube', '163-fevicol.jpg', true],
+  ['Safety pins pack', '171-safety-pin.jpg', true],
+  ['Rubber bands pack', '173-rubber-band.jpg', true],
+  ['Advent / wax candle', '164-candle.jpg', true],
+  ['Kerosene / oil lamp', '165-kerosene.jpg', true],
   // === REJECT cases (AI must say is_product:false) ===
   ['Dog portrait (REJECT)', '89-dog-reject.jpg', false],
   ['Cat in bush (REJECT)', '39-cat-reject.jpg', false],
