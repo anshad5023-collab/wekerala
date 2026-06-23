@@ -141,6 +141,10 @@ const TESTS = [
   // === Cleaning / household ===
   ['Washing powder box', '154-detergent.jpg', true],
   ['Toothpaste tube', '153-colgate.jpg', true],
+  // === Pantry staples ===
+  ['Ghee (clarified butter jar)', '187-ghee.jpg', true],
+  ['Wheat grains', '186-wheat.jpg', true],
+  ['Table salt (iodised)', '190-salt.jpg', true],
   // === Indian / Kerala specific ===
   ['Coconut oil with raw coconut', '175-coconut-oil.jpg', true],
   ['Camphor cubes (puja item)', '177-camphor.jpg', true],
