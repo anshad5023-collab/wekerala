@@ -161,6 +161,13 @@ const TESTS = [
   ['Cricket bat (sports)', '179-cricket-bat.jpg', true],
   ['Playing cards deck', '180-cards.jpg', true],
   ['Talcum powder tin', '181-talc.jpg', true],
+  // === Kerala snacks ===
+  ['Banana chips (Kerala snack)', '217-banana-chips.jpg', true],
+  ['Murukku (rice snack)', '218-murukku.jpg', true],
+  // === Pest control / cleaning ===
+  ['Mosquito coil (Good Knight / Allout)', '220-mosquito-coil.jpg', true],
+  ['Floor cleaner / phenyl bottle', '221-floor-cleaner.jpg', true],
+  ['Electric mosquito repellent plug-in', '222-mosquito-repellent.jpg', true],
   // === Household items ===
   ['Plastic bucket', '209-bucket.jpg', true],
   ['Cooking spatula (kitchen)', '211-spatula.jpg', true],
