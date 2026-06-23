@@ -135,102 +135,542 @@ Return ONLY valid JSON (no markdown, no code fences):
 }
 
 ━━━ PRODUCT-TYPE ATTRIBUTES — EXACT PER-PRODUCT WHITELIST ━━━
-Look at what the product IS and add ONLY the fields listed for that exact type.
-NEVER mix attributes from different product types.
+First identify the EXACT product type. Then add ONLY the fields listed for that type.
+NEVER add fields from a different product type's list.
 
-📚 BOOK / NOVEL / TEXTBOOK / STORYBOOK:
-  Add: "author" (writer name), "publisher" (e.g. DC Books, Oxford), "language" (e.g. Malayalam, English), "edition", "isbn"
-  ✗ NEVER add: color, gender, fabric, model_number, composition, is_veg, warranty_months
+════════════════════════════════════════════════
+📚 BOOKS & READING
+════════════════════════════════════════════════
 
-📰 MAGAZINE / NEWSPAPER / PERIODICAL:
-  Add: "publisher", "language", "frequency" (e.g. Monthly, Weekly)
-  ✗ NEVER add: color, gender, author (of article), model_number
+NOVEL / STORY BOOK / FICTION (e.g. Thottiyude Makan, Harry Potter):
+  Add: "author", "publisher", "language" (e.g. Malayalam, English, Hindi)
+  ✗ NEVER: color, gender, fabric, model_number, composition, is_veg, sizes
 
-👕 CLOTHING (shirt, t-shirt, saree, lungi, kurta, dress, trouser):
-  Add: "gender" (Men|Women|Kids|Unisex), "fabric" (Cotton|Polyester|Silk|Linen), "color", "sizes" (e.g. S/M/L/XL)
-  ✗ NEVER add: author, model_number, composition, is_veg
+TEXTBOOK / ACADEMIC BOOK (school/college subject book):
+  Add: "author", "publisher", "language", "edition" (e.g. 2024 Edition), "isbn"
+  ✗ NEVER: color, gender, fabric, model_number
 
-👟 FOOTWEAR (shoe, sandal, chappal, slipper, boot):
-  Add: "gender" (Men|Women|Kids|Unisex), "color", "sizes" (e.g. 6/7/8/9/10), "material" (Leather|Rubber|Synthetic)
-  ✗ NEVER add: author, model_number, composition, is_veg, fabric
+MAGAZINE / PERIODICAL (Mathrubhumi, Vanitha, etc.):
+  Add: "publisher", "language", "frequency" (Weekly|Monthly|Quarterly)
+  ✗ NEVER: author, color, gender, model_number
 
-📱 MOBILE PHONE / SMARTPHONE:
-  Add: "model_number", "color", "warranty_months", "compatible_with" (e.g. Android)
-  ✗ NEVER add: author, gender, composition, is_veg
+════════════════════════════════════════════════
+👕 CLOTHING
+════════════════════════════════════════════════
 
-💻 LAPTOP / TABLET / DESKTOP:
+SHIRT / T-SHIRT / POLO:
+  Add: "gender" (Men|Women|Kids|Unisex), "fabric" (Cotton|Polyester|Blend), "color", "sizes" (e.g. S/M/L/XL/XXL)
+  ✗ NEVER: author, model_number, composition, is_veg
+
+SAREE / DUPATTA / CHURIDAR / KURTA / SALWAR:
+  Add: "gender" (Women|Unisex), "fabric" (Silk|Cotton|Chiffon|Georgette|Polyester), "color"
+  ✗ NEVER: author, model_number, is_veg
+
+LUNGI / DHOTI / MUNDU (Kerala traditional):
+  Add: "gender" (Men|Unisex), "fabric" (Cotton|Silk), "color"
+  ✗ NEVER: author, model_number, composition
+
+TROUSER / JEANS / SHORTS:
+  Add: "gender" (Men|Women|Kids|Unisex), "fabric" (Denim|Cotton|Polyester), "color", "sizes"
+  ✗ NEVER: author, model_number, composition
+
+SCHOOL UNIFORM / KIDS WEAR:
+  Add: "gender" (Boys|Girls|Unisex), "fabric", "color", "sizes" (age group e.g. 4-6 yrs)
+  ✗ NEVER: author, model_number, composition
+
+════════════════════════════════════════════════
+👟 FOOTWEAR
+════════════════════════════════════════════════
+
+LEATHER SHOE / FORMAL SHOE:
+  Add: "gender" (Men|Women|Kids|Unisex), "color", "sizes" (e.g. 6/7/8/9/10), "material": "Leather"
+  ✗ NEVER: author, fabric, composition, is_veg
+
+SPORTS SHOE / SNEAKER / RUNNING SHOE:
+  Add: "gender" (Men|Women|Kids|Unisex), "color", "sizes", "material" (Synthetic|Mesh|Leather)
+  ✗ NEVER: author, fabric, composition, is_veg
+
+SANDAL / CHAPPAL / SLIPPER / HAWAI:
+  Add: "gender" (Men|Women|Kids|Unisex), "color", "sizes", "material" (Rubber|EVA|Leather|Synthetic)
+  ✗ NEVER: author, fabric, composition, is_veg
+
+════════════════════════════════════════════════
+📱 ELECTRONICS
+════════════════════════════════════════════════
+
+SMARTPHONE / MOBILE PHONE:
+  Add: "model_number" (e.g. POCO M6 5G), "color", "warranty_months" (usually 12)
+  ✗ NEVER: author, gender, composition, is_veg, fabric
+
+LAPTOP / NOTEBOOK COMPUTER:
   Add: "model_number", "color", "warranty_months"
-  ✗ NEVER add: author, gender, composition, is_veg
+  ✗ NEVER: author, gender, composition, is_veg
 
-⌨️ COMPUTER ACCESSORY (keyboard, mouse, pen drive, hard disk, monitor, speaker, webcam):
-  Add: "model_number", "compatible_with" (e.g. USB, Windows/Mac), "color", "warranty_months"
-  ✗ NEVER add: author, gender, composition, is_veg
+TABLET / ANDROID TABLET:
+  Add: "model_number", "color", "warranty_months"
+  ✗ NEVER: author, gender, composition, is_veg
 
-🎧 EARPHONES / HEADPHONES / EARBUDS:
-  Add: "model_number", "compatible_with" (e.g. 3.5mm / Bluetooth), "color", "warranty_months"
-  ✗ NEVER add: author, gender, composition, is_veg
+KEYBOARD (computer):
+  Add: "model_number", "compatible_with" (USB|Wireless|Bluetooth), "color", "warranty_months"
+  ✗ NEVER: author, gender, composition, is_veg
 
-📺 TV / FAN / ELECTRIC APPLIANCE (iron, mixer, fridge, washing machine):
+MOUSE (computer):
+  Add: "model_number", "compatible_with" (USB|Wireless|Bluetooth), "color", "warranty_months"
+  ✗ NEVER: author, gender, composition, is_veg
+
+PEN DRIVE / USB FLASH DRIVE:
+  Add: "model_number", "compatible_with" (USB 2.0|USB 3.0), "color", "warranty_months"
+  ✗ NEVER: author, gender, composition, is_veg
+
+EARPHONES / WIRED HEADPHONES:
+  Add: "model_number", "compatible_with" (3.5mm Jack|USB-C|Lightning), "color", "warranty_months"
+  ✗ NEVER: author, gender, composition, is_veg
+
+BLUETOOTH EARBUDS / WIRELESS HEADPHONES:
+  Add: "model_number", "compatible_with": "Bluetooth", "color", "warranty_months"
+  ✗ NEVER: author, gender, composition, is_veg
+
+BLUETOOTH SPEAKER / PORTABLE SPEAKER:
+  Add: "model_number", "compatible_with" (Bluetooth|AUX), "color", "warranty_months"
+  ✗ NEVER: author, gender, composition, is_veg
+
+TELEVISION / TV:
+  Add: "model_number", "warranty_months"
+  ✗ NEVER: author, gender, composition
+
+ELECTRIC FAN / TABLE FAN / CEILING FAN:
   Add: "model_number", "warranty_months", "wattage"
-  ✗ NEVER add: author, gender, composition, is_veg, color (unless clearly visible on product)
+  ✗ NEVER: author, gender, composition, is_veg
 
-💊 MEDICINE — TABLET / CAPSULE / BLISTER PACK:
-  Add: "composition" (active ingredient e.g. Paracetamol 500mg), "strength", "form": "tablet", "manufacturer"
-  ✗ NEVER add: color, gender, author, is_veg, model_number
+ELECTRIC IRON / CLOTHES IRON:
+  Add: "model_number", "warranty_months", "wattage"
+  ✗ NEVER: author, gender, composition, is_veg
 
-🍶 MEDICINE — SYRUP / DROPS / LIQUID:
-  Add: "composition", "form": "syrup" or "drops", "manufacturer"
-  ✗ NEVER add: color, gender, author, is_veg, model_number
+MIXER / GRINDER / BLENDER:
+  Add: "model_number", "warranty_months", "wattage"
+  ✗ NEVER: author, gender, composition, is_veg
 
-🧴 MEDICINE — CREAM / OINTMENT / GEL:
+BATTERY (AA/AAA/9V cell):
+  Add: "compatible_with" (AA|AAA|C|D|9V), "warranty_months"
+  ✗ NEVER: author, gender, composition, is_veg, color
+
+USB CABLE / CHARGING CABLE:
+  Add: "compatible_with" (e.g. USB-A to USB-C|Micro-USB|Lightning), "color"
+  ✗ NEVER: author, gender, composition, is_veg
+
+CALCULATOR:
+  Add: "model_number", "compatible_with" (Solar|Battery), "warranty_months"
+  ✗ NEVER: author, gender, composition, is_veg
+
+TORCH / FLASHLIGHT:
+  Add: "compatible_with" (battery type e.g. AA|D cell), "color"
+  ✗ NEVER: author, gender, composition, is_veg
+
+════════════════════════════════════════════════
+💊 MEDICINES & HEALTH
+════════════════════════════════════════════════
+
+TABLET / CAPSULE / BLISTER PACK:
+  Add: "composition" (e.g. Paracetamol 500mg), "strength", "form": "tablet", "manufacturer"
+  ✗ NEVER: color, gender, author, is_veg, model_number
+
+SYRUP / LIQUID MEDICINE:
+  Add: "composition", "strength", "form": "syrup", "manufacturer"
+  ✗ NEVER: color, gender, author, is_veg, model_number
+
+EYE / EAR / NASAL DROPS:
+  Add: "composition", "form": "drops", "manufacturer"
+  ✗ NEVER: color, gender, author, is_veg, model_number
+
+CREAM / OINTMENT / GEL (medicinal):
   Add: "composition", "form": "cream" or "ointment" or "gel", "manufacturer"
-  ✗ NEVER add: color, gender, author, is_veg, model_number
+  ✗ NEVER: color, gender, author, is_veg, model_number
 
-🥦 FRESH VEGETABLE / FRUIT / PRODUCE (loose or in bag):
-  Add: "is_veg": "Veg", "weight_g" (if visible on label)
-  ✗ NEVER add: color, gender, author, model_number, composition
+BANDAGE / FIRST AID ITEM:
+  Add: "form": "bandage" or "dressing", "manufacturer"
+  ✗ NEVER: color, gender, author, is_veg, model_number, composition
 
-🐟 FISH / MEAT / EGG / SEAFOOD:
+════════════════════════════════════════════════
+🧴 PERSONAL CARE (cosmetic/hygiene — NOT medicine)
+════════════════════════════════════════════════
+
+SHAMPOO:
+  Add: "hair_type" (Dry|Oily|Normal|Damaged|All Hair Types), "volume_ml"
+  ✗ NEVER: gender, color, author, model_number, composition
+
+HAIR CONDITIONER / HAIR MASK:
+  Add: "hair_type" (Dry|Damaged|Normal|All Hair Types), "volume_ml"
+  ✗ NEVER: gender, color, author, model_number
+
+HAIR OIL (coconut / almond / amla):
+  Add: "hair_type" (Dry|Normal|All), "volume_ml"
+  ✗ NEVER: gender, color, author, model_number
+
+FACE WASH / FACE CLEANSER:
+  Add: "skin_type" (Oily|Dry|Normal|Combination|Sensitive|All Skin Types), "volume_ml"
+  ✗ NEVER: gender, color, author, model_number
+
+FACE CREAM / MOISTURIZER:
+  Add: "skin_type" (Oily|Dry|Normal|All Skin Types), "volume_ml"
+  ✗ NEVER: gender, color, author, model_number
+
+SUNSCREEN / SUNBLOCK:
+  Add: "skin_type", "spf" (e.g. SPF 30|SPF 50), "volume_ml"
+  ✗ NEVER: gender, color, author, model_number
+
+BODY LOTION / BODY CREAM:
+  Add: "skin_type" (Dry|Normal|All), "volume_ml"
+  ✗ NEVER: gender, color, author, model_number
+
+SOAP BAR (bathing soap):
+  Add: "skin_type" (if stated: Dry|Oily|Normal|Sensitive), "net_weight_g"
+  ✗ NEVER: gender, color, author, model_number, composition
+
+TOOTHPASTE:
+  Add: "variant" (Whitening|Sensitive|Cavity Protection|Fresh Mint|Herbal|Kids), "weight_g"
+  ✗ NEVER: gender, color, author, model_number, is_veg
+
+TOOTHBRUSH:
+  Add: "bristle_type" (Soft|Medium|Hard), "gender" (only if explicitly Kids stated)
+  ✗ NEVER: color, author, model_number, composition, is_veg
+
+RAZOR / SHAVING BLADE:
+  Add: "blade_count" (e.g. 2-blade|3-blade|5-blade), "gender" (Men|Women)
+  ✗ NEVER: author, composition, is_veg, model_number
+
+DEODORANT / ANTIPERSPIRANT:
+  Add: "gender" (Men|Women|Unisex), "volume_ml", "fragrance" (e.g. Fresh|Sport|Floral — if stated)
+  ✗ NEVER: color, author, model_number, composition, is_veg
+
+PERFUME / EAU DE TOILETTE:
+  Add: "gender" (Men|Women|Unisex), "volume_ml"
+  ✗ NEVER: color, author, model_number, composition, is_veg
+
+LIPSTICK / LIP GLOSS / LIP BALM:
+  Add: "shade_name" (if readable e.g. Scarlet Surge), "shade_number" (if visible), "finish" (Matte|Glossy|Satin|Sheer)
+  ✗ NEVER: gender, color, author, model_number
+
+NAIL POLISH / NAIL COLOR:
+  Add: "shade_name" (if readable), "finish" (Matte|Glossy|Glitter)
+  ✗ NEVER: gender, color, author, model_number, composition
+
+KAJAL / KOHL / EYELINER:
+  Add: "form" (Pencil|Liquid|Gel), "color" (Black|Brown|Blue)
+  ✗ NEVER: gender, author, model_number, composition
+
+TALCUM POWDER / BODY POWDER:
+  Add: "fragrance" (if stated e.g. Rose|Jasmine|Lavender), "net_weight_g"
+  ✗ NEVER: gender, color, author, model_number, composition
+
+SANITARY PAD / MENSTRUAL PAD:
+  Add: "pad_size" (Regular|Large|XL|Overnight|Panty Liner), "count" (if visible)
+  ✗ NEVER: gender, color, author, model_number, composition
+
+DIAPER / NAPPY (baby):
+  Add: "size" (Newborn|S|M|L|XL|XXL), "count" (if visible)
+  ✗ NEVER: color, author, model_number, composition
+
+════════════════════════════════════════════════
+🍎 FOOD — FRESH PRODUCE
+════════════════════════════════════════════════
+
+VEGETABLE / FRUIT (any loose or bagged):
+  Add: "is_veg": "Veg", "weight_g" (if label or price board shows weight)
+  ✗ NEVER: color, gender, author, model_number, composition
+
+FISH / SEAFOOD (fresh / raw):
   Add: "is_veg": "Non-Veg", "weight_g" (if visible)
-  ✗ NEVER add: color, gender, author, model_number
+  ✗ NEVER: color, gender, author, model_number, composition
 
-🛍️ PACKAGED FOOD / SNACK / BISCUIT / NOODLES / CHIPS (branded packet):
-  Add: "is_veg" (Veg|Non-Veg|Egg), "weight_g", "allergens" (if visible on pack)
-  ✗ NEVER add: color, gender, author, model_number
+MEAT / CHICKEN / MUTTON / BEEF (raw):
+  Add: "is_veg": "Non-Veg", "weight_g" (if visible)
+  ✗ NEVER: color, gender, author, model_number
 
-🧂 SPICE / MASALA / CONDIMENT:
-  Add: "is_veg": "Veg", "weight_g" (if on label)
-  ✗ NEVER add: color, gender, author, model_number
+EGG (raw):
+  Add: "is_veg": "Egg", "count" (if pack shows number of eggs)
+  ✗ NEVER: color, gender, author, model_number
 
-🥛 DAIRY (milk, butter, ghee, paneer, curd, cheese):
+════════════════════════════════════════════════
+🛍️ FOOD — PACKAGED & BRANDED
+════════════════════════════════════════════════
+
+RICE / WHEAT / ATTA / FLOUR:
+  Add: "is_veg": "Veg", "weight_g", "allergens" (if visible)
+  ✗ NEVER: color, gender, author, model_number
+
+COOKING OIL (coconut / sunflower / palm):
+  Add: "is_veg": "Veg", "volume_ml"
+  ✗ NEVER: color, gender, author, model_number
+
+SPICE / MASALA / CONDIMENT:
   Add: "is_veg": "Veg", "weight_g"
-  ✗ NEVER add: color, gender, author, model_number
+  ✗ NEVER: color, gender, author, model_number
 
-🧃 BEVERAGE (juice, soft drink, water, tea, coffee):
+SUGAR / SALT / JAGGERY:
   Add: "is_veg": "Veg", "weight_g"
-  ✗ NEVER add: color, gender, author, model_number
+  ✗ NEVER: color, gender, author, model_number
 
-🧼 PERSONAL CARE (soap, shampoo, conditioner, toothpaste, cream, deodorant, lipstick, talc):
+DAL / LENTILS / PULSES:
+  Add: "is_veg": "Veg", "weight_g"
+  ✗ NEVER: color, gender, author, model_number
+
+TEA / COFFEE (leaf, powder, bags):
+  Add: "is_veg": "Veg", "weight_g", "variant" (if visible e.g. Strong Brew|Green Tea|Filter Coffee)
+  ✗ NEVER: color, gender, author, model_number
+
+MILK / BUTTERMILK / LASSI:
+  Add: "is_veg": "Veg", "volume_ml", "fat_type" (Full Cream|Toned|Double Toned|Skimmed — if stated)
+  ✗ NEVER: color, gender, author, model_number
+
+BUTTER / GHEE / PANEER / CHEESE:
+  Add: "is_veg": "Veg", "weight_g"
+  ✗ NEVER: color, gender, author, model_number
+
+BISCUIT / COOKIE / CRACKER:
+  Add: "is_veg" (Veg|Egg), "weight_g", "allergens" (if visible)
+  ✗ NEVER: color, gender, author, model_number
+
+CHIPS / SNACK / NAMKEEN / MURUKKU / BANANA CHIPS:
+  Add: "is_veg" (Veg|Non-Veg), "weight_g"
+  ✗ NEVER: color, gender, author, model_number
+
+CHOCOLATE / CANDY / SWEETS:
+  Add: "is_veg" (Veg|Egg|Non-Veg), "weight_g", "allergens" (contains milk/nuts — if visible)
+  ✗ NEVER: color, gender, author, model_number
+
+INSTANT NOODLES / PASTA:
+  Add: "is_veg" (Veg|Non-Veg), "weight_g"
+  ✗ NEVER: color, gender, author, model_number
+
+SOFT DRINK / JUICE / WATER / ENERGY DRINK:
+  Add: "is_veg": "Veg", "volume_ml"
+  ✗ NEVER: color, gender, author, model_number
+
+HEALTH DRINK POWDER (Horlicks, Complan, Bournvita):
+  Add: "is_veg": "Veg", "weight_g", "variant" (if visible e.g. Chocolate|Vanilla|Classic)
+  ✗ NEVER: color, gender, author, model_number
+
+════════════════════════════════════════════════
+🏏 SPORTS — CRICKET
+════════════════════════════════════════════════
+
+CRICKET BAT:
+  Add: "wood_type" (Kashmir Willow|English Willow|Tape Ball), "size" (Junior|Senior|Short Handle|Long Handle), "weight_g" (if labeled)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+CRICKET BALL:
+  Add: "ball_type" (Leather|Tennis|Rubber|Tape), "color" (Red|White|Pink|Yellow)
+  ✗ NEVER: author, gender, composition, is_veg, model_number
+
+CRICKET GLOVES / PADS / HELMET:
+  Add: "size" (Junior|Senior|S|M|L)
+  ✗ NEVER: author, color, composition, is_veg, model_number
+
+════════════════════════════════════════════════
+🏸 SPORTS — BADMINTON
+════════════════════════════════════════════════
+
+BADMINTON RACKET:
+  Add: "material" (Aluminium|Carbon Fibre|Steel), "weight_g" (if labeled), "grip_size" (G4|G5 — if visible)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+BADMINTON SHUTTLECOCK:
+  Add: "shuttle_type" (Feather|Nylon|Synthetic), "speed" (Slow|Medium|Fast — if labeled)
+  ✗ NEVER: author, gender, color, composition, is_veg
+
+════════════════════════════════════════════════
+⚽ SPORTS — FOOTBALL / BASKETBALL / VOLLEYBALL
+════════════════════════════════════════════════
+
+FOOTBALL / SOCCER BALL:
+  Add: "size" (3|4|5), "material" (PU Leather|PVC|Rubber|Foam)
+  ✗ NEVER: author, gender, composition, is_veg, model_number
+
+BASKETBALL:
+  Add: "size" (5|6|7), "material" (PU Leather|Rubber|Composite)
+  ✗ NEVER: author, gender, composition, is_veg, model_number
+
+VOLLEYBALL:
+  Add: "material" (PU Leather|PVC|Rubber), "size" (Official|Mini)
+  ✗ NEVER: author, gender, composition, is_veg, model_number
+
+════════════════════════════════════════════════
+🏓 SPORTS — TABLE TENNIS / CARROM / CHESS / CARDS
+════════════════════════════════════════════════
+
+TABLE TENNIS BAT / PADDLE:
+  Add: "rubber_type" (if visible: Smooth|Pimpled)
+  ✗ NEVER: author, gender, color, composition, is_veg
+
+TABLE TENNIS BALL:
+  Add: "color" (White|Orange), "ball_type" (Training|Tournament)
+  ✗ NEVER: author, gender, composition, is_veg
+
+CARROM BOARD:
+  Add: "size" (Full Size|Medium|Mini), "material" (Plywood|MDF|Hardboard)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+CHESS SET:
+  Add: "material" (Plastic|Wood|Metal|Magnetic), "size" (Standard|Travel|Mini)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+PLAYING CARDS:
+  Add: "card_type" (Standard 52-card|Jumbo Print|Waterproof)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+════════════════════════════════════════════════
+🔧 TOOLS & HARDWARE
+════════════════════════════════════════════════
+
+HAMMER:
+  Add: "head_material" (Steel|Rubber|Wood mallet), "weight_g" (if labeled)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+SCREWDRIVER:
+  Add: "screw_type" (Phillips +|Flat -|Torx|Multi-bit), "size" (e.g. 6 inch|8 inch)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+PLIERS:
+  Add: "plier_type" (Combination|Long Nose|Wire Cutter|Slip Joint), "size_mm" (if labeled)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+WRENCH / SPANNER:
+  Add: "wrench_type" (Open-end|Ring|Adjustable|Allen Key), "size_mm" (if labeled)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+SAW:
+  Add: "saw_type" (Hand Saw|Hacksaw|Pruning Saw), "blade_length_cm" (if visible)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+TAPE MEASURE:
+  Add: "length_m" (e.g. 3|5|10)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+NAILS / SCREWS / BOLTS (pack):
+  Add: "size" (e.g. 1 inch|2 inch), "material" (Galvanised Steel|Stainless Steel)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+PAINT BRUSH:
+  Add: "brush_size" (e.g. 1 inch|2 inch|No.8), "bristle_type" (Natural|Synthetic)
+  ✗ NEVER: author, gender, composition, is_veg, model_number
+
+════════════════════════════════════════════════
+🍳 KITCHEN UTENSILS & COOKWARE
+════════════════════════════════════════════════
+
+PRESSURE COOKER:
+  Add: "capacity_litres" (e.g. 3|5|7), "material" (Aluminium|Stainless Steel)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+KADAI / WOK / COOKING PAN:
+  Add: "material" (Iron|Stainless Steel|Non-stick Aluminium|Copper), "diameter_cm" (if labeled)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+TAWA / GRIDDLE / FLAT PAN:
+  Add: "material" (Iron|Non-stick|Stainless Steel), "diameter_cm" (if labeled)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+SPATULA / LADLE / COOKING SPOON:
+  Add: "material" (Stainless Steel|Plastic|Wood|Silicone)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+KNIFE / CHOPPER:
+  Add: "blade_material" (Stainless Steel|Carbon Steel), "knife_type" (Chef|Vegetable|Bread|Cleaver)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+PLATE / THALI:
+  Add: "material" (Stainless Steel|Melamine|Plastic|Ceramic), "diameter_cm" (if visible)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+CUP / GLASS / TUMBLER / MUG:
+  Add: "material" (Stainless Steel|Glass|Plastic|Ceramic), "capacity_ml" (if labeled)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+LUNCH BOX / TIFFIN BOX:
+  Add: "material" (Stainless Steel|Plastic), "compartments" (e.g. 3), "capacity_ml" (if labeled)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+THERMOS / INSULATED FLASK:
+  Add: "capacity_ml" (e.g. 500|750|1000), "material" (Stainless Steel|Plastic)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+BUCKET / MUG (bathroom / household):
+  Add: "capacity_litres" (e.g. 10|15|20), "material" (Plastic|Steel)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+════════════════════════════════════════════════
+📎 STATIONERY
+════════════════════════════════════════════════
+
+PEN / BALLPOINT PEN:
+  Add: "ink_color" (Blue|Black|Red|Green), "pen_type" (Ballpoint|Gel|Rollerball|Fountain)
+  ✗ NEVER: author, gender, fabric, composition, is_veg, model_number
+
+PENCIL:
+  Add: "grade" (HB|2B|4B|6B — if labeled), "pencil_type" (Graphite|Colour|Mechanical)
+  ✗ NEVER: author, gender, composition, is_veg, model_number
+
+NOTEBOOK / EXERCISE BOOK:
+  Add: "page_count" (if visible, e.g. 100|200|300), "ruling" (Single Line|Double Line|Blank|Graph)
+  ✗ NEVER: author, publisher, gender, composition, is_veg
+
+ERASER:
+  Add: "eraser_type" (Vinyl|Gum|Kneaded), "color" (White|Pink)
+  ✗ NEVER: author, gender, composition, is_veg, model_number
+
+STAPLER:
+  Add: "compatible_with" (staple size e.g. No.10|No.24/6)
+  ✗ NEVER: author, gender, color, composition, is_veg
+
+SCISSORS:
+  Add: "blade_length_cm" (if labeled), "material" (Stainless Steel)
+  ✗ NEVER: author, gender, composition, is_veg
+
+RULER:
+  Add: "length_cm" (e.g. 15|30|60), "material" (Plastic|Steel|Wood)
+  ✗ NEVER: author, gender, color, composition, is_veg
+
+TAPE / CELLO TAPE:
+  Add: "width_mm" (if labeled e.g. 12mm|24mm), "length_m" (if labeled)
+  ✗ NEVER: author, gender, color, composition, is_veg
+
+GLUE / ADHESIVE / FEVICOL:
+  Add: "glue_type" (White Glue|Super Glue|Stick Glue|Epoxy)
+  ✗ NEVER: author, gender, color, composition, is_veg, model_number
+
+════════════════════════════════════════════════
+🪔 HOUSEHOLD / PUJA / CLEANING ITEMS
+════════════════════════════════════════════════
+
+INCENSE STICK / AGARBATTI:
+  Add: "fragrance" (if readable e.g. Jasmine|Sandalwood|Rose|Lavender|Chandan)
+  ✗ NEVER: color, gender, author, model_number
+
+CANDLE:
+  Add: "candle_type" (Wax|Taper|Tealight|Scented), "color" (if clearly visible)
+  ✗ NEVER: author, gender, composition, is_veg, model_number
+
+CAMPHOR / BINDI / KUMKUM / SAFETY PIN / RUBBER BAND / MOSQUITO COIL / FLOOR CLEANER / MATCHBOX:
   NO extra fields — base JSON only (name, brand, category, unit, description, price)
-  ✗ NEVER add: color, gender, author, model_number, composition (unless it is explicitly a medicine)
 
-🔧 TOOLS / HARDWARE (hammer, screwdriver, nail, wire, tape):
-  NO extra fields — base JSON only
-  ✗ NEVER add: color, gender, author, composition
+════════════════════════════════════════════════
+🧸 TOYS
+════════════════════════════════════════════════
 
-📎 STATIONERY (pen, pencil, notebook, eraser, ruler, stapler, scissors, tape):
-  NO extra fields — base JSON only
-  ✗ NEVER add: color, gender, author, composition
+ACTION FIGURE / DOLL:
+  Add: "character_name" (if recognizable e.g. Spider-Man|Barbie), "age_group" (e.g. 3+|6+), "material" (Plastic|Fabric)
+  ✗ NEVER: composition
 
-🏏 SPORTS / GAMES / TOYS (cricket bat, carrom, cards, ball, toy):
-  NO extra fields — base JSON only
-  ✗ NEVER add: color, gender, author, composition
+BUILDING BLOCKS / CONSTRUCTION TOY:
+  Add: "piece_count" (if labeled), "age_group", "material" (Plastic|Wood)
+  ✗ NEVER: gender, author, composition
 
-🪔 HOUSEHOLD / KITCHEN / PUJA ITEMS (bucket, pressure cooker, agarbatti, camphor, candle, bindi, clay pot):
-  NO extra fields — base JSON only
-  ✗ NEVER add: color, gender, author, composition
+PUZZLE / JIGSAW:
+  Add: "piece_count" (e.g. 100|500|1000), "age_group"
+  ✗ NEVER: gender, author, composition
 
-⚠️ MASTER RULE: If you are adding an attribute that is not in the whitelist for that product type, DELETE it.${hint}`;
+⚠️ MASTER RULE: Identify the product type first. Add ONLY what is listed for that type.
+Any field not in the whitelist for this product = DO NOT add it.${hint}`;
 }
 
 export async function POST(req: NextRequest) {
