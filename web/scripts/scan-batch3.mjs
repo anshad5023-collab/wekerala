@@ -141,6 +141,14 @@ const TESTS = [
   // === Cleaning / household ===
   ['Washing powder box', '154-detergent.jpg', true],
   ['Toothpaste tube', '153-colgate.jpg', true],
+  // === Indian / Kerala specific ===
+  ['Coconut oil with raw coconut', '175-coconut-oil.jpg', true],
+  ['Camphor cubes (puja item)', '177-camphor.jpg', true],
+  ['Turmeric powder (haldi)', '178-turmeric.jpg', true],
+  ['Incense sticks (agarbatti)', '176-agarbatti.jpg', true],
+  ['Cricket bat (sports)', '179-cricket-bat.jpg', true],
+  ['Playing cards deck', '180-cards.jpg', true],
+  ['Talcum powder tin', '181-talc.jpg', true],
   // === More stationery / household ===
   ['KitKat chocolate bar', '162-kitkat.jpg', true],
   ['Scotch / sticky tape roll', '167-tape.jpg', true],
@@ -150,6 +158,8 @@ const TESTS = [
   ['Super glue / adhesive tube', '163-fevicol.jpg', true],
   ['Safety pins pack', '171-safety-pin.jpg', true],
   ['Rubber bands pack', '173-rubber-band.jpg', true],
+  ['Nail clipper / cutter', '183-nail-cutter.jpg', true],
+  ['Hair comb (plastic)', '184-comb.jpg', true],
   ['Advent / wax candle', '164-candle.jpg', true],
   ['Kerosene / oil lamp', '165-kerosene.jpg', true],
   // === REJECT cases (AI must say is_product:false) ===
