@@ -111,6 +111,12 @@ IMPORTANT EXCEPTIONS — these MUST return is_product: true:
 • Any item a shop would sell, even without a label = is_product: true
 • NOVELTY / SHAPED STATIONERY — a fish-shaped eraser, animal-shaped pencil holder, etc.
   is still a stationery product. Identify by function: "Fish-shaped Rubber Eraser", not by shape.
+• PUJA / RELIGIOUS ITEMS sold in shops — camphor tablets, incense sticks (agarbatti), dhoop,
+  pooja oil lamps, vibhuti, kumkum, sindoor — are retail products. Return is_product: true.
+• SPORTS & GAMES sold in shops — cricket bat, carrom board, playing cards, chess set, football,
+  badminton racket — are retail products. Return is_product: true.
+• VINTAGE-LOOKING or OLD-STYLE PRODUCTS — if a product (soap box, tin, bottle) looks old or
+  vintage but is clearly a packaged retail item, it IS a product. Return is_product: true.
 DO NOT return false just because there is no label or because people's faces appear on a product cover.
 
 ━━━ JSON OUTPUT ━━━
