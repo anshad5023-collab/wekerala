@@ -114,6 +114,12 @@ const TESTS = [
   ['Tender coconut (green)', '135-tender-coconut.jpg', true],
   ['Indian rupee notes (REJECT)', '136-money-reject.jpg', false],
   ['Torch / flashlight', '129-torch.jpg', true],
+  // === More household / health ===
+  ['Casio calculator', '138-casio.jpg', true],
+  ['Horlicks health drink (biscuits)', '139-horlicks.jpg', true],
+  ['Toothbrush (oral care)', '142-toothbrush.jpg', true],
+  ['Electric clothes iron', '128-iron.jpg', true],
+  ['Writing journal / diary', '130-diary.jpg', true],
   // === REJECT cases (AI must say is_product:false) ===
   ['Dog portrait (REJECT)', '89-dog-reject.jpg', false],
   ['Cat in bush (REJECT)', '39-cat-reject.jpg', false],
