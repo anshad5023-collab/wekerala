@@ -50,6 +50,16 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   String _imageUrl = '';
   String _imageSource = 'placeholder';
   File? _imageFile;
+  // Barcode (EAN/UPC) linked to this product. Captured when the owner scans or
+  // types it, then SAVED on the product so the billing scanner can find it.
+  // Previously the scanned barcode was used only for lookup and thrown away,
+  // which is why scan-to-bill never matched products added here.
+  String _barcode = '';
+  // Extra gallery images (beyond the primary) — max 3 more, so 4 total.
+  // Each entry is either an already-uploaded URL or a freshly picked local File.
+  static const int _maxExtraImages = 3;
+  final List<String> _extraImageUrls = []; // existing (when editing)
+  final List<File> _extraImageFiles = [];  // newly picked, pending upload
   bool _loadingImage = false;
   bool _saving = false;
   bool _loaded = false;
@@ -109,12 +119,17 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       _hasVariants = p.hasVariants;
       _variants = List.from(p.variants);
       _imageUrl = p.imageUrl;
+      // Load any existing gallery images beyond the primary into the extras list.
+      _extraImageUrls
+        ..clear()
+        ..addAll(p.imageUrls.where((u) => u.isNotEmpty && u != p.imageUrl).take(_maxExtraImages));
       _imageSource = p.imageSource;
       _trackStock = p.stockQty != null;
       if (p.stockQty != null) _stockQtyCtrl.text = p.stockQty.toString();
       _lowStockThresholdCtrl.text = p.lowStockThreshold.toString();
       _expiryDate = p.expiryDate;
       _batchNumberCtrl.text = p.batchNumber ?? '';
+    _barcode = p.barcode ?? '';
     _searchAliasCtrl.text = p.searchAlias ?? '';
     _descriptionCtrl.text = p.description ?? '';
       _gstRate = p.gstRate;
@@ -147,6 +162,151 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       _imageFile = File(cropped.path);
       _imageSource = 'owner';
     });
+  }
+
+  // Pick one ADDITIONAL gallery image (square-cropped like the primary).
+  Future<void> _pickExtraImage() async {
+    if (_extraImageUrls.length + _extraImageFiles.length >= _maxExtraImages) return;
+    final picker = ImagePicker();
+    final xfile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (xfile == null) return;
+    final cropped = await ImageCropper().cropImage(
+      sourcePath: xfile.path,
+      aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+      uiSettings: [
+        if (!kIsWeb && Platform.isAndroid)
+          AndroidUiSettings(
+            toolbarTitle: 'Crop Image',
+            toolbarColor: AppColors.primary,
+            toolbarWidgetColor: Colors.white,
+            lockAspectRatio: true,
+          ),
+      ],
+    );
+    if (cropped == null) return;
+    setState(() => _extraImageFiles.add(File(cropped.path)));
+  }
+
+  void _removeExtraImage(int index) {
+    setState(() {
+      if (index < _extraImageUrls.length) {
+        _extraImageUrls.removeAt(index);
+      } else {
+        _extraImageFiles.removeAt(index - _extraImageUrls.length);
+      }
+    });
+  }
+
+  // Upload any freshly-picked extra files and return the full gallery list
+  // (primary first), capped at 4 total.
+  Future<List<String>> _buildGalleryUrls(String shopId, String productId, String primaryUrl) async {
+    final urls = <String>[];
+    if (primaryUrl.isNotEmpty) urls.add(primaryUrl);
+    urls.addAll(_extraImageUrls.where((u) => u.isNotEmpty && u != primaryUrl));
+    var idx = 1;
+    for (final f in _extraImageFiles) {
+      final url = await StorageService.uploadProductImageAt(shopId, productId, f, idx);
+      urls.add(url);
+      idx++;
+    }
+    // De-dupe while preserving order, cap at 4.
+    final seen = <String>{};
+    return urls.where((u) => u.isNotEmpty && seen.add(u)).take(4).toList();
+  }
+
+  // Owner-facing row to add up to 3 extra product photos (4 total).
+  Widget _buildExtraImagesSection() {
+    final total = _extraImageUrls.length + _extraImageFiles.length;
+    final t = ref.read(translationsProvider);
+    final label = t['morePhotos'] ?? 'More photos (optional)';
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(label,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+              const Spacer(),
+              Text('$total/$_maxExtraImages',
+                  style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 78,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                for (int i = 0; i < _extraImageUrls.length; i++)
+                  _extraThumb(
+                    child: CachedNetworkImage(
+                        imageUrl: _extraImageUrls[i], width: 78, height: 78, fit: BoxFit.cover),
+                    onRemove: () => _removeExtraImage(i),
+                  ),
+                for (int i = 0; i < _extraImageFiles.length; i++)
+                  _extraThumb(
+                    child: Image.file(_extraImageFiles[i], width: 78, height: 78, fit: BoxFit.cover),
+                    onRemove: () => _removeExtraImage(_extraImageUrls.length + i),
+                  ),
+                if (total < _maxExtraImages)
+                  GestureDetector(
+                    onTap: _pickExtraImage,
+                    child: Container(
+                      width: 78,
+                      height: 78,
+                      margin: const EdgeInsets.only(right: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                            color: AppColors.primary.withValues(alpha: 0.4), width: 1.5),
+                      ),
+                      child: const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.add_a_photo_outlined, color: AppColors.primary, size: 22),
+                          SizedBox(height: 4),
+                          Text('Add',
+                              style: TextStyle(
+                                  fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _extraThumb({required Widget child, required VoidCallback onRemove}) {
+    return Container(
+      width: 78,
+      height: 78,
+      margin: const EdgeInsets.only(right: 8),
+      child: Stack(
+        children: [
+          ClipRRect(borderRadius: BorderRadius.circular(10), child: child),
+          Positioned(
+            top: 2,
+            right: 2,
+            child: GestureDetector(
+              onTap: onRemove,
+              child: Container(
+                decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                padding: const EdgeInsets.all(2),
+                child: const Icon(Icons.close, color: Colors.white, size: 14),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _autoMatch() async {
@@ -226,7 +386,12 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
 
   Future<void> _lookupBarcode(String barcode) async {
     if (barcode.isEmpty) return;
-    setState(() => _loadingImage = true);
+    // Link the barcode to this product immediately — even if the online lookup
+    // finds no name/image, we still keep the code so billing scan can match it.
+    setState(() {
+      _barcode = barcode.trim();
+      _loadingImage = true;
+    });
     final data = await ProductLookupService.lookupBarcode(
       barcode, _getCategories(), shopType: _getShopType(),
     );
@@ -263,7 +428,11 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       MaterialPageRoute(builder: (_) => const _BarcodeScannerPage()),
     );
     if (barcode == null || !mounted) return;
-    setState(() => _loadingImage = true);
+    // Link the scanned barcode to this product right away (saved on save).
+    setState(() {
+      _barcode = barcode.trim();
+      _loadingImage = true;
+    });
     final data = await ProductLookupService.lookupBarcode(
       barcode, _getCategories(), shopType: _getShopType(),
     );
@@ -273,7 +442,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     } else {
       setState(() => _loadingImage = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: const Text('Barcode not in database. Try AI photo scan?'),
+        content: const Text('Barcode linked. Not in online database — add name/photo manually.'),
         duration: const Duration(seconds: 5),
         action: SnackBarAction(
           label: 'Scan Photo',
@@ -314,12 +483,18 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     );
     if (!mounted) return;
     if (data != null && data.hasData) {
-      // Web image search can't reliably find the exact variant of footwear /
-      // clothing (it returns a different colour/model), so for apparel we keep
-      // the owner's own photo — it always matches the actual product.
+      // Keep the owner's own photo (the exact product, exact colour) whenever
+      // there is no trustworthy internet image. That happens when:
+      //  • the product is apparel/footwear (web returns a different colour/model)
+      //  • the colour-verification gate rejected the catalogue image as a colour
+      //    mismatch (data.imageIsOwnerPhoto), or
+      //  • no internet image was found at all.
+      // Otherwise we use the verified catalogue image (clean, same variant).
       final apparel = _isApparelProduct(data);
-      _applyLookup(data, skipImage: apparel);
-      if (apparel || data.imageUrl.isEmpty) {
+      final keepOwnerPhoto =
+          apparel || data.imageIsOwnerPhoto || data.imageUrl.isEmpty;
+      _applyLookup(data, skipImage: keepOwnerPhoto);
+      if (keepOwnerPhoto) {
         setState(() {
           _imageFile = File(file.path);
           _imageUrl = '';
@@ -361,6 +536,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             shopId, productId, _imageFile!);
         finalImageSource = 'owner';
       }
+      final galleryUrls = await _buildGalleryUrls(shopId, productId, finalImageUrl);
 
       final now = DateTime.now();
       final existing = widget.productId != null
@@ -377,6 +553,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         unit: _unit,
         minQty: double.tryParse(_minQtyCtrl.text.trim()) ?? 0,
         imageUrl: finalImageUrl,
+        imageUrls: galleryUrls,
         imageSource: finalImageSource,
         hasVariants: _hasVariants,
         variants: _variants,
@@ -393,6 +570,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         hsnCode: _hsnCode.text.trim().isEmpty ? null : _hsnCode.text.trim(),
         priceIncludesGst: _priceIncludesGst,
         batchNumber: _batchNumberCtrl.text.trim().isEmpty ? null : _batchNumberCtrl.text.trim(),
+        barcode: _barcode.trim().isEmpty ? null : _barcode.trim(),
         searchAlias: _searchAliasCtrl.text.trim().isEmpty ? null : _searchAliasCtrl.text.trim(),
         description: _descriptionCtrl.text.trim().isEmpty ? null : _descriptionCtrl.text.trim(),
         attributes: Map<String, dynamic>.from(
@@ -434,6 +612,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       _imageUrl = '';
       _imageFile = null;
       _imageSource = 'placeholder';
+      _barcode = '';
       _trackStock = false;
       _hasVariants = false;
       _variants = [];
@@ -459,6 +638,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         finalImageUrl = await StorageService.uploadProductImage(shopId, productId, _imageFile!);
         finalImageSource = 'owner';
       }
+      final galleryUrls = await _buildGalleryUrls(shopId, productId, finalImageUrl);
       final now = DateTime.now();
       final product = ProductModel(
         productId: productId,
@@ -470,6 +650,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         unit: _unit,
         minQty: double.tryParse(_minQtyCtrl.text.trim()) ?? 0,
         imageUrl: finalImageUrl,
+        imageUrls: galleryUrls,
         imageSource: finalImageSource,
         hasVariants: _hasVariants,
         variants: _variants,
@@ -483,6 +664,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         hsnCode: _hsnCode.text.trim().isEmpty ? null : _hsnCode.text.trim(),
         priceIncludesGst: _priceIncludesGst,
         batchNumber: _batchNumberCtrl.text.trim().isEmpty ? null : _batchNumberCtrl.text.trim(),
+        barcode: _barcode.trim().isEmpty ? null : _barcode.trim(),
         searchAlias: _searchAliasCtrl.text.trim().isEmpty ? null : _searchAliasCtrl.text.trim(),
         description: _descriptionCtrl.text.trim().isEmpty ? null : _descriptionCtrl.text.trim(),
         attributes: Map<String, dynamic>.from(
@@ -588,6 +770,10 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   imageFile: _imageFile,
                   imageUrl: _imageUrl,
                   loading: _loadingImage,
+                  barcode: _barcode,
+                  onClearBarcode: () => setState(() => _barcode = ''),
+                  onGenerateBarcode: () =>
+                      setState(() => _barcode = _genEan13()),
                   onCamera: () => _pickImage(ImageSource.camera),
                   onGallery: () => _pickImage(ImageSource.gallery),
                   onAuto: _autoMatch,
@@ -595,6 +781,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   onScanPhoto: _scanPhoto,
                   onBarcodeChanged: _lookupBarcode,
                 ),
+                _buildExtraImagesSection(),
                 if (_aiUncertainFields.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Container(
@@ -1365,6 +1552,21 @@ class _StockExpirySection extends StatelessWidget {
   }
 }
 
+/// Generate a valid EAN-13 internal barcode (prefix 20 = in-store range) for a
+/// product with no manufacturer barcode. Printable as Code128 on a shelf label
+/// and scannable back at billing.
+String _genEan13() {
+  final base =
+      '20${(DateTime.now().millisecondsSinceEpoch % 10000000000).toString().padLeft(10, '0')}';
+  final digits = base.split('').map(int.parse).toList();
+  var sum = 0;
+  for (var i = 0; i < 12; i++) {
+    sum += digits[i] * (i.isEven ? 1 : 3);
+  }
+  final check = (10 - (sum % 10)) % 10;
+  return '$base$check';
+}
+
 // ─── Image Section ────────────────────────────────────────────────────────────
 
 class _ImageSection extends StatelessWidget {
@@ -1377,11 +1579,17 @@ class _ImageSection extends StatelessWidget {
   final VoidCallback onScan;
   final VoidCallback onScanPhoto;
   final ValueChanged<String> onBarcodeChanged;
+  final String barcode;
+  final VoidCallback onClearBarcode;
+  final VoidCallback onGenerateBarcode;
 
   const _ImageSection({
     required this.imageFile,
     required this.imageUrl,
     required this.loading,
+    required this.barcode,
+    required this.onClearBarcode,
+    required this.onGenerateBarcode,
     required this.onCamera,
     required this.onGallery,
     required this.onAuto,
@@ -1415,6 +1623,52 @@ class _ImageSection extends StatelessWidget {
       );
     }
 
+    // Shown in place of the "Scan Barcode" button once a code is linked, so the
+    // owner sees the product already has a barcode and can clear it to re-scan.
+    final linkedChip = Container(
+      constraints: const BoxConstraints(minWidth: 130),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: AppColors.success.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.success.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.qr_code_2_rounded, size: 16, color: AppColors.success),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Barcode linked',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.success)),
+                Text(
+                  barcode,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                      color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: onClearBarcode,
+            child: const Icon(Icons.close, size: 16, color: AppColors.textSecondary),
+          ),
+        ],
+      ),
+    );
+
     return Row(
       children: [
         preview,
@@ -1423,20 +1677,37 @@ class _ImageSection extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (!kIsWeb && Platform.isAndroid) ...[
-              OutlinedButton.icon(
-                onPressed: loading ? null : onScan,
-                icon: loading
-                    ? const SizedBox(
-                        width: 14, height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.qr_code_scanner, size: 16),
-                label: const Text('Scan Barcode'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(130, 36),
-                  foregroundColor: AppColors.accent,
-                  side: BorderSide(color: AppColors.accent),
+              // Once a barcode is linked we hide the scan button and show the
+              // linked chip instead (the owner asked for exactly this).
+              if (barcode.isEmpty) ...[
+                OutlinedButton.icon(
+                  onPressed: loading ? null : onScan,
+                  icon: loading
+                      ? const SizedBox(
+                          width: 14, height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.qr_code_scanner, size: 16),
+                  label: const Text('Scan Barcode'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(130, 36),
+                    foregroundColor: AppColors.accent,
+                    side: BorderSide(color: AppColors.accent),
+                  ),
                 ),
-              ),
+                // No barcode on the product? Make one to print on a shelf label.
+                TextButton.icon(
+                  onPressed: onGenerateBarcode,
+                  icon: const Icon(Icons.qr_code_2, size: 14),
+                  label: const Text('Generate barcode',
+                      style: TextStyle(fontSize: 11)),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 28),
+                    foregroundColor: AppColors.primary,
+                  ),
+                ),
+              ] else
+                linkedChip,
               const SizedBox(height: 6),
               OutlinedButton.icon(
                 onPressed: loading ? null : onScanPhoto,
@@ -1448,7 +1719,7 @@ class _ImageSection extends StatelessWidget {
                   side: const BorderSide(color: Colors.deepPurple),
                 ),
               ),
-            ] else
+            ] else if (barcode.isEmpty) ...[
               SizedBox(
                 width: 160,
                 child: TextField(
@@ -1462,6 +1733,19 @@ class _ImageSection extends StatelessWidget {
                   onSubmitted: onBarcodeChanged,
                 ),
               ),
+              TextButton.icon(
+                onPressed: onGenerateBarcode,
+                icon: const Icon(Icons.qr_code_2, size: 14),
+                label: const Text('Generate barcode',
+                    style: TextStyle(fontSize: 11)),
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: const Size(0, 28),
+                  foregroundColor: AppColors.primary,
+                ),
+              ),
+            ] else
+              linkedChip,
             const SizedBox(height: 6),
             OutlinedButton.icon(
               onPressed: onCamera,

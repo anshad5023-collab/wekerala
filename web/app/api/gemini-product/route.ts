@@ -952,6 +952,16 @@ IMPORTANT EXCEPTIONS — these MUST return is_product: true:
   vintage but is clearly a packaged retail item, it IS a product. Return is_product: true.
 DO NOT return false just because there is no label or because people's faces appear on a product cover.
 
+━━━ BARCODE READING ━━━
+If a barcode is visible on the product (EAN-13, UPC-A, UPC-E, QR code, or any other barcode):
+• READ the barcode number carefully — it is printed in small digits below the barcode lines
+• EAN-13 barcodes (most common on Indian products) = 13 digits e.g. "8901234567890"
+• UPC-A = 12 digits. QR codes = full text/URL inside the QR pattern.
+• Return the digits/text as a string in the "barcode" field
+• If multiple barcodes are visible, return the one that looks like the product's own EAN/UPC
+• If no barcode is visible or readable, return empty string ""
+• NEVER guess a barcode number — if not clearly readable, return ""
+
 ━━━ JSON OUTPUT ━━━
 Return ONLY valid JSON (no markdown, no code fences):
 {
@@ -963,6 +973,9 @@ Return ONLY valid JSON (no markdown, no code fences):
   "description": "1-2 plain sentences about what the product IS and what it does",
   "price": "MRP or selling price — digits only e.g. '899'; empty string if no price is visible anywhere. NEVER guess",
   "offerPrice": "discounted / offer price — digits only; empty string if none. NEVER guess",
+  "barcode": "barcode number as printed below the barcode lines — EAN-13 (13 digits), UPC-A (12 digits), or QR text; empty string if not visible or not readable. NEVER guess.",
+  "dominant_color": "the MAIN colour of the PRODUCT or its PACKAGING itself (ignore the background, hand, table). One or two words: 'Blue', 'Red', 'Green', 'White', 'Black', 'Yellow', 'Orange', 'Pink', 'Purple', 'Brown', 'Silver', 'Gold', 'Transparent', or 'Multicolour' if it has many. This is used to verify any catalogue image matches the real product colour, so be accurate.",
+  "size_text": "the exact size/weight/volume as PRINTED on the pack — e.g. '80ml', '500g', '1kg', '6 pack'; empty string if none visible. Used to find the exact variant image.",
   "confidence": "high | medium | low",
   "uncertain_fields": ["field names you are NOT confident about — e.g. ['name', 'price']"]
 }

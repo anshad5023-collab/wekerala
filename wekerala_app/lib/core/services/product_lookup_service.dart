@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:image/image.dart' as img;
 
 class ProductData {
   final String nameEn;
@@ -21,6 +23,15 @@ class ProductData {
   final List<String> uncertainFields;
   /// Shop-type-specific fields extracted by Gemini (composition, strength, fabric, etc.)
   final Map<String, dynamic> attributes;
+  /// Main colour of the product/packaging read by the AI (e.g. 'Blue'). Used to
+  /// verify any catalogue image matches the real product colour.
+  final String dominantColor;
+  /// Exact size/weight/volume printed on the pack (e.g. '80ml'). Sharpens the
+  /// web image search to the correct variant.
+  final String sizeText;
+  /// True when the saved image is the owner's own photo (exact product) because
+  /// no internet image matched. The UI can show "your photo" instead of a guess.
+  final bool imageIsOwnerPhoto;
 
   const ProductData({
     this.nameEn = '',
@@ -35,6 +46,9 @@ class ProductData {
     this.offerPrice = 0,
     this.uncertainFields = const [],
     this.attributes = const {},
+    this.dominantColor = '',
+    this.sizeText = '',
+    this.imageIsOwnerPhoto = false,
   });
 
   bool get hasData => nameEn.isNotEmpty || imageUrl.isNotEmpty;
@@ -168,6 +182,12 @@ class ProductLookupService {
         final brand = (data['brand'] as String? ?? '').trim();
         final rawCat = (data['category'] as String? ?? '').trim();
         final color = (data['color'] as String? ?? '').trim();
+        // dominant_color is the AI's read of the actual product colour from the
+        // photo — more reliable than the free-form `color` attribute. We use it
+        // both to sharpen the image search and to verify the result matches.
+        final dominantColor =
+            (data['dominant_color'] as String? ?? '').trim();
+        final sizeText = (data['size_text'] as String? ?? '').trim();
         final unit = _normaliseUnit(data['unit'] as String? ?? 'piece');
         var imageUrl = (data['imageUrl'] as String? ?? '').trim();
         final description = (data['description'] as String? ?? '').trim();
@@ -178,13 +198,38 @@ class ProductLookupService {
             .map((e) => e.toString())
             .toList();
 
+        // The colour the catalogue image MUST match — prefer the AI's dominant
+        // colour read, fall back to the colour attribute.
+        final expectColor = dominantColor.isNotEmpty ? dominantColor : color;
+
         // Server (Vercel) couldn't get a DuckDuckGo image — DDG blocks data-center
         // IPs regardless of headers. Try again from the phone itself: a normal
         // mobile/WiFi IP isn't blocked, so this works where the server attempt can't.
-        // Include colour so variant-heavy products (shoes, clothing) match better.
+        // Build the richest possible query — brand + name + exact colour + exact
+        // size — so the result is the SAME variant, not just the same product type.
         if (imageUrl.isEmpty && (name.isNotEmpty || brand.isNotEmpty)) {
           imageUrl = await _fetchImageFromWeb(
-              [brand, name, color].where((s) => s.isNotEmpty).join(' '));
+              [brand, name, expectColor, sizeText]
+                  .where((s) => s.isNotEmpty)
+                  .join(' '));
+        }
+
+        // ── Colour verification gate ──────────────────────────────────────
+        // Whatever image we ended up with (server OFF/OL match OR web search),
+        // confirm its real colour matches the product the owner photographed.
+        // If a clear chromatic colour was read and the candidate image's colour
+        // is clearly different, DISCARD it — the Add-Product screen then keeps
+        // the owner's own photo, which is always the exact product & colour.
+        var imageVerified = imageUrl.isEmpty; // empty => owner photo, no check
+        if (imageUrl.isNotEmpty && _isChromaticColor(expectColor)) {
+          final ok = await _imageColourMatches(imageUrl, expectColor);
+          if (!ok) {
+            imageUrl = ''; // reject wrong-colour catalogue image
+          } else {
+            imageVerified = true;
+          }
+        } else if (imageUrl.isNotEmpty) {
+          imageVerified = true; // neutral/unmappable colour — accept as-is
         }
 
         // Resolve the category against the shop's real list. Gemini was already
@@ -238,6 +283,11 @@ class ProductLookupService {
           offerPrice: offerPrice,
           uncertainFields: uncertain,
           attributes: attributes,
+          dominantColor: dominantColor,
+          sizeText: sizeText,
+          // No verified internet image => the screen should keep the owner's
+          // photo (the exact product). True only when a match was confirmed.
+          imageIsOwnerPhoto: !imageVerified,
         );
       }
     } catch (e) {
@@ -361,6 +411,118 @@ class ProductLookupService {
     final low = url.toLowerCase();
     if (low.endsWith('.svg') || low.endsWith('.gif')) return false;
     return true;
+  }
+
+  // ─── Private: colour verification ─────────────────────────────────────────
+  //
+  // A catalogue image is only trustworthy if its colour matches the product the
+  // owner actually photographed. We map the AI's colour word to a hue, measure
+  // the candidate image's dominant hue on-device (free, no API), and compare.
+
+  // Representative HSV hue (degrees) for each chromatic colour word. Neutral
+  // colours (white/black/grey/silver/transparent/multicolour) are intentionally
+  // absent — they can't be verified by hue, so we never reject on them.
+  static const Map<String, double> _colourHue = {
+    'red': 0, 'maroon': 0, 'crimson': 0, 'scarlet': 0,
+    'orange': 30, 'amber': 35,
+    'yellow': 55, 'gold': 50, 'golden': 50,
+    'green': 120, 'olive': 80, 'lime': 90,
+    'cyan': 185, 'teal': 180,
+    'blue': 220, 'navy': 225, 'skyblue': 200,
+    'purple': 280, 'violet': 280, 'indigo': 260, 'lavender': 280,
+    'pink': 330, 'magenta': 320, 'maroon2': 350,
+    'brown': 25,
+  };
+
+  // True when the colour word maps to a hue we can verify against pixels.
+  static bool _isChromaticColor(String colorWord) {
+    final w = colorWord.toLowerCase().trim();
+    if (w.isEmpty) return false;
+    for (final key in _colourHue.keys) {
+      if (w.contains(key)) return true;
+    }
+    return false;
+  }
+
+  static double? _expectedHue(String colorWord) {
+    final w = colorWord.toLowerCase().trim();
+    for (final entry in _colourHue.entries) {
+      if (w.contains(entry.key)) return entry.value;
+    }
+    return null;
+  }
+
+  // Download the candidate image and check its dominant chromatic hue is close
+  // to the expected colour. Conservative: only returns false when the image has
+  // enough coloured pixels AND their hue is clearly different — a neutral or
+  // unreadable image passes (we don't want to reject good catalogue shots).
+  static Future<bool> _imageColourMatches(String url, String colorWord) async {
+    final expected = _expectedHue(colorWord);
+    if (expected == null) return true; // can't verify => accept
+    try {
+      final resp = await http
+          .get(Uri.parse(url), headers: {'User-Agent': _imgUa})
+          .timeout(const Duration(seconds: 8));
+      if (resp.statusCode != 200) return true; // can't fetch => don't reject
+      final decoded = img.decodeImage(resp.bodyBytes);
+      if (decoded == null) return true;
+
+      // Downsample for speed — colour survives, work shrinks ~100x.
+      final small = img.copyResize(decoded, width: 48);
+      // Hue histogram (12 buckets of 30°), weighted by saturation*value, built
+      // only from clearly chromatic pixels (skip white/black/grey background).
+      final buckets = List<double>.filled(12, 0);
+      var chromaticPixels = 0;
+      for (var y = 0; y < small.height; y++) {
+        for (var x = 0; x < small.width; x++) {
+          final p = small.getPixel(x, y);
+          final hsv = _rgbToHsv(p.r.toDouble(), p.g.toDouble(), p.b.toDouble());
+          final h = hsv[0], s = hsv[1], v = hsv[2];
+          // Skip near-white, near-black and washed-out (background) pixels.
+          if (s < 0.25 || v < 0.18 || v > 0.97) continue;
+          chromaticPixels++;
+          buckets[(h ~/ 30) % 12] += s * v;
+        }
+      }
+      final totalPixels = small.width * small.height;
+      // Mostly neutral image (white pack, transparent bottle) — can't judge.
+      if (chromaticPixels < totalPixels * 0.05) return true;
+
+      // Dominant hue = centre of the heaviest bucket.
+      var bestBucket = 0;
+      for (var i = 1; i < 12; i++) {
+        if (buckets[i] > buckets[bestBucket]) bestBucket = i;
+      }
+      final dominantHue = bestBucket * 30.0 + 15.0;
+
+      // Circular hue distance; accept within ±45° (one bucket of slack each way).
+      var diff = (dominantHue - expected).abs();
+      if (diff > 180) diff = 360 - diff;
+      return diff <= 45;
+    } catch (_) {
+      return true; // any failure => don't block a usable image
+    }
+  }
+
+  // RGB (0-255) -> HSV with H in degrees [0,360), S and V in [0,1].
+  static List<double> _rgbToHsv(double r, double g, double b) {
+    r /= 255; g /= 255; b /= 255;
+    final maxC = math.max(r, math.max(g, b));
+    final minC = math.min(r, math.min(g, b));
+    final d = maxC - minC;
+    double h = 0;
+    if (d != 0) {
+      if (maxC == r) {
+        h = 60 * (((g - b) / d) % 6);
+      } else if (maxC == g) {
+        h = 60 * (((b - r) / d) + 2);
+      } else {
+        h = 60 * (((r - g) / d) + 4);
+      }
+    }
+    if (h < 0) h += 360;
+    final s = maxC == 0 ? 0.0 : d / maxC;
+    return [h, s, maxC];
   }
 
   // ─── Private: Community DB ───────────────────────────────────────────────
