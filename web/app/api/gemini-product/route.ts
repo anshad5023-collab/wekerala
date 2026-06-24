@@ -82,6 +82,127 @@ Use the local Malayalam name alongside the English name for Kerala fish:
 • Pearl spot/Karimeen in banana leaf = Karimeen Pollichathu (popular dish, is_product:false if cooked)
 • When photographed in a Kerala fish market: identify species if visible, else "Fresh Fish"
 
+━━━ KERALA-SPECIFIC PRODUCT IDENTIFICATION GUIDE ━━━
+Kerala shops sell many products with specific local varieties. Use the EXACT local name when identifiable.
+
+🍌 BANANAS — Kerala has 8+ distinct commercial varieties. Identify by visual appearance:
+  • Nendran (നേന്ത്രം) — Long (20-30cm), thick, angular, green-yellow. Used for chips & cooking. Most common in Kerala shops.
+    → name: "Nendran Banana (Ethapazham)" | Ripe Nendran → "Ethapazham (Ripe Nendran)"
+  • Poovan (പൂവൻ) — Small (10-12cm), thin, slightly curved, bright yellow with a pointed tip. Sweet & tangy.
+    → name: "Poovan Banana"
+  • Palayan Kodan (പാളയൻകോടൻ) — Small-medium, chubby, very sweet, yellow. Premium eating banana.
+    → name: "Palayan Kodan Banana"
+  • Monthan (മൊന്തൻ) — Short, very thick, angular like Nendran but shorter. Cooking only, never eaten raw.
+    → name: "Monthan Banana (Cooking)"
+  • Robusta — Large (15-18cm), regular supermarket banana, smooth skin, mild taste.
+    → name: "Robusta Banana"
+  • Kadali / Raw banana (കദളി) — Any unripe green cooking banana.
+    → name: "Raw Banana (Pachakkai Vazhakkai)"
+  • If variety unclear: name="Banana" and add "variety" to uncertain_fields
+
+🌾 RICE — Kerala shops sell specific varieties. Identify by pack label or grain colour if visible:
+  • Matta Rice / Rosematta / Kerala Red Rice — Dark reddish-brown, parboiled, thick grains. Distinctly red/brown colour.
+    → name: "Kerala Matta Rice (Rosematta)" | is_veg: "Veg"
+  • Jaya Rice — White, medium-long grain, most common white rice in Kerala.
+    → name: "Jaya Rice" | is_veg: "Veg"
+  • Ponni Rice — White, slightly shorter grain, used for idli/dosa/rice.
+    → name: "Ponni Rice" | is_veg: "Veg"
+  • Basmati Rice — Long, thin, white, aromatic. Usually branded (India Gate, Dawaat, Kohinoor).
+    → name: "Basmati Rice [Brand if visible]"
+  • If variety not readable from label: name="Rice" (specify variety in uncertain_fields)
+
+🥭 MANGOES — Kerala has local varieties:
+  • Malgova — Very large, round-oval, green-yellow skin, thick flesh. Premium dessert mango.
+    → name: "Malgova Mango"
+  • Alphonso / Hapus — Medium, golden-orange skin, very sweet aroma. Usually labelled.
+    → name: "Alphonso Mango (Hapus)"
+  • Neelam — Small-medium, yellow, fibrous, season May-June.
+    → name: "Neelam Mango"
+  • Priya / Priyan — Common Kerala variety, green-yellow.
+    → name: "Priya Mango"
+  • If variety not identifiable: name="Mango" (add variety to uncertain_fields)
+
+🥬 KERALA VEGETABLES — use local Malayalam names alongside English:
+  • Cheera (ചീര) — Amaranth leaves, red or green bunches. → name: "Cheera (Amaranth Leaves)" | Red: "Red Cheera"
+  • Muringakka (മുരിങ്ങക്ക) — Drumstick / Moringa pods, long thin green pods.
+    → name: "Muringakka (Drumstick)"
+  • Kumbalanga (കുമ്പളങ്ങ) — Ash gourd / Winter melon, large pale green oval.
+    → name: "Kumbalanga (Ash Gourd)"
+  • Pavakka (പാവക്ക) — Bitter gourd / Karela, warty green surface.
+    → name: "Pavakka (Bitter Gourd)"
+  • Chena (ചേന) — Elephant foot yam, large rough brown tuber.
+    → name: "Chena (Elephant Foot Yam)"
+  • Koorka (കൂർക്ക) — Chinese potato / Crosnes, small round tubers.
+    → name: "Koorka (Chinese Potato)"
+  • Chembu (ചേമ്പ്) — Taro / Colocasia, large rough tuber.
+    → name: "Chembu (Taro)"
+  • Unnakkai / Kaya (കായ) — Raw / unripe plantain, used for Kerala dishes.
+    → name: "Kaya (Raw Plantain)"
+  • Vellarikka (വെള്ളരിക്ക) — Cucumber (Kerala variety, longer and lighter than regular).
+    → name: "Vellarikka (Kerala Cucumber)"
+  • Kovakka (കോവക്ക) — Ivy gourd / Tindora, small oval green vegetable.
+    → name: "Kovakka (Ivy Gourd)"
+  • Ethakka (full Nendran) / Kaya — Large raw plantain for cooking.
+    → name: "Ethakka / Raw Plantain"
+
+🌶️ KERALA SPICES — be specific with variety:
+  • Kurumulaku (കുരുമുളക്) — Black pepper, round dark berries. Kerala's most famous spice.
+    → name: "Kurumulaku (Black Pepper)" or "Black Pepper Powder" if ground
+  • Elakka (ഏലക്ക) — Cardamom pods, green oval pods with seeds.
+    → name: "Elakka (Green Cardamom)"
+  • Jathikka (ജാതിക്ക) — Nutmeg, round brown nut. Jathipathri = Mace (lacy red/orange covering).
+    → name: "Jathikka (Nutmeg)" or "Jathipathri (Mace)"
+  • Lavangam (ലവംഗം) — Cloves, small dark brown nail-shaped.
+    → name: "Lavangam (Cloves)"
+  • Patta (പട്ട) — Cinnamon / Cassia bark, rolled brown sticks.
+    → name: "Patta (Cinnamon)"
+  • Thalichapodi / Chilli powder — Red chilli powder, bright red colour.
+    → name: "Red Chilli Powder" (or brand if visible e.g. "Eastern Red Chilli Powder")
+  • Haldi / Manjal (മഞ്ഞൾ) — Turmeric, bright orange-yellow powder or root.
+    → name: "Manjal (Turmeric Powder)" or "Fresh Turmeric Root"
+
+🥥 COCONUT PRODUCTS:
+  • Tender coconut / Ilaneer (ഇളനീർ) — Green, spherical, young coconut for drinking.
+    → name: "Ilaneer (Tender Coconut)"
+  • Dry coconut / Copra (കൊപ്ര) — Brown, hard, dried coconut half.
+    → name: "Copra (Dried Coconut)"
+  • Coconut oil — Identify brand if visible:
+    → KLF Nirmal, Parachute, Ente Keralam, Nirapara — use brand name: "KLF Nirmal Coconut Oil"
+    → If loose/unlabelled: name: "Coconut Oil (Vennennai)"
+
+🐟 KERALA FISH (extended) — add to fish guide:
+  • Tilapia (Jalebi / Aquaculture fish) — Farm-raised, disc-shaped, available year-round.
+    → name: "Tilapia (Jalebi)"
+  • Vatta ( വട്ട) — Indian Scad, small round silvery fish. Common in Kerala.
+    → name: "Vatta Fish (Indian Scad)"
+  • Kora (കൊര) — Croaker fish, yellowish, medium size.
+    → name: "Kora (Croaker Fish)"
+  • Kalava (കലവ) — Grouper, large reef fish.
+    → name: "Kalava (Grouper)"
+  • Crab (ഞണ്ട്) — Mud crab or mangrove crab, dark shell.
+    → name: "Njandu (Mud Crab)"
+  • Squid / Koonthal (കൂന്തൽ) — White tentacled body.
+    → name: "Koonthal (Squid)"
+  • Oyster / Mussels (Kadukka) — Dark shells, sold in bunches.
+    → name: "Kadukka (Mussels / Oyster)"
+
+🍚 KERALA BRANDED STAPLES — recognise these local brands:
+  • Nirapara — Rice, flour, spice powders (red pack with Kerala motif)
+  • Eastern — Masala powders, curry powder (yellow/orange packs)
+  • Double Horse — Rice, atta, spices (blue/white pack)
+  • Milma — Kerala cooperative dairy (white milk packets, butter, curd)
+  • Brahmins — Chutneys, pickles (purple/maroon label)
+  • KLF Nirmal — Coconut oil (yellow tin or bottle)
+  • Ente Keralam — Coconut oil and Kerala food products
+  • Malabar Gold — Spices (green and gold pack)
+
+IMPORTANT: When you can identify the EXACT Kerala local variety, ALWAYS use the specific name.
+"Nendran Banana" is far more useful to a Kerala shop owner than just "Banana".
+"Matta Rice" is more useful than "Rice".
+"Karimeen" is more useful than "Fresh Fish".
+Add the local Malayalam name in brackets where possible.
+
+
 ━━━ WHEN THERE IS NO LABEL OR BRAND ━━━
 • Loose item or plain bag → name it accurately by type: "Basmati Rice", "Green Chilli",
   "Coconut Oil", "Ginger", "Banana", "Bitter Gourd", "Cardamom", "Turmeric Powder"
