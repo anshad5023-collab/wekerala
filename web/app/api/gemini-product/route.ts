@@ -922,7 +922,7 @@ IMPORTANT: Products come in MANY packaging forms. The packaging does NOT change 
 Return is_product: false for:
 • People, body parts, animals, pets, plants/trees, furniture IN THE SCENE
 • Empty shelf or empty floor with no product visible
-• Wide-angle shot of entire shop interior (no single product in focus)
+• Wide-angle shot of entire shop/market interior with multiple aisles, shelves, or product sections visible — return is_product: false EVEN IF individual products are identifiable within the scene. A store interior photo is NOT a product scan.
 • A promotional flyer, brochure, or advertisement leaflet that is NOT itself for sale
 • Clearly damaged/used/empty container (no longer sellable)
 • Currency notes or coins (rupees, dirhams, dollars etc.) — money is not a retail product
@@ -943,7 +943,11 @@ IMPORTANT EXCEPTIONS — these MUST return is_product: true:
 • PUJA / RELIGIOUS ITEMS sold in shops — camphor tablets, incense sticks (agarbatti), dhoop,
   pooja oil lamps, vibhuti, kumkum, sindoor — are retail products. Return is_product: true.
 • SPORTS & GAMES sold in shops — cricket bat, carrom board, playing cards, chess set, football,
-  badminton racket — are retail products. Return is_product: true.
+  badminton racket, JIGSAW PUZZLE, board game — are retail products. Return is_product: true.
+  A jigsaw puzzle shown partially assembled / in-progress is still a sellable product (it's a game box).
+• COOKWARE & KITCHEN UTENSILS — a tawa, griddle, dosa pan, kadai (wok), pressure cooker, steel pot,
+  spatula, ladle, or any kitchen cooking vessel IS a retail product even if shown in-use, on a stove,
+  or without packaging. Return is_product: true.
 • VINTAGE-LOOKING or OLD-STYLE PRODUCTS — if a product (soap box, tin, bottle) looks old or
   vintage but is clearly a packaged retail item, it IS a product. Return is_product: true.
 DO NOT return false just because there is no label or because people's faces appear on a product cover.
