@@ -1140,6 +1140,12 @@ BANDAGE / FIRST AID ITEM:
 🧴 PERSONAL CARE (cosmetic/hygiene — NOT medicine)
 ════════════════════════════════════════════════
 
+⚠️ ALWAYS read the NET QUANTITY printed on the pack. Bottles, tubes and sprays
+ALWAYS print their volume ("200 mL", "100ml", "1 L") or weight ("50 g", "100g").
+Put the NUMERIC millilitres in "volume_ml" (e.g. 200) and grams in "net_weight_g"
+(e.g. 50). Do not leave these empty when the number is visible — it almost always
+is. Convert litres to mL (1 L = 1000). This is REQUIRED for every liquid/cream.
+
 SHAMPOO:
   Add: "hair_type" (Dry|Oily|Normal|Damaged|All Hair Types), "volume_ml"
   ✗ NEVER: gender, color, author, model_number, composition

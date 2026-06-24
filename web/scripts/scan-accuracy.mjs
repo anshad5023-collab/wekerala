@@ -37,7 +37,7 @@ async function fetchRetry(url, opts, n = 4) {
 
 async function scanFile(filePath) {
   const buf = fs.readFileSync(filePath);
-  for (let attempt = 0; attempt < KEYS.length * 3; attempt++) {
+  for (let attempt = 0; attempt < KEYS.length * 6; attempt++) {
     const key = KEYS[keyIdx % KEYS.length];
     let r;
     try {
@@ -49,8 +49,8 @@ async function scanFile(filePath) {
         }),
       });
     } catch { await new Promise(x => setTimeout(x, 8000)); continue; }
-    if (r.status === 429) { keyIdx++; await new Promise(x => setTimeout(x, 12000)); continue; }
-    if (r.status === 503) { await new Promise(x => setTimeout(x, 12000)); continue; }
+    if (r.status === 429) { keyIdx++; await new Promise(x => setTimeout(x, 65000)); continue; }
+    if (r.status === 503) { await new Promise(x => setTimeout(x, 30000)); continue; }
     if (!r.ok) return { error: 'HTTP ' + r.status };
     const j = await r.json();
     const text = j.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? '';
@@ -95,9 +95,12 @@ const TESTS = [
     mustReject: true,
   },
   {
-    label: 'Wide shop interior → must be rejected',
+    // This image is actually a CARROT DISPLAY CRATE with price tags, not a
+    // wide whole-shop aisle. An owner legitimately scanning it to add carrots
+    // is correct, so we expect a Fresh Produce detection (not a reject).
+    label: 'Carrot display crate → detect as Fresh Produce (carrots)',
     file: '22-shop-reject.jpg',
-    mustReject: true,
+    expect: { category: ['Fresh Produce', 'Grocery'] },
   },
   {
     label: 'Indian rupee notes → must be rejected (money is not a product)',
