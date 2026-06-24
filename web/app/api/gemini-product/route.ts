@@ -82,125 +82,833 @@ Use the local Malayalam name alongside the English name for Kerala fish:
 • Pearl spot/Karimeen in banana leaf = Karimeen Pollichathu (popular dish, is_product:false if cooked)
 • When photographed in a Kerala fish market: identify species if visible, else "Fresh Fish"
 
-━━━ KERALA-SPECIFIC PRODUCT IDENTIFICATION GUIDE ━━━
-Kerala shops sell many products with specific local varieties. Use the EXACT local name when identifiable.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  KERALA COMPREHENSIVE PRODUCT GUIDE — 200+ TYPES & VARIANTS
+  For each product: look at image → pick MOST SPECIFIC name
+  Works for PACKED (labelled), LOOSE/BULK, and HAND-HELD items
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-🍌 BANANAS — Kerala has 8+ distinct commercial varieties. Identify by visual appearance:
-  • Nendran (നേന്ത്രം) — Long (20-30cm), thick, angular, green-yellow. Used for chips & cooking. Most common in Kerala shops.
-    → name: "Nendran Banana (Ethapazham)" | Ripe Nendran → "Ethapazham (Ripe Nendran)"
-  • Poovan (പൂവൻ) — Small (10-12cm), thin, slightly curved, bright yellow with a pointed tip. Sweet & tangy.
-    → name: "Poovan Banana"
-  • Palayan Kodan (പാളയൻകോടൻ) — Small-medium, chubby, very sweet, yellow. Premium eating banana.
-    → name: "Palayan Kodan Banana"
-  • Monthan (മൊന്തൻ) — Short, very thick, angular like Nendran but shorter. Cooking only, never eaten raw.
-    → name: "Monthan Banana (Cooking)"
-  • Robusta — Large (15-18cm), regular supermarket banana, smooth skin, mild taste.
-    → name: "Robusta Banana"
-  • Kadali / Raw banana (കദളി) — Any unripe green cooking banana.
-    → name: "Raw Banana (Pachakkai Vazhakkai)"
-  • If variety unclear: name="Banana" and add "variety" to uncertain_fields
+════════════════════════════════════════════════
+🍌 BANANAS — 9 VARIETIES (identify by shape+size+colour)
+════════════════════════════════════════════════
+Look at: length, thickness, shape (angular vs round), skin colour when sold.
+• NENDRAN (നേന്ത്രം) — 20-30cm long, thick, 4-5 sides (angular), green-yellow, starchy. Sold raw for chips.
+  Packed: look for "Nendran" on label. Loose: longest, most angular banana in the bunch.
+  → name: "Nendran Banana (Raw)" | unit: piece or kg
+• ETHAPAZHAM (ഏത്തപ്പഴം) — Same Nendran banana but RIPENED (yellow-black skin). Sweet, eaten raw.
+  → name: "Ethapazham (Ripe Nendran Banana)"
+• POOVAN (പൂവൻ) — 10-12cm, thin, slightly curved, bright yellow, pointed tip. Sweet-tangy.
+  → name: "Poovan Banana"
+• PALAYAN KODAN (പാളയൻകോടൻ) — Similar to Poovan but chubbier, very sweet, premium price.
+  → name: "Palayan Kodan Banana"
+• MONTHAN (മൊന്തൻ) — 12-15cm, very thick, angular like Nendran but shorter. ONLY for cooking.
+  → name: "Monthan Banana (Cooking)"
+• ROBUSTA — 15-18cm, smooth rounded skin, supermarket-style, mild flavour. Sold everywhere.
+  → name: "Robusta Banana"
+• NJALIPOOVAN / MYSORE BANANA — Small (8-10cm), very sweet, pink blush on skin.
+  → name: "Njalipoovan Banana"
+• PALAYANKODAN CHENGALIKODAN — Rare, very sweet, fat short variety.
+  → name: "Chengalikodan Banana"
+• RAW GREEN BANANA (any) — Unripe, fully green, any variety, used for cooking.
+  → name: "Kaya (Raw Green Banana)" | unit: piece or kg
+• BANANA FLOWER (കദളിപ്പൂ / Vazha Poo) — Purple-red elongated flower cluster hanging from tree.
+  → name: "Vazha Poo (Banana Flower)" | is_veg: Veg
+• BANANA STEM (Vazha Thandu) — White cylindrical stem cross-section.
+  → name: "Vazha Thandu (Banana Stem)" | is_veg: Veg
 
-🌾 RICE — Kerala shops sell specific varieties. Identify by pack label or grain colour if visible:
-  • Matta Rice / Rosematta / Kerala Red Rice — Dark reddish-brown, parboiled, thick grains. Distinctly red/brown colour.
-    → name: "Kerala Matta Rice (Rosematta)" | is_veg: "Veg"
-  • Jaya Rice — White, medium-long grain, most common white rice in Kerala.
-    → name: "Jaya Rice" | is_veg: "Veg"
-  • Ponni Rice — White, slightly shorter grain, used for idli/dosa/rice.
-    → name: "Ponni Rice" | is_veg: "Veg"
-  • Basmati Rice — Long, thin, white, aromatic. Usually branded (India Gate, Dawaat, Kohinoor).
-    → name: "Basmati Rice [Brand if visible]"
-  • If variety not readable from label: name="Rice" (specify variety in uncertain_fields)
+════════════════════════════════════════════════
+🌾 RICE — 10 VARIETIES
+════════════════════════════════════════════════
+Look at: grain colour (red/white/yellow), grain shape (long/short/round), label brand.
+• MATTA RICE / ROSEMATTA (Kerala Red Rice) — Distinctly RED-BROWN, thick grains, parboiled. Health rice.
+  Packed: "Matta", "Rosematta", "Red Rice" on label. Loose: red-brown colour unmistakable.
+  → name: "Kerala Matta Rice (Rosematta)" | brand if visible
+• JAYA RICE — White, medium-long grain. Most common plain white rice in Kerala.
+  → name: "Jaya Rice"
+• PONNI RICE — White, slightly short-medium grain. South India rice for meals/idli.
+  → name: "Ponni Rice"
+• BASMATI RICE — Very long, thin, white grains. Aromatic. Premium brands (India Gate, Daawat, Kohinoor).
+  → name: "[Brand] Basmati Rice" | brand: India Gate / Daawat / Kohinoor
+• PALAKKADAN MATTA — Same as Matta but specifically from Palakkad region. Label will say "Palakkadan".
+  → name: "Palakkadan Matta Rice"
+• SONA MASOORI — White, lightweight medium grain. From Andhra/Telangana, sold widely in Kerala.
+  → name: "Sona Masoori Rice"
+• IDLI RICE / PARBOILED RICE — White, short round grain specifically for idli/dosa batter.
+  → name: "Idli Rice (Parboiled)" or brand if visible
+• BROKEN RICE (Thavidu) — Small white broken grains, budget rice.
+  → name: "Thavidu (Broken Rice)"
+• RICE FLOUR (Ari Podi) — Fine white powder in bag, different from wheat flour.
+  → name: "Ari Podi (Rice Flour)" | is_veg: Veg
+• PUTTU PODI — Coarsely ground rice flour specifically for making puttu. Usually has "Puttu" on label.
+  → name: "[Brand] Puttu Podi (Rice Flour for Puttu)" | brands: Double Horse, Nirapara, Eastern
 
-🥭 MANGOES — Kerala has local varieties:
-  • Malgova — Very large, round-oval, green-yellow skin, thick flesh. Premium dessert mango.
-    → name: "Malgova Mango"
-  • Alphonso / Hapus — Medium, golden-orange skin, very sweet aroma. Usually labelled.
-    → name: "Alphonso Mango (Hapus)"
-  • Neelam — Small-medium, yellow, fibrous, season May-June.
-    → name: "Neelam Mango"
-  • Priya / Priyan — Common Kerala variety, green-yellow.
-    → name: "Priya Mango"
-  • If variety not identifiable: name="Mango" (add variety to uncertain_fields)
+════════════════════════════════════════════════
+🥭 MANGOES — 7 VARIETIES
+════════════════════════════════════════════════
+Look at: size, shape, skin colour (green/yellow/orange/red), texture, label if packed.
+• MALGOVA — VERY LARGE (500g-1kg each), oval-round, green-yellow, thin skin, thick flesh.
+  → name: "Malgova Mango"
+• ALPHONSO / HAPUS — Medium, deep golden-orange skin, rich aroma, premium price. Usually labelled.
+  → name: "Alphonso Mango (Hapus)"
+• NEELAM — Medium-small, yellow-orange, slightly fibrous, season May-June. Common Kerala variety.
+  → name: "Neelam Mango"
+• PRIYA / PRIYAN — Common Kerala commercial mango, medium, green-yellow.
+  → name: "Priya Mango"
+• KILICHUNDAN (കിളിച്ചുണ്ടൻ) — Small, beak-shaped (kilichundan = parrot beak), very sweet. Prized Kerala variety.
+  → name: "Kilichundan Mango (Parrot Mango)"
+• SINDOORAM (സിന്ദൂരം) — Medium, red-orange skin, sweet. Distinctly reddish.
+  → name: "Sindooram Mango"
+• RAW MANGO (Manga / Pacha Manga) — Green, sour, used for pickles and curries.
+  → name: "Pacha Manga (Raw/Green Mango)" | is_veg: Veg
 
-🥬 KERALA VEGETABLES — use local Malayalam names alongside English:
-  • Cheera (ചീര) — Amaranth leaves, red or green bunches. → name: "Cheera (Amaranth Leaves)" | Red: "Red Cheera"
-  • Muringakka (മുരിങ്ങക്ക) — Drumstick / Moringa pods, long thin green pods.
-    → name: "Muringakka (Drumstick)"
-  • Kumbalanga (കുമ്പളങ്ങ) — Ash gourd / Winter melon, large pale green oval.
-    → name: "Kumbalanga (Ash Gourd)"
-  • Pavakka (പാവക്ക) — Bitter gourd / Karela, warty green surface.
-    → name: "Pavakka (Bitter Gourd)"
-  • Chena (ചേന) — Elephant foot yam, large rough brown tuber.
-    → name: "Chena (Elephant Foot Yam)"
-  • Koorka (കൂർക്ക) — Chinese potato / Crosnes, small round tubers.
-    → name: "Koorka (Chinese Potato)"
-  • Chembu (ചേമ്പ്) — Taro / Colocasia, large rough tuber.
-    → name: "Chembu (Taro)"
-  • Unnakkai / Kaya (കായ) — Raw / unripe plantain, used for Kerala dishes.
-    → name: "Kaya (Raw Plantain)"
-  • Vellarikka (വെള്ളരിക്ക) — Cucumber (Kerala variety, longer and lighter than regular).
-    → name: "Vellarikka (Kerala Cucumber)"
-  • Kovakka (കോവക്ക) — Ivy gourd / Tindora, small oval green vegetable.
-    → name: "Kovakka (Ivy Gourd)"
-  • Ethakka (full Nendran) / Kaya — Large raw plantain for cooking.
-    → name: "Ethakka / Raw Plantain"
+════════════════════════════════════════════════
+🥬 KERALA VEGETABLES — 30+ VARIETIES
+════════════════════════════════════════════════
+For ALL vegetables: is_veg: "Veg". Look at shape, colour, surface texture.
 
-🌶️ KERALA SPICES — be specific with variety:
-  • Kurumulaku (കുരുമുളക്) — Black pepper, round dark berries. Kerala's most famous spice.
-    → name: "Kurumulaku (Black Pepper)" or "Black Pepper Powder" if ground
-  • Elakka (ഏലക്ക) — Cardamom pods, green oval pods with seeds.
-    → name: "Elakka (Green Cardamom)"
-  • Jathikka (ജാതിക്ക) — Nutmeg, round brown nut. Jathipathri = Mace (lacy red/orange covering).
-    → name: "Jathikka (Nutmeg)" or "Jathipathri (Mace)"
-  • Lavangam (ലവംഗം) — Cloves, small dark brown nail-shaped.
-    → name: "Lavangam (Cloves)"
-  • Patta (പട്ട) — Cinnamon / Cassia bark, rolled brown sticks.
-    → name: "Patta (Cinnamon)"
-  • Thalichapodi / Chilli powder — Red chilli powder, bright red colour.
-    → name: "Red Chilli Powder" (or brand if visible e.g. "Eastern Red Chilli Powder")
-  • Haldi / Manjal (മഞ്ഞൾ) — Turmeric, bright orange-yellow powder or root.
-    → name: "Manjal (Turmeric Powder)" or "Fresh Turmeric Root"
+LEAFY GREENS:
+• CHEERA (ചീര) — Amaranth leaves. RED CHEERA = red-purple leaves and stems. GREEN CHEERA = green.
+  → "Red Cheera (Red Amaranth)" | "Green Cheera (Green Amaranth)"
+• MURINGAYILA (മുരിങ്ങയില) — Moringa/Drumstick leaves, tiny oval leaflets on feathery branches.
+  → name: "Muringayila (Drumstick Leaves)"
+• CURRY LEAVES (കറിവേപ്പ് / Kariveppu) — Shiny dark green aromatic leaves on a stalk.
+  → name: "Kariveppu (Curry Leaves)"
+• ULUVA LEAF / FENUGREEK GREENS (വെന്തയകീര) — Pale green, 3-leaflet clusters, bitter taste.
+  → name: "Uluva Keerai (Fenugreek Leaves)"
+• THULASI (തുളസി / Holy Basil) — Small oval green leaves, aromatic, often potted.
+  → name: "Thulasi (Holy Basil)"
 
-🥥 COCONUT PRODUCTS:
-  • Tender coconut / Ilaneer (ഇളനീർ) — Green, spherical, young coconut for drinking.
-    → name: "Ilaneer (Tender Coconut)"
-  • Dry coconut / Copra (കൊപ്ര) — Brown, hard, dried coconut half.
-    → name: "Copra (Dried Coconut)"
-  • Coconut oil — Identify brand if visible:
-    → KLF Nirmal, Parachute, Ente Keralam, Nirapara — use brand name: "KLF Nirmal Coconut Oil"
-    → If loose/unlabelled: name: "Coconut Oil (Vennennai)"
+GOURDS & CREEPERS:
+• KUMBALANGA (കുമ്പളങ്ങ) — LARGE oval pale green, waxy smooth skin. Ash gourd/winter melon. Can be huge (5-10kg).
+  → name: "Kumbalanga (Ash Gourd / Winter Melon)" | unit: kg
+• PAVAKKA (പാവക്ക) — Green, WARTY surface (the bumps are the key ID feature). Bitter gourd.
+  → name: "Pavakka (Bitter Gourd / Karela)"
+• VELLARIKKA (വെള്ളരിക്ക) — Kerala cucumber. LONGER and PALER than regular cucumber. Pale green-white.
+  → name: "Vellarikka (Kerala Cucumber)"
+• KOVAKKA (കോവക്ക) — Oval, small (4-5cm), bright green, smooth. Ivy gourd/Tindora.
+  → name: "Kovakka (Ivy Gourd / Tindora)"
+• PEECHINGA (പീചിങ്ങ) — Ridge gourd. Long, with ridges/ribs running lengthwise, dark green.
+  → name: "Peechinga (Ridge Gourd)"
+• PADAVALANGA (പടവലങ്ങ) — Snake gourd. Very long (30-60cm), pale green, white stripes, twisted.
+  → name: "Padavalanga (Snake Gourd)"
+• CHAKKAKURU (ചക്കക്കുരു) — Jackfruit seeds. Light brown oval seeds sold separately.
+  → name: "Chakkakuru (Jackfruit Seeds)" | is_veg: Veg
+• MURINGAKKA (മുരിങ്ങക്ക) — Drumstick pods. Long (30-45cm), thin, dark green, rough surface.
+  → name: "Muringakka (Drumstick / Moringa Pod)"
 
-🐟 KERALA FISH (extended) — add to fish guide:
-  • Tilapia (Jalebi / Aquaculture fish) — Farm-raised, disc-shaped, available year-round.
-    → name: "Tilapia (Jalebi)"
-  • Vatta ( വട്ട) — Indian Scad, small round silvery fish. Common in Kerala.
-    → name: "Vatta Fish (Indian Scad)"
-  • Kora (കൊര) — Croaker fish, yellowish, medium size.
-    → name: "Kora (Croaker Fish)"
-  • Kalava (കലവ) — Grouper, large reef fish.
-    → name: "Kalava (Grouper)"
-  • Crab (ഞണ്ട്) — Mud crab or mangrove crab, dark shell.
-    → name: "Njandu (Mud Crab)"
-  • Squid / Koonthal (കൂന്തൽ) — White tentacled body.
-    → name: "Koonthal (Squid)"
-  • Oyster / Mussels (Kadukka) — Dark shells, sold in bunches.
-    → name: "Kadukka (Mussels / Oyster)"
+TUBERS & ROOTS:
+• CHENA (ചേന) — Elephant foot yam. VERY LARGE rough brown tuber (2-10kg), cut into chunks in shop.
+  → name: "Chena (Elephant Foot Yam)" | unit: kg
+• CHEMBU (ചേമ്പ്) — Taro/Colocasia. Medium rough brown tuber (200-400g each), may have root fibres.
+  → name: "Chembu (Taro / Colocasia)"
+• KOORKA (കൂർക്ക) — Chinese potato. SMALL round-oval tubers (2-4cm), light brown, sold in bunches.
+  → name: "Koorka (Chinese Potato)"
+• KACHIL (കാച്ചിൽ) — Purple/violet yam. Purple-tinted skin and flesh when cut.
+  → name: "Kachil (Purple Yam)"
+• KATTU KACHIL / WILD YAM — Brown rough exterior, sold in chunks.
+  → name: "Kachil (Wild Yam)"
+• GINGER (ഇഞ്ചി / Inji) — Knobby tan-beige rhizome. Fresh = moist and firm. Dried = wrinkled.
+  → name: "Inji (Fresh Ginger)" or "Dried Ginger"
+• TURMERIC ROOT (ഇഞ്ചി മഞ്ഞൾ / Fresh Turmeric) — Like ginger but BRIGHT ORANGE inside, smaller.
+  → name: "Fresh Turmeric Root (Inji Manjal)"
 
-🍚 KERALA BRANDED STAPLES — recognise these local brands:
-  • Nirapara — Rice, flour, spice powders (red pack with Kerala motif)
-  • Eastern — Masala powders, curry powder (yellow/orange packs)
-  • Double Horse — Rice, atta, spices (blue/white pack)
-  • Milma — Kerala cooperative dairy (white milk packets, butter, curd)
-  • Brahmins — Chutneys, pickles (purple/maroon label)
-  • KLF Nirmal — Coconut oil (yellow tin or bottle)
-  • Ente Keralam — Coconut oil and Kerala food products
-  • Malabar Gold — Spices (green and gold pack)
+OTHERS:
+• ETHAKKA / KAYA (ഏത്ത/കായ) — Raw plantain. Same as Nendran but unripe, green, for cooking.
+  → name: "Ethakka / Raw Plantain (Kaya)"
+• JACKFRUIT — UNRIPE (raw): large, green spiky skin, white inside. RIPE: yellow inside, sweet smell.
+  → "Chakka (Raw Jackfruit)" or "Ripe Jackfruit (Pakam Chakka)" | unit: kg
+• BREADFRUIT (ഈര) — Large round green fruit, bumpy surface. Common Kerala home garden tree.
+  → name: "Eera (Breadfruit)"
+• GREEN PAPAYA / RAW PAPAYA (Omakka) — Large, oblong, completely green. Used for curry.
+  → name: "Omakka (Raw Green Papaya)"
+• COCONUT — TENDER (green): for drinking. DRY (brown): for cooking/oil.
+  → "Ilaneer (Tender Coconut)" | "Thenga (Dry Coconut)"
+• DRUMSTICK FLOWER — White small flowers of Moringa tree, sold in small bunches.
+  → name: "Muringapoo (Drumstick Flower)"
 
-IMPORTANT: When you can identify the EXACT Kerala local variety, ALWAYS use the specific name.
-"Nendran Banana" is far more useful to a Kerala shop owner than just "Banana".
-"Matta Rice" is more useful than "Rice".
-"Karimeen" is more useful than "Fresh Fish".
-Add the local Malayalam name in brackets where possible.
+════════════════════════════════════════════════
+🐟 FISH & SEAFOOD — 20+ VARIETIES
+════════════════════════════════════════════════
+ALL fish: is_veg: "Non-Veg". Identify by body shape, colour, size, scale pattern.
+• NEYMEEN / KING FISH — Long (40-80cm), silver with dark spots, firm crosscut slices sold in shops.
+  → name: "Neymeen (King Fish / Seer Fish)"
+• MATHI / CHAALA (Sardine) — Very SMALL (8-12cm), silver, sold in LARGE piles. Most common Kerala fish.
+  → name: "Mathi / Chaala (Indian Sardine)"
+• AYALA (Indian Mackerel) — Medium (20-25cm), BLUE-GREEN STRIPES along body, torpedo shape.
+  → name: "Ayala (Indian Mackerel)"
+• AVOLI (Pomfret) — FLAT, disc-shaped, silver-white. Black Pomfret = dark colour.
+  → "Avoli (Silver Pomfret)" | "Karuppu Avoli (Black Pomfret)"
+• KARIMEEN (Pearl Spot) — Small (15-20cm), dark grey-green with gold spots, ROUND body, spiny fins.
+  → name: "Karimeen (Pearl Spot)" — famous Kerala backwater fish
+• CHEMMEEN / KONJU (Prawns/Shrimp) — Small/medium pink-grey shrimp = Chemmeen. Large = Konju.
+  → "Chemmeen (Small Prawns)" | "Konju (Tiger Prawns / Large Prawns)"
+• ROHU — Large (50-80cm sold in slices), silver with faint pink tinge, carp family.
+  → name: "Rohu Fish (River Carp)"
+• TILAPIA / JALEBI — Farm fish, disc-shaped like pomfret but more elongated, grey, available year-round.
+  → name: "Tilapia (Jalebi Fish)"
+• VATTA (Indian Scad) — Small (15-20cm), round body, silver with yellow/golden stripe.
+  → name: "Vatta (Indian Scad)"
+• KORA (Croaker) — Medium (25-40cm), yellowish with silver belly, large scales.
+  → name: "Kora (Croaker / Jewfish)"
+• KALAVA (Grouper) — LARGE, thick body, dark brown-green with spots, reef fish.
+  → name: "Kalava (Grouper)"
+• SEER FISH STEAKS — Cross-cut slices of King Fish showing white flesh.
+  → name: "Neymeen Meen Kottam (King Fish Steaks)"
+• SQUID / KOONTHAL (കൂന്തൽ) — White soft body with tentacles, torpedo shape.
+  → name: "Koonthal (Squid)"
+• CUTTLEFISH (Kanava) — Like squid but SHORTER and WIDER, rough texture.
+  → name: "Kanava (Cuttlefish)"
+• MUD CRAB / NJANDU (ഞണ്ട്) — Dark green-brown shell, large claws.
+  → name: "Njandu (Mud Crab)"
+• SPIDER CRAB / SMALL CRAB — Orange-red when cooked, sold live or cooked.
+  → "Fresh Crab (Njandu)" if raw | "Cooked Crab" = is_product:false if clearly cooked dish
+• KADUKKA / KALLUMAKKAYA (Mussels) — Dark oval shells, sold in bunches on rope or loose.
+  → name: "Kallumakkaya (Mussels)"
+• CLAMS / KAKKA (കക്ക) — Small dark shells, sold in bags.
+  → name: "Kakka (Clams)"
+• LOBSTER (Cheraman) — Large, sold live or fresh, reddish-orange shell.
+  → name: "Cheraman (Lobster)"
+• DRIED FISH (ഉണക്കമീൻ / Unakka Meen) — Any fish that is DRIED (dark, shrivelled, strong smell visible context).
+  → name: "[Species] Unakka Meen (Dried Fish)" e.g. "Mathi Unakka Meen (Dried Sardine)"
+
+════════════════════════════════════════════════
+🌶️ SPICES — 20+ TYPES (packed and loose)
+════════════════════════════════════════════════
+PACKED: read brand + product name from label.
+LOOSE: identify by visual appearance (colour, shape, texture).
+Kerala brands: Eastern, Nirapara, Malabar Gold, Double Horse, Brahmins, MTR.
+• BLACK PEPPER (Kurumulaku) — Round dark brown/black berries, or ground black powder.
+  → "Kurumulaku (Black Pepper Whole)" | "Black Pepper Powder" | brand if visible
+• CARDAMOM (Elakka) — Small green oval pods with visible seam, or black ground powder.
+  → "Elakka (Green Cardamom Pods)" | "Cardamom Powder" | "Black Cardamom (Perumjeerakam)"
+• TURMERIC (Manjal) — Bright ORANGE-YELLOW powder, or small finger-like yellowish root.
+  → "Manjal Podi (Turmeric Powder)" | "Fresh Turmeric Root"
+• RED CHILLI (Mulaku) — Whole dried red chillies (bright red, crinkled), or powder (deep red).
+  → "Mulaku (Whole Red Chilli)" | "Mulaku Podi (Red Chilli Powder)"
+• CORIANDER (Malli) — Small round tan seeds, or green powder.
+  → "Malli Vithu (Coriander Seeds)" | "Malli Podi (Coriander Powder)"
+• CUMIN (Jeerakam) — Thin elongated grey-green seeds.
+  → "Jeerakam (Cumin Seeds)" | "Cumin Powder"
+• MUSTARD (Kaduku) — Tiny round seeds, brown or black.
+  → "Kaduku (Mustard Seeds)"
+• FENUGREEK (Uluva) — Small square yellow seeds.
+  → "Uluva (Fenugreek Seeds)"
+• CLOVES (Lavangam) — Dark brown nail-shaped, strong aroma.
+  → "Lavangam (Cloves)"
+• CINNAMON (Patta) — Rolled bark sticks, light brown.
+  → "Patta (Cinnamon Sticks)" | "Cinnamon Powder"
+• NUTMEG (Jathikka) — Round brown nut with seed, or brown powder.
+  → "Jathikka (Nutmeg)" | "Jathipathri (Mace)" — orange-red lacy covering around nutmeg
+• STAR ANISE (Thakkolam) — Star-shaped brown spice, 8 points.
+  → "Thakkolam (Star Anise)"
+• BAY LEAF (Vayanayila) — Dry oval leaf, grey-green.
+  → "Vayanayila (Bay Leaf)"
+• GARAM MASALA — Mixed spice powder in pack. Orange-brown powder.
+  → "[Brand] Garam Masala" e.g. "Eastern Garam Masala"
+• CURRY POWDER (Curry Masala) — Yellow-orange mixed powder, most common branded spice in Kerala.
+  → "[Brand] Curry Powder" e.g. "Eastern Curry Powder", "Nirapara Curry Masala"
+• FISH MASALA / FISH CURRY POWDER — Dark red-orange powder, labelled "Fish Masala" or "Meen Masala".
+  → "[Brand] Meen Masala (Fish Curry Powder)"
+• CHICKEN MASALA — Pack labelled "Chicken Masala" or "Kozhi Masala".
+  → "[Brand] Kozhi Masala (Chicken Masala)"
+• PEPPER CHICKEN / BIRYANI MASALA — Named on pack.
+  → "[Brand] Biryani Masala"
+• ASAFOETIDA (Kaayam / Hing) — Small block or tin/bottle of pungent brown paste/powder.
+  → "Kaayam (Asafoetida / Hing)"
+• TAMARIND (Puli / Imli) — Dark brown block of dried tamarind pulp, or concentrate in jar.
+  → "Puli (Tamarind Block)" | "Tamarind Paste/Concentrate"
+• KOKUM (Kudampuli / Malabar Tamarind) — Dark brown dried pieces of Garcinia fruit. Kerala-specific.
+  → "Kudampuli (Kokum / Malabar Tamarind)"
+
+════════════════════════════════════════════════
+🧴 PERSONAL CARE — 30+ TYPES & BRANDS
+════════════════════════════════════════════════
+SHAMPOOS — identify by HAIR TYPE label or visual:
+• Anti-dandruff shampoo: look for "Dandruff", "Scalp" on label. → hair_type: "Dandruff-prone"
+• Head & Shoulders — blue bottle, anti-dandruff. → brand: "Head & Shoulders", hair_type: "Dandruff-prone"
+• Dove Shampoo — white bottle, "Intense Repair" or "Daily Shine". → brand: "Dove"
+• Clinic Plus — green bottle (family shampoo). → brand: "Clinic Plus"
+• Sunsilk — yellow/pink/black variants by hair type. → brand: "Sunsilk"
+• Pantene — gold bottle. → brand: "Pantene"
+• Meera — herbal shampoo (brown pack), popular Kerala brand. → brand: "Meera", hair_type: "All Hair Types"
+• Kesh King — ayurvedic, brown/gold bottle. → brand: "Kesh King"
+
+HAIR OILS:
+• Parachute coconut oil — blue round tin or bottle. → brand: "Parachute", name: "Parachute Coconut Hair Oil"
+• Nihar Naturals — green bottle. → brand: "Nihar Naturals"
+• Dabur Amla — green bottle with amla (gooseberry). → brand: "Dabur Amla Hair Oil"
+• Bajaj Almond Drops — yellow bottle, almond icon. → brand: "Bajaj Almond Drops"
+• Navratna Cool Oil — green bottle, "Cool Oil" text. → brand: "Navratna"
+• VVD Virgin Coconut Oil — local Kerala brand, glass bottle. → brand: "VVD"
+LOOSE/UNLABELLED COCONUT OIL — white/clear oil in plastic bag or open container.
+  → name: "Vennennai (Coconut Oil)" | is_veg: Veg
+
+SOAPS — identify by bar shape (rectangular = bath soap), colour, brand label:
+• Lux — pink/white bar, floral design. → brand: "Lux"
+• Hamam — brown-orange bar. → brand: "Hamam"
+• Dettol Soap — green bar, distinctive shape. → brand: "Dettol"
+• Lifebuoy — red bar, health soap. → brand: "Lifebuoy"
+• Pears — amber transparent bar. → brand: "Pears"
+• Santoor — white bar with sandal icon. → brand: "Santoor"
+• Medimix — green/dark green Ayurvedic soap. → brand: "Medimix", type: "Ayurvedic"
+• Kerala Naturals / Coconut soap — handmade brown soap blocks. → name: "Coconut Soap (Handmade)"
+
+TOOTHPASTE — tube shape, identify brand:
+• Colgate (red/white tube) → brand: "Colgate" | Variants: Total, Active Salt, Sensitive, Charcoal
+• Pepsodent (blue tube) → brand: "Pepsodent"
+• Close-Up (red tube) → brand: "Close-Up"
+• Sensodyne (white/blue tube) → brand: "Sensodyne", variant: "Sensitive"
+• Himalaya (green tube) → brand: "Himalaya", type: "Herbal"
+• Dabur Red (red tube with Dabur) → brand: "Dabur Red"
+
+COSMETICS — identify precisely:
+• Kajal / Kohl (Kanmashi) — Black pencil or small container. → name: "Kajal (Kohl Eyeliner)"
+• Kumkum (for bindi/forehead) — Small red powder in box. → name: "Kumkum Powder"
+• Mehendi / Henna — Green powder pack or cone tube. → name: "Mehendi (Henna)"
+• Nail cutter/clipper — Small metal tool. → name: "Nail Cutter / Nail Clipper"
+• Hair comb — Plastic comb. → name: "Hair Comb (Plastic)" or "Wide-tooth Comb"
+• Hair clip / Hair band — Small accessories. → name: "Hair Clip" or "Hair Band / Scrunchie"
+• Compact powder / Face powder — Flat circular compact. → name: "Face Compact Powder" + brand
+• Foundation — Liquid in pump bottle or tube. → name: "[Brand] Foundation" + shade if visible
+• Sindoor (Vermilion) — Red powder in small box. → name: "Sindoor (Vermilion)"
+
+════════════════════════════════════════════════
+💊 MEDICINES — 15+ FORMS
+════════════════════════════════════════════════
+• BLISTER PACK / STRIP — Foil pack with pills visible in bubbles.
+  → Read medicine name, composition from foil text. form: "tablet" | "capsule"
+• BOTTLE OF TABLETS — Plastic bottle with screw cap.
+  → Read label: name, composition, strength. form: "tablet" | "capsule"
+• SYRUP BOTTLE — Amber or white bottle with liquid.
+  → name from label, form: "syrup", read "Shake well before use" if visible
+• EYE DROPS — Small plastic dropper bottle, 5-10ml.
+  → form: "eye drops", read composition from label
+• NASAL SPRAY — Pump bottle, small nozzle.
+  → form: "nasal spray"
+• OINTMENT TUBE — Metallic/plastic tube.
+  → form: "ointment" | "cream" | "gel"
+• INJECTION VIAL — Small glass vial with rubber top.
+  → form: "injection", read label if visible
+• THERMOMETER — Glass or digital. → name: "Clinical Thermometer" (Glass | Digital)
+• BLOOD PRESSURE MONITOR — Electronic cuff device. → name: "BP Monitor / Blood Pressure Monitor"
+• GLUCOMETER — Small electronic device with test strip slot. → name: "Glucometer (Blood Sugar Meter)"
+• BANDAGE / COTTON ROLL — White rolled cotton or elastic bandage.
+  → name: "Bandage Roll" | "Cotton Bandage" | "Crepe Bandage"
+• ADHESIVE PLASTER — Small strip plasters in box. → name: "Adhesive Plaster / Band-Aid" + brand
+• SURGICAL MASK — White or blue 3-layer mask. → name: "Surgical Face Mask (3-ply)"
+• ORS SACHETS — Flat sachets, usually labelled "ORS", "Electral". → form: "powder"
+
+════════════════════════════════════════════════
+🎵 MUSICAL INSTRUMENTS — 20+ TYPES
+════════════════════════════════════════════════
+• MIDI KEYBOARD / DIGITAL KEYBOARD — Flat keyboard with 25/49/61/88 keys. May have "MIDI" or brand.
+  Look for: number of keys visible, brand (Casio, Yamaha, Roland, Korg, Akai).
+  → name: "[Brand] [Key Count]-Key MIDI Keyboard" e.g. "Casio CT-X700 61-Key Digital Keyboard"
+  → Add: "key_count" (25|49|61|76|88), "brand", "model_number" if visible
+• SYNTHESIZER — Similar to keyboard but more complex, with knobs/sliders/pads. Often labelled "SYNTH".
+  → name: "[Brand] Synthesizer" | brand: Korg, Roland, Moog, Arturia
+• ELECTRIC GUITAR — Solid body, pickups visible, electric guitar shape.
+  → name: "[Brand] Electric Guitar" | Add: "color", "body_type" (Stratocaster|Les Paul|Semi-hollow)
+• ACOUSTIC GUITAR — Hollow wooden body with sound hole. Round hole = standard acoustic.
+  → name: "[Brand] Acoustic Guitar" | Add: "strings" (6-string|12-string), "size" (Full|3/4|1/2)
+• CLASSICAL GUITAR (Nylon string) — Like acoustic but with wider neck, nylon strings look different.
+  → name: "Classical Guitar (Nylon String)"
+• BASS GUITAR — Like electric guitar but longer neck (scale), 4 strings.
+  → name: "[Brand] Bass Guitar (4-string)"
+• UKULELE — Small 4-string, guitar-like but much smaller (50cm body).
+  → name: "Ukulele" | Add: "size" (Soprano|Concert|Tenor|Baritone)
+• VIOLIN — Hourglass wooden body, 4 strings, bow instrument. Dark wood.
+  → name: "Violin" | Add: "size" (1/4|1/2|3/4|4/4 Full)
+• TABLA — Pair of Indian drums: small treble drum (dayan) + larger bass drum (bayan). Dark skin head.
+  → name: "Tabla (Indian Classical Drums)" | unit: set
+• HARMONIUM — Box with bellows (pump handle on side), keyboard on top. Portable Indian keyboard.
+  → name: "Harmonium" | Add: "reeds" if visible, "brand" (Bina, Paloma, Paul & Co.)
+• FLUTE — Long tube: BANSURI = bamboo (dark yellow-brown), WESTERN = silver metal.
+  → "Bansuri (Indian Bamboo Flute)" | "Western Flute (Silver)" | Add: "material"
+• MRIDANGAM — Large barrel-shaped South Indian drum, two skin heads.
+  → name: "Mridangam (South Indian Classical Drum)"
+• VEENA / VINA — Large plucked Indian string instrument, long neck with dragon head carving.
+  → name: "Veena (Indian Classical Instrument)"
+• MANDOLIN — Small pear-shaped body, 8 strings (4 pairs), similar to ukulele but different headstock.
+  → name: "Mandolin" | Add: "strings" (8-string)
+• CAJON — Box-shaped percussion, player sits on it and hits the front face.
+  → name: "Cajon (Box Drum)"
+• DJEMBE — Goblet-shaped African drum with skin head, rope-tuned.
+  → name: "Djembe Drum"
+• XYLOPHONE / MARIMBA — Row of wooden bars hit with mallets, often colourful children's version.
+  → "Xylophone (Children's)" if small/colourful | "Marimba" if large professional
+• DRUM KIT / DRUM SET — Multiple drums + cymbals on stands.
+  → name: "Drum Kit" | Add: "pieces" (5-piece|7-piece) if countable, "brand"
+• SNARE DRUM — Single metal drum on stand or portable.
+  → name: "Snare Drum"
+• CYMBALS — Metal discs on stand. → name: "Cymbal" | Add: "size_inch" if visible
+• GUITAR AMPLIFIER — Box with speaker + control knobs, guitar amp logo.
+  → name: "[Brand] Guitar Amplifier" | Add: "wattage" if visible
+• MICROPHONE — Handheld mic (dynamic), condenser (on desk stand), wireless.
+  → "Wired Microphone" | "Condenser Microphone" | "Wireless Microphone" + brand
+• HEADPHONES (Studio/DJ) — Large over-ear, often labelled "Studio", "Monitor", "DJ".
+  → name: "[Brand] Studio Headphones" | "DJ Headphones" | Add: "model_number"
+• GUITAR STRINGS PACK — Small flat packet. Read gauge/type printed on pack.
+  → name: "[Brand] Guitar Strings [Gauge]" e.g. "Ernie Ball Regular Slinky 10-46"
+• GUITAR PICK / PLECTRUM — Small triangular plastic piece, usually in packet or loose.
+  → name: "Guitar Pick / Plectrum" | Add: "thickness" (Thin|Medium|Heavy) if stated
+
+════════════════════════════════════════════════
+📱 ELECTRONICS — 40+ TYPES & BRANDS
+════════════════════════════════════════════════
+MOBILE PHONES — always read the MODEL from box or phone itself:
+• Samsung: Galaxy A-series (budget), S-series (premium), M-series (midrange)
+  → name: "Samsung Galaxy [Model]" e.g. "Samsung Galaxy A54 5G"
+• Realme: numbers (Realme 11, C65, Narzo) → name: "Realme [Model]"
+• Redmi / Poco / Xiaomi: → name: "Redmi Note [number]" or "POCO M6 5G"
+• Vivo / iQOO: → name: "Vivo [Model]"
+• Oppo: → name: "Oppo [Model]"
+• OnePlus: → name: "OnePlus [Model]"
+• Apple iPhone: → name: "iPhone [Model]" e.g. "iPhone 15"
+• Nokia: → name: "Nokia [Model]"
+
+LAPTOPS — read brand + model from lid or box:
+• HP, Dell, Lenovo, Asus, Acer, Apple MacBook, Microsoft Surface
+  → name: "[Brand] [Series] Laptop" e.g. "HP 15s Laptop", "Dell Inspiron 15"
+
+TABLETS:
+• Samsung Galaxy Tab, Lenovo Tab, Apple iPad, Realme Pad
+  → name: "[Brand] [Model] Tablet" e.g. "Samsung Galaxy Tab A8"
+
+EARPHONES / EARBUDS — identify pack shape or device:
+• Wired earphones (3.5mm): small earbuds with wire
+  → name: "[Brand] Wired Earphones" | compatible_with: "3.5mm Jack"
+• TWS (True Wireless): small case box, two separate earbuds inside
+  → name: "[Brand] TWS Earbuds" | compatible_with: "Bluetooth"
+• AirPods: white case, Apple branding → name: "Apple AirPods" + model if visible
+• Boat Airdopes: very common in Kerala → brand: "Boat"
+• JBL/Sony/Realme/OnePlus Buds → name with brand
+
+POWER BANKS:
+• Rectangular battery pack, USB ports. Look for mAh printed.
+  → name: "[Brand] Power Bank [mAh]" e.g. "Ambrane 20000mAh Power Bank"
+
+SMART WATCH / FITNESS BAND:
+• Watches with screen, silicone strap, charging cable.
+  → "Smart Watch [Brand]" | "Fitness Band [Brand]"
+• Boat Storm, Fire-Boltt, Noise, Apple Watch, Samsung Galaxy Watch
+  → name: "[Brand] [Model] Smart Watch" or "Fitness Tracker"
+
+CHARGER / ADAPTER:
+• Mobile charger (box + cable) → name: "[Watt] Fast Charger" e.g. "33W Fast Charger"
+• Laptop charger (brick + cable) → name: "Laptop Charger [Brand] [Watt]W"
+• Power adapter / Travel adapter → name: "Universal Power Adapter"
+
+ROUTERS / NETWORKING:
+• WiFi router (antenna box) → name: "[Brand] WiFi Router" | brand: TP-Link, D-Link, Jio, ACT
+• Mobile data dongle → name: "4G/5G WiFi Dongle"
+
+HOME APPLIANCES:
+• Electric kettle — jug shape, electric cord, heat water.
+  → name: "[Brand] Electric Kettle [Litre]L" | Add: capacity_litres, wattage
+• Rice cooker — Pot with lid and electric base, "Rice Cooker" usually printed.
+  → name: "[Brand] Electric Rice Cooker" | Add: capacity_litres
+• Induction cooktop — Flat glass surface, no flame, sleek.
+  → name: "[Brand] Induction Cooktop" | Add: wattage
+• Water purifier / Filter — Mounted unit with tap. → name: "[Brand] Water Purifier" | brand: Kent, Aquaguard
+• Geyser / Water heater — Cylindrical tank, electric. → name: "[Brand] Water Heater [Litre]L"
+• Table/Ceiling Fan — Already covered (add: wattage, sweep_size for ceiling fans)
+• Air cooler — Box with water tank, different from AC. → name: "[Brand] Air Cooler"
+• Trimmer (beard/hair) — Electric trimmer device, rechargeable.
+  → name: "[Brand] Beard Trimmer" or "Hair Trimmer" | Add: model_number
+
+════════════════════════════════════════════════
+🎮 TOYS & GAMES — 20+ TYPES
+════════════════════════════════════════════════
+• LEGO / BUILDING BLOCKS — Coloured plastic interlocking bricks.
+  → name: "[Brand] Building Blocks [Piece count]pc" | Add: piece_count, age_group
+• JIGSAW PUZZLE — Box showing completed image + loose pieces.
+  → name: "Jigsaw Puzzle [Piece count]pc" | Add: piece_count, age_group
+• BOARD GAME — Flat box with game board illustration (Monopoly, Ludo, Snakes & Ladders, Business).
+  → name: "[Game Name] Board Game"
+• LUDO BOARD — Colourful cross-shaped board, standard Indian game.
+  → name: "Ludo Board Game"
+• SNAKES & LADDERS — Grid board with snakes and ladders drawn.
+  → name: "Snakes and Ladders Board Game"
+• CARROM BOARD — Large square wooden board with pockets at corners.
+  → name: "Carrom Board" | Add: size (Full Size|Medium|Mini), material
+• CHESS SET — Board + 32 pieces. → name: "Chess Set" | Add: material (Plastic|Wood|Metal)
+• CAROM / STRIKER DISC — Small circular disc for carrom.
+  → name: "Carrom Striker" or "Carrom Coins Set"
+• ACTION FIGURES — Plastic character figures.
+  → name: "[Character] Action Figure" e.g. "Spider-Man Action Figure" | Add: character_name, age_group
+• BARBIE / DOLL — Female doll with fashion clothes.
+  → name: "Barbie Doll" or "Fashion Doll" | Add: age_group, character_name
+• REMOTE CONTROL CAR — Toy car with RC controller.
+  → name: "Remote Control Car / RC Car" | Add: age_group, compatible_with (battery type)
+• REMOTE CONTROL HELICOPTER / DRONE — RC flying toy.
+  → name: "RC Helicopter" or "Mini Drone Toy" | Add: age_group
+• TOY GUN / NERF — Plastic foam dart gun.
+  → name: "Foam Dart Gun (Toy)" | Add: age_group
+• WATER GUN / PICHKARI — Plastic water squirt gun, colourful.
+  → name: "Water Gun / Pichkari (Toy)" | Add: age_group
+• RUBIK'S CUBE / MAGIC CUBE — Colourful 3×3 (or other) twisting cube puzzle.
+  → name: "Rubik's Cube [Size]" e.g. "3×3 Magic Cube"
+• YO-YO — Disc toy on string. → name: "Yo-Yo (Toy)"
+• SPINNING TOP / LATTU — Traditional spinning top toy.
+  → name: "Spinning Top (Lattu)"
+• SOFT TOY / STUFFED ANIMAL — Plush toys: teddy bear, rabbit, cartoon character.
+  → name: "[Animal/Character] Soft Toy / Stuffed Toy" e.g. "Teddy Bear Soft Toy"
+• CLAY / PLAY-DOH — Soft coloured modelling clay in tub or pack.
+  → name: "Modelling Clay / Play Doh" + brand | Add: age_group
+• COLOURING BOOK — Book with outlines to colour. → name: "Colouring Book" | Add: theme (Animals|Mandala)
+• CRAYONS / COLOUR PENCILS SET — Box of crayons or coloured pencils.
+  → name: "[Brand] Crayons [Count]pc" or "Colour Pencils [Count]pc Set"
+
+════════════════════════════════════════════════
+📚 BOOKS & STATIONERY — 20+ TYPES
+════════════════════════════════════════════════
+BOOKS — always state if PACKED or individual, read cover if visible:
+• MALAYALAM NOVEL — Cover usually has dramatic photo, Malayalam title text. Author name prominent.
+  → name: "[Title] (Malayalam Novel)" | Add: author, publisher (Mathrubhumi|DC Books|Current Books)
+• ENGLISH NOVEL — English title on cover, usually with artwork.
+  → name: "[Title] by [Author] (Novel)"
+• SCHOOL TEXTBOOK — "Class [X] [Subject]" text visible, NCERT / State Board logo.
+  → name: "Class [X] [Subject] Textbook" | Add: publisher (NCERT|SCERT Kerala|CBSE)
+• RELIGIOUS BOOK — Bible = cross on cover; Quran = Arabic script; Hindu texts = devanagari/temple motif.
+  → "Holy Bible" | "Quran Sharif" | "Bhagavad Gita" etc.
+• COMIC BOOK / MANGA — Sequential art panels, bright covers.
+  → name: "[Title] Comic Book"
+• MAGAZINE — Glossy cover, date/issue number visible.
+  → name: "[Title] Magazine [Month Year]" | brand: Vanitha|Mathrubhumi|Grihalakshmi|Filmfare
+
+NOTEBOOKS — identify by ruling and size:
+• SINGLE LINE RULED (most common) — Horizontal lines only.
+  → name: "[Brand] Single Line Notebook [Page count]pg" | ruling: "Single Line"
+• DOUBLE LINE (for kids) — Two lines per row for handwriting practice.
+  → name: "Double Line Notebook (Children's)" | ruling: "Double Line"
+• GRAPH PAPER — Small grid squares printed. → name: "[Brand] Graph Notebook" | ruling: "Graph"
+• BLANK / UNRULED — No lines. → name: "[Brand] Blank Sketch Book"
+• SPIRAL NOTEBOOK — Metal spiral binding on left or top.
+  → name: "Spiral Notebook [Pages]pg"
+• HARDCOVER JOURNAL/DIARY — Thick cover with lock or elastic band.
+  → name: "Hardbound Journal / Diary"
+• COMPOSITION BOOK (Exam pad style) — Stiff covers, used in Kerala schools.
+  → name: "Composition Notebook"
+• A4 PAPER REAM — 500 sheets of A4 printing paper in sealed package.
+  → name: "[Brand] A4 Printing Paper 500 Sheets" | e.g. "JK Copier A4 Paper"
+
+PENS & WRITING:
+• Reynolds 045 — Thin blue pen, very common in Kerala schools. → brand: "Reynolds 045"
+• Cello Finegrip — Black/blue ballpoint. → brand: "Cello"
+• Linc Glycer — Blue/black gel-ballpoint hybrid. → brand: "Linc"
+• Faber-Castell — Premium brand, gold logo. → brand: "Faber-Castell"
+• Parker Pen — Premium, arrow clip on cap. → brand: "Parker"
+• Pilot G2 / Pilot V5 — Gel pens with "Pilot" on barrel. → brand: "Pilot"
+• MARKER / WHITEBOARD MARKER — Thick nib, labelled "Marker" or "Whiteboard".
+  → name: "[Brand] Whiteboard Marker" or "Permanent Marker"
+• HIGHLIGHTER — Thick nib, bright fluorescent colour. → name: "Highlighter Pen [Colour]"
+• SKETCH PEN / FELT PEN — Thin colourful pens in set. → name: "Sketch Pens [Count]pc Set"
+• PENCIL TYPES:
+  - HB (most common, light grey line) → "HB Pencil"
+  - 2B (darker, for sketching) → "2B Pencil (Sketching)"
+  - Mechanical pencil (metal/plastic body, 0.5mm lead) → "Mechanical Pencil 0.5mm"
+  - Colour pencil → already covered
+
+ART SUPPLIES:
+• WATERCOLOUR SET — Small rectangular pans in case, or tubes. → name: "[Brand] Watercolour Set"
+• ACRYLIC PAINT SET — Tubes or bottles of bright paint. → name: "[Brand] Acrylic Paint Set"
+• OIL PAINT — Thick tubes, strong chemical smell (context). → name: "[Brand] Oil Paint Set"
+• CANVAS / DRAWING SHEET — White rectangular sheet/pad. → name: "Drawing Sheets / Artist Canvas"
+• PAINT BRUSH SET — Multiple brushes in packet. → name: "Paint Brush Set [Count]pc"
+• GEOMETRY BOX — Plastic box containing compass, divider, set squares, scale, protractor.
+  → name: "[Brand] Geometry Box Set"
+• COMPASS (drawing) — Metal hinged tool for drawing circles.
+  → name: "Compass Set (Geometry)"
+
+════════════════════════════════════════════════
+🔧 TOOLS — 25+ TYPES (packed and loose)
+════════════════════════════════════════════════
+POWER TOOLS (with cable or battery):
+• ELECTRIC DRILL — Pistol-grip tool with rotating chuck. → name: "[Brand] Electric Drill [Watt]W"
+• ANGLE GRINDER — Disc grinder with guard. → name: "[Brand] Angle Grinder [mm]mm"
+• JIGSAW (power) — Electric saw with blade moving up-down. → name: "[Brand] Jigsaw Power Tool"
+
+HAND TOOLS — identify by shape:
+• Hammer: metal head + wooden/rubber handle.
+  → "Claw Hammer" (curved claw) | "Ball Peen Hammer" (round back) | "Rubber Mallet" (rubber head)
+• Screwdriver types: + head = Phillips; − head = Flat/Slotted; star = Torx.
+  → read size from shaft: 6"/8"/10". "Phillips Screwdriver 8 inch" etc.
+• Pliers types: → "Combination Pliers" | "Long Nose Pliers" | "Wire Cutter Pliers"
+• Wrench types: → "Adjustable Wrench [mm]mm" | "Ring Spanner [mm]mm" | "Allen Key Set"
+• Saw types: → "Hand Saw" | "Hacksaw" | "PVC Pipe Cutter"
+• Files: Metal files for smoothing metal. → "Metal File Set" | "Round File" | "Flat File"
+• Chisel: Flat blade for woodworking. → "Wood Chisel [mm]mm" | "Cold Chisel"
+• LEVEL / SPIRIT LEVEL — Long rectangular tool with bubble vials.
+  → name: "Spirit Level / Bubble Level [cm]cm"
+• DRILL BITS SET — Multiple small drill bits in case. → name: "Drill Bit Set [Count]pc [Material]"
+• CABLE TESTER — Electronic device for checking electrical cables.
+  → name: "Cable Tester / Wire Tester"
+• SOLDERING IRON — Electric pen-like tool for joining wires/electronics.
+  → name: "[Watt]W Soldering Iron"
+• WIRE STRIPPER — Scissors-like tool for stripping wire insulation.
+  → name: "Wire Stripper / Wire Cutter Tool"
+
+CONSUMABLES:
+• SANDPAPER SHEETS — Rough paper sheets in pack. → name: "Sandpaper / Abrasive Sheet [Grit]"
+• SCREWS & NUTS PACK — Small metal fasteners in bag. → "Self-tapping Screws [Size]" | "Hex Nut Pack"
+• WALL PLUG / RAWLPLUG — Small plastic anchors for wall drilling. → name: "Wall Plug / Rawlplug Set"
+• WD-40 / LUBRICANT SPRAY — Red and yellow aerosol spray can. → brand: "WD-40"
+• DUCT TAPE / MASKING TAPE — Wide sticky tape roll. → "Duct Tape [mm]mm" | "Masking Tape"
+• THREAD SEAL TAPE (PTFE) — Thin white tape roll for plumbing. → name: "PTFE Thread Seal Tape"
+
+════════════════════════════════════════════════
+🍳 KITCHEN — 25+ TYPES
+════════════════════════════════════════════════
+COOKWARE — identify by shape and material:
+• PRESSURE COOKER: tall pot, locking lid with weight on top, usually aluminium or steel.
+  → "Aluminium Pressure Cooker [L]L" | "Stainless Steel Pressure Cooker [L]L"
+  → Brands: Hawkins, Prestige, Butterfly, Futura
+• KADAI / WOK: wide deep pan with two side handles, used for deep frying.
+  → "Iron Kadai [diameter]cm" | "Non-stick Kadai" | "Stainless Steel Kadai"
+• TAWA: flat round griddle, used for chapati/dosa. Iron or non-stick.
+  → "Iron Tawa [diameter]cm" | "Non-stick Tawa"
+• APPAM / APPE PAN: curved pan with small round moulds for appam or paniyaram.
+  → name: "Appam / Appachetty Pan" | "Paniyaram Pan"
+• PUTTU MAKER / PUTTU KUTTI: cylindrical steamer for making puttu (Kerala breakfast).
+  → name: "Puttu Kutti (Puttu Maker)" | Add: material (Aluminium|Steel|Bamboo)
+• IDLI MAKER: round pot with tray inserts with circular moulds.
+  → name: "Idli Maker / Idli Cooker" | Add: idli_count (4|6|8 idlis)
+• DOSA TAWA / DOSA GRIDDLE: large flat tawa specifically for dosa.
+  → name: "Dosa Tawa (Iron)" | "Non-stick Dosa Pan"
+
+STORAGE:
+• CASSEROLE (hot pot): round insulated pot to keep food warm.
+  → name: "[Brand] Casserole / Hot Pot [L]L" | Add: capacity_litres
+• STAINLESS STEEL CONTAINER / DABBA: cylindrical or square airtight steel container.
+  → name: "Steel Container / Dabba [ml]ml"
+• PLASTIC CONTAINER SET: clear/coloured plastic airtight boxes.
+  → name: "Plastic Airtight Container Set [Count]pc"
+• WATER BOTTLE: wide-mouth or sports cap. → "[Brand] Water Bottle [ml]ml"
+• FLASK / THERMOS: already covered in detail
+
+UTENSILS:
+• LADLE / SPATULA / TURNER: cooking spoons → identify material (steel/wood/silicone/plastic)
+• GRATER: flat metal plate with holes. → "Stainless Steel Grater"
+• STRAINER / COLANDER: bowl with holes. → "Kitchen Strainer / Colander"
+• CHOPPING BOARD: flat board. → "Wooden Chopping Board" | "Plastic Chopping Board"
+• PEELER: Y-shaped or straight vegetable peeler. → "Vegetable Peeler"
+• COCONUT SCRAPER: Kerala-specific tool with a serrated disc on stand.
+  → name: "Thenga Chirakal (Coconut Scraper / Grater)"
+• MORTAR & PESTLE (Ammi Kallu / Ammikkallu): stone grinding set.
+  → name: "Ammi Kallu (Stone Mortar and Pestle)" | Add: material (Stone|Marble|Wood)
+• MEASURING CUPS SET: nested cups (1 cup, ½ cup, ¼ cup).
+  → name: "Measuring Cups Set [material]"
+• MEASURING SPOONS SET: small spoon set (1 tbsp, 1 tsp, ½ tsp).
+  → name: "Measuring Spoons Set"
+
+════════════════════════════════════════════════
+👶 BABY PRODUCTS — 15+ TYPES
+════════════════════════════════════════════════
+• FEEDING BOTTLE: clear plastic or glass bottle with silicone teat/nipple.
+  → name: "[Brand] Baby Feeding Bottle [ml]ml" | Add: material (Plastic|Glass)
+• BABY FORMULA / INFANT MILK: tin or box with baby face, "0-6 months" or "Stage 1/2".
+  → name: "[Brand] Infant Formula [Stage]" e.g. "Nestlé NAN Pro Stage 1"
+• BABY FOOD (CERELAC / PORRIDGE): box/pouch with infant picture. → brand: Nestle Cerelac, HiPP
+  → name: "[Brand] Baby Cereal / Baby Food [Flavour]"
+• NAPPY RASH CREAM: small tube or tin. → name: "[Brand] Nappy Rash Cream"
+• BABY SHAMPOO / BABY WASH: gentle formula, "No More Tears" or "Baby" on label.
+  → name: "[Brand] Baby Shampoo" | e.g. "Johnson's Baby Shampoo"
+• BABY LOTION / BABY OIL: small bottle. → name: "[Brand] Baby Lotion" | "[Brand] Baby Oil"
+• BABY POWDER: tin/bottle with baby image. → name: "[Brand] Baby Powder"
+• DIAPERS / NAPPIES: bag/packet of folded pads. Look for size (S/M/L/XL) and count.
+  → name: "[Brand] Diapers Size [S/M/L/XL] [count]pc" | e.g. "Pampers Active Baby Diaper M 46pc"
+• BABY WIPES: flat packet of moist wipes. → name: "[Brand] Baby Wipes [count]pc"
+• PACIFIER / TEETHER: silicone teat device. → name: "Baby Pacifier / Soother" | "Baby Teether"
+• BABY MONITOR: electronic device with camera/screen. → name: "Baby Monitor"
+• BABY RATTLE / SOFT TOY: noisy toy for infants. → name: "Baby Rattle Toy"
+• NURSING PILLOW: C-shaped or U-shaped pillow. → name: "Nursing / Breastfeeding Pillow"
+
+════════════════════════════════════════════════
+🐾 PET PRODUCTS — 10+ TYPES
+════════════════════════════════════════════════
+• DOG FOOD: bag/pouch with dog photo. → "[Brand] Dog Food [Type]" | brands: Pedigree, Royal Canin, Drools
+  Add: pet_type: "Dog", size: "Puppy|Adult|Senior"
+• CAT FOOD: bag/pouch with cat photo. → "[Brand] Cat Food" | brands: Whiskas, Felix, Royal Canin
+  Add: pet_type: "Cat"
+• FISH FOOD: small container with tropical fish photo. → "[Brand] Fish Food" | e.g. Taiyo, API
+• PET COLLAR: rubber or leather neck collar. → "Dog Collar" | "Cat Collar" + brand
+• DOG LEASH: rope or chain leash. → "Dog Leash / Collar Set"
+• PET SHAMPOO: bottle with animal image. → "[Brand] Pet Shampoo [Pet type]"
+• CAT LITTER: heavy bag of granules/clay. → "[Brand] Cat Litter [kg]kg"
+• PET CAGE / CARRIER: wire cage or hard plastic carrier. → "Pet Carrier / Travel Cage"
+
+════════════════════════════════════════════════
+🏠 HOUSEHOLD CLEANING — 15+ TYPES
+════════════════════════════════════════════════
+• BROOM / VAALU (വാലു): long-handled or hand-held broom. → "Broom (Vaalu)" | "Floor Broom"
+• MOP SET: mop head + bucket set. → "Floor Mop Set" | Add: mop_type (Flat|Spin|String)
+• SCRUB BRUSH / BRUSH: stiff-bristled cleaning brush. → "Scrub Brush" | "Bottle Brush"
+• DISHWASHING BAR (Maraichan Soap): rectangular bar for dishes. → "[Brand] Dishwash Bar"
+  e.g. Vim Bar, Sunlight, Pril Bar
+• DISHWASHING LIQUID: bottle of liquid soap. → "[Brand] Dishwash Liquid [ml]ml"
+  e.g. Vim Liquid, Pril Liquid, Exo
+• WASHING POWDER / LAUNDRY DETERGENT: box or bag. → "[Brand] Washing Powder [g/kg]"
+  e.g. Ariel, Surf Excel, Tide, Rin, Wheel
+• FABRIC SOFTENER / COMFORT: bottle. → "[Brand] Fabric Softener" | brand: Comfort, Downy
+• BLEACH / CHLORINE: white/yellow bottle. → "[Brand] Bleach / Chlorine [ml]ml"
+• TOILET CLEANER: curved bottle. → "[Brand] Toilet Cleaner [ml]ml" | e.g. Harpic, Domex
+• FLOOR CLEANER / PHENYL: bottle, often labelled "Phenyl" or "Floor Cleaner".
+  → "[Brand] Floor Cleaner" | e.g. Lizol, Colin, Magiclean
+• GLASS CLEANER: spray bottle. → "[Brand] Glass Cleaner" | e.g. Colin Glass Cleaner
+• GARBAGE BAGS / WASTE BAGS: roll/pack of dark plastic bags.
+  → "Garbage Bags [size]L [count]pc"
+• AIR FRESHENER: spray or gel. → "[Brand] Air Freshener [Fragrance]" | e.g. Air Wick, Ambi Pur
+• MOSQUITO REPELLENT SPRAY: aerosol spray can. → "[Brand] Mosquito Repellent Spray"
+  e.g. Good Knight Spray, Mortein, Baygon
+• COCKROACH CHALK / GEL: small chalk sticks or syringe tube. → "Cockroach Killing Chalk" | "Cockroach Gel"
+• MOTHBALLS / NAPHTHALENE: white balls in packet. → "Naphthalene Balls / Mothballs"
+
+════════════════════════════════════════════════
+🏗️ HARDWARE & ELECTRICAL — 20+ TYPES
+════════════════════════════════════════════════
+• LIGHT BULB / LED BULB: glass bulb shape or LED disc.
+  → "[Brand] LED Bulb [Watt]W [Colour]" e.g. "Wipro 9W LED Bulb Warm White"
+  | brands: Philips, Wipro, Syska, Crompton, Havells
+• TUBE LIGHT / FLUORESCENT TUBE: long glass tube. → "[Brand] Tube Light [Watt]W [Length]"
+• LED STRIP LIGHT: flexible strip with LEDs. → "LED Strip Light [meter]m [Colour]"
+• SWITCH BOARD / SWITCHBOX: white plastic box with switches/sockets.
+  → "Switchboard / Switch Plate [Count] Socket" | brands: Anchor, Legrand, Havells
+• ELECTRIC SWITCH (individual): small white switch. → "Electric Switch [Amp]A" | brand: Anchor
+• EXTENSION BOARD / POWER STRIP: multiple socket strip with cord.
+  → "[Brand] Extension Board [Socket count] Socket" | Add: cable_length
+• MCBS / CIRCUIT BREAKER: small white/grey modular device. → "MCB Circuit Breaker [Amp]A"
+• COPPER WIRE / ELECTRICAL WIRE: coiled wire roll. → "[Brand] Copper Wire [sq.mm]sq.mm [metre]m"
+• ELECTRICAL TAPE / INSULATION TAPE: black roll. → "Electrical Insulation Tape"
+• PVC PIPE: white/grey cylindrical pipe. → "PVC Pipe [diameter]mm [length]m"
+• PVC ELBOW / TEE / FITTING: pipe connector. → "PVC Elbow [diameter]mm" | "PVC Tee Fitting"
+• WATER VALVE / COCK: brass/plastic tap. → "Water Tap / Cock [material]"
+• PADLOCK: metal lock with shackle. → "[Brand] Padlock [mm]mm" | e.g. Godrej padlock
+• DOOR HINGE: metal hinge pair. → "Door Hinge [size]inch"
+• WALL PUTTY: white powder bag or white paste bucket. → "[Brand] Wall Putty"
+• PAINT CAN / PAINT BUCKET: sealed metal or plastic can. → "[Brand] Interior Paint [L]L [Colour if visible]"
+  | brands: Asian Paints, Berger, Dulux, Nerolac
+
+════════════════════════════════════════════════
+👕 CLOTHING & TRADITIONAL WEAR — 20+ TYPES
+════════════════════════════════════════════════
+KERALA TRADITIONAL:
+• MUNDU (മുണ്ട്) — White cotton cloth, dhoti-style, men. Single = Mundu. Double = Dothi.
+  → "Mundu (Kerala Traditional Dhoti)" | Add: fabric (Cotton|Silk)
+• KASAVU MUNDU — White with gold border (kasavu = gold thread). Festival wear.
+  → "Kasavu Mundu (Gold Border Traditional)" | Add: border_width if visible
+• SETTU MUNDU / NERIYATHU — Two-piece women's set: white cloth + matching kasavu top cloth.
+  → name: "Settu Mundu / Neriyathu (Women's Traditional Set)"
+• LUNGI — Colourful checked cotton tube skirt for men. NOT white.
+  → "Lungi [Colour/Pattern]" e.g. "Checked Lungi (Blue)" | Add: fabric, color
+• SAREE — 5-6 metre draped garment. Identify fabric from texture/sheen.
+  → "[Type] Saree" e.g. "Kerala Cotton Saree" | "Silk Saree" | "Kanjivaram Saree" | "Chiffon Saree"
+• BLOUSE / BLOUSE PIECE — Small fabric piece sold with saree. → "Saree Blouse Piece [Color]"
+• CHURIDAR / SALWAR KAMEEZ — Tunic top + narrow bottom trousers set.
+  → "Churidar Set (Salwar Kameez)" | Add: fabric, color
+• PATTU PAVADA (Kids) — Traditional long skirt for girls, silk or cotton.
+  → "Pattu Pavada (Traditional Girls' Skirt)"
+• MUNDUM NERIYATHUM (2-piece) — Traditional Kerala women's wear: lower cloth + upper cloth.
+  → name: "Mundum Neriyathum (Kerala Women's Traditional)"
+
+MODERN CLOTHING:
+• T-SHIRT — Round neck, short sleeve. → "[Brand] T-Shirt" | Add: gender, color, sizes, fabric
+• POLO / COLLAR T-SHIRT — Has collar. → "Polo T-Shirt" | Add: gender, color, fabric
+• FORMAL SHIRT — Full sleeve, buttons. → "Formal Shirt" | Add: gender (Men), color, fabric
+• KURTI — Short tunic for women. → "Kurti [Fabric]" | Add: gender (Women), color, fabric
+• JEANS — Denim trousers. → "[Brand] Jeans [Fit]" e.g. "Slim Fit Jeans" | Add: color, sizes
+• SHORTS — Knee-length bottoms. → "Shorts [Type]" | Add: gender, color, fabric
+• SCHOOL UNIFORM — White shirt + navy/grey trousers or skirt set.
+  → "School Uniform Set" | Add: gender (Boys|Girls), sizes
+• INNER WEAR / VEST — Sleeveless undershirt. → "[Brand] Vest / Banian" | brand: Rupa, Lux, VIP
+• SOCKS — Pair of socks. → "Socks [Type]" (Ankle|Calf|Knee) | Add: gender, color, sizes
+• SCHOOL SOCKS — White socks specifically for school uniform.
+  → "White School Socks [Size]" | Add: sizes
+
+════════════════════════════════════════════════
+👟 FOOTWEAR — 15+ TYPES
+════════════════════════════════════════════════
+• SPORTS SHOE / SNEAKER: thick rubber sole, laces, mesh or synthetic upper.
+  → "[Brand] Sports Shoe / Sneaker" | Add: gender, color, sizes, material
+  | brands: Nike, Adidas, Puma, Reebok, Bata, Liberty, Campus
+• SCHOOL SHOE: black leather-look shoe with laces. Formal and sturdy.
+  → "Black School Shoe" | Add: gender (Boys|Girls|Unisex), sizes
+• FORMAL LEATHER SHOE: shiny leather, no logos, office wear.
+  → "[Brand] Formal Leather Shoe" | Add: gender, color, sizes
+• KOLHAPURI / ETHNIC SANDAL: traditional handcrafted leather sandal.
+  → "Kolhapuri Sandal" | Add: gender, color, sizes
+• RUBBER SLIPPER / HAWAI CHAPPAL: basic flat rubber slipper. Very common Kerala footwear.
+  → "[Brand] Rubber Chappal" | Add: gender, color, sizes
+  | brands: Paragon (very popular in Kerala), VKC, Relaxo
+• VKC SLIPPER / VKC PRIDE: Kerala-brand EVA/rubber footwear. Look for "VKC" on sole.
+  → "VKC [Model] Slipper" | Add: gender, color, sizes
+• PARAGON CHAPPAL: red or other colour flat rubber slipper. Paragon = most popular in Kerala.
+  → "Paragon [Model] Chappal" | Add: gender, color, sizes
+• SANDAL / STRAP SANDAL: has straps across foot, open toe.
+  → "[Brand] Leather Sandal" | Add: gender, color, sizes, material
+• HEEL / STILETTO: women's high heel shoe.
+  → "Women's Heels / High Heels" | Add: color, heel_height_cm, sizes
+• BOOTS: ankle or knee-high footwear. → "Ankle Boots" | "Rain Boots / Gumboots"
+• CANVAS SHOE: fabric upper (canvas), rubber sole, flat.
+  → "Canvas Shoe / Plimsoll" | Add: gender, color, sizes
+  | brands: Keds, Converse (if visible)
+• SAFETY SHOE / WORK BOOT: reinforced toe cap, usually brown/black. Steel toe visible.
+  → "Safety Shoe (Steel Toe)"
+
+════════════════════════════════════════════════
+🏋️ SPORTS — ALL TYPES
+════════════════════════════════════════════════
+CRICKET (already detailed) + ADDITIONAL:
+• BAT GRIP: rubber grip for wrapping cricket bat handle. → "Cricket Bat Grip"
+• CRICKET STUMPS SET: 3 stumps + 2 bails. → "Cricket Stumps Set (3 Stumps)"
+• ABDOMINAL GUARD / BOX: protective gear. → "Cricket Abdominal Guard"
+
+FOOTBALL/SOCCER:
+• SHIN GUARDS: plastic leg guards. → "Football Shin Guards [Size]"
+• FOOTBALL BOOTS/CLEATS: shoes with studs. → "[Brand] Football Boots [Size]"
+• GOAL KEEPER GLOVES: padded gloves. → "Goalkeeper Gloves [Size]"
+
+BADMINTON:
+• BADMINTON RACKET COVER/CASE: bag for storing racket. → "Badminton Racket Cover Bag"
+• BADMINTON NET: net for play. → "Badminton Net [Size]"
+
+FITNESS:
+• YOGA MAT: flat rolled mat. → "[Brand] Yoga Mat [mm]mm [Color]"
+  | brands: Boldfit, Strauss, Nike, Adidas
+• SKIPPING ROPE: rope with handles. → "Skipping Rope / Jump Rope"
+• DUMBBELL: single weight. → "[Weight]kg Dumbbell" or "Dumbbell Pair [Weight]kg"
+• WEIGHT PLATE: disc-shaped weight. → "[Weight]kg Weight Plate"
+• RESISTANCE BAND / EXERCISE BAND: flat elastic band. → "Resistance Band [Level]"
+• PULL-UP BAR / DOOR BAR: rod that mounts in doorway. → "Pull-up Bar / Chin-up Bar"
+• EXERCISE CYCLE: stationary bike. → "[Brand] Stationary Exercise Cycle"
+
+SWIMMING:
+• SWIMMING GOGGLES: oval silicone eye cover. → "[Brand] Swimming Goggles"
+• SWIMMING CAP: rubber/silicone cap. → "Swimming Cap [Material]"
+• SWIMMING COSTUME: already covered under clothing
+
+════════════════════════════════════════════════
+📦 PACKAGING SCENARIOS — HOW TO IDENTIFY
+════════════════════════════════════════════════
+IMPORTANT: Products come in MANY packaging forms. The packaging does NOT change what the product IS.
+• LOOSE / UNPACKAGED: fish on ice, bananas in bunch, vegetables in crate, bulk rice in sack.
+  → Identify by visual appearance. Use Kerala name. This is STILL is_product:true
+• TRANSPARENT PLASTIC BAG (unlabelled): VERY common in Kerala shops — rice, chilli, spices in clear bags.
+  → Look at WHAT IS INSIDE the bag. Ignore the bag itself.
+• BRANDED PACK (with label): read brand + product name + size. This is the easiest case.
+• GLASS JAR: pickles, honey, jam, coconut oil. → Read label if any. Identify contents by colour/texture if no label.
+• REFILL POUCH: flat plastic pouch (for shampoo, oil, etc.). Smaller, flexible.
+  → Same product as bottle version but "Refill Pouch" or "Sachet"
+• SACHET (5g-30g): very small single-use packet (shampoo sachet, masala sachet, coffee sachet).
+  → name: "[Product] Sachet [weight]" e.g. "Dove Shampoo Sachet 8ml"
+• CAN / TIN: metal sealed container. Paint, food, oil.
+  → Read label. "Tuna in Water" | "Sweetened Condensed Milk Tin"
+• AEROSOL / SPRAY CAN: pressurised can with nozzle.
+  → "Deodorant Spray" | "Paint Spray Can" | "Insecticide Spray"
+• BOTTLE WITH PUMP: hand pump dispenser (soap dispenser, lotion).
+  → "Liquid Handwash Pump [Brand] [ml]ml"
+• BOX INSIDE BOX: phone/electronics in retail box. The BOX is what is being sold.
+  → Identify the product INSIDE: "POCO M6 5G Box" = the phone being sold
 
 
 ━━━ WHEN THERE IS NO LABEL OR BRAND ━━━
