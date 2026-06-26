@@ -15,6 +15,7 @@ class ProductModel {
   final String unit;
   final double minQty;
   final String imageUrl;
+  final List<String> imageUrls; // full gallery (incl. primary), max 4
   final String imageSource; // 'auto'|'owner'|'placeholder'
   final bool isHidden;
   final bool isOutOfStock;
@@ -47,6 +48,7 @@ class ProductModel {
     this.unit = 'piece',
     this.minQty = 0,
     this.imageUrl = '',
+    this.imageUrls = const [],
     this.imageSource = 'placeholder',
     this.isHidden = false,
     this.isOutOfStock = false,
@@ -92,6 +94,11 @@ class ProductModel {
       unit: d['unit'] as String? ?? 'piece',
       minQty: (d['minQty'] as num?)?.toDouble() ?? 0,
       imageUrl: d['imageUrl'] as String? ?? '',
+      imageUrls: (d['imageUrls'] as List?)
+              ?.map((e) => e.toString())
+              .where((s) => s.isNotEmpty)
+              .toList() ??
+          const [],
       imageSource: d['imageSource'] as String? ?? 'placeholder',
       isHidden: d['isHidden'] as bool? ?? false,
       isOutOfStock: d['isOutOfStock'] as bool? ?? false,
@@ -128,6 +135,7 @@ class ProductModel {
       'unit': unit,
       'minQty': minQty,
       'imageUrl': imageUrl,
+      'imageUrls': imageUrls,
       'imageSource': imageSource,
       'isHidden': isHidden,
       'isOutOfStock': isOutOfStock,
@@ -161,6 +169,7 @@ class ProductModel {
     String? unit,
     double? minQty,
     String? imageUrl,
+    List<String>? imageUrls,
     String? imageSource,
     bool? isHidden,
     bool? isOutOfStock,
@@ -191,6 +200,7 @@ class ProductModel {
       unit: unit ?? this.unit,
       minQty: minQty ?? this.minQty,
       imageUrl: imageUrl ?? this.imageUrl,
+      imageUrls: imageUrls ?? this.imageUrls,
       imageSource: imageSource ?? this.imageSource,
       isHidden: isHidden ?? this.isHidden,
       isOutOfStock: isOutOfStock ?? this.isOutOfStock,

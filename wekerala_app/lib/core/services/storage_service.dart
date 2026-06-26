@@ -29,6 +29,18 @@ class StorageService {
     return ref.getDownloadURL();
   }
 
+  /// Uploads an ADDITIONAL gallery image for a product at a distinct path
+  /// (`<productId>_<index>.jpg`) so it doesn't overwrite the primary image.
+  /// [index] is 1-based (1, 2, 3…) for the extra images.
+  static Future<String> uploadProductImageAt(
+      String shopId, String productId, File file, int index) async {
+    final bytes = await _compressFile(file, maxDim: 1000, quality: 70);
+    final ref = FirebaseStorage.instance
+        .ref('shops/$shopId/products/${productId}_$index.jpg');
+    await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+    return ref.getDownloadURL();
+  }
+
   static Future<String> uploadShopPhoto(
       String shopId, String photoId, File file) async {
     final bytes = await _compressFile(file, maxDim: 1200, quality: 72);

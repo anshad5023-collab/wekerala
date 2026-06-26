@@ -16,6 +16,46 @@ import '../models/product_model.dart';
 // State
 // ---------------------------------------------------------------------------
 
+/// A bill the owner set aside ("parked") to serve another customer, then
+/// resumes later — e.g. the customer forgot their wallet.
+class ParkedBill {
+  final String id;
+  final String label;
+  final List<BillItemModel> items;
+  final double discount;
+  final DateTime createdAt;
+
+  const ParkedBill({
+    required this.id,
+    required this.label,
+    required this.items,
+    required this.discount,
+    required this.createdAt,
+  });
+
+  double get total => items.fold(0.0, (a, i) => a + i.subtotal) - discount;
+
+  Map<String, dynamic> toMap() => {
+        'id': id,
+        'label': label,
+        'items': items.map((i) => i.toMap()).toList(),
+        'discount': discount,
+        'createdAt': createdAt.toIso8601String(),
+      };
+
+  factory ParkedBill.fromMap(Map<String, dynamic> m) => ParkedBill(
+        id: m['id'] as String,
+        label: (m['label'] as String?) ?? '',
+        items: ((m['items'] as List?) ?? const [])
+            .cast<Map<String, dynamic>>()
+            .map(BillItemModel.fromMap)
+            .toList(),
+        discount: (m['discount'] as num?)?.toDouble() ?? 0,
+        createdAt:
+            DateTime.tryParse(m['createdAt'] as String? ?? '') ?? DateTime.now(),
+      );
+}
+
 class BillingState {
   final List<BillItemModel> cartItems;
   final double discountAmount;
@@ -24,6 +64,8 @@ class BillingState {
   final String flashSaleCategory; // '' = applies to all products
   final bool isLoading;
   final String preNote; // pre-filled note (e.g. 'Table: 4' from KOT)
+  final bool roundOffEnabled; // round the final total to the nearest rupee
+  final List<ParkedBill> parkedBills; // bills set aside to resume later
 
   const BillingState({
     this.cartItems = const [],
@@ -33,6 +75,8 @@ class BillingState {
     this.flashSaleCategory = '',
     this.isLoading = false,
     this.preNote = '',
+    this.roundOffEnabled = false,
+    this.parkedBills = const [],
   });
 
   double get subtotal =>
@@ -48,18 +92,59 @@ class BillingState {
     return categorySubtotal * (flashSalePercent / 100);
   }
 
-  double get total => subtotal - flashSaleDiscount - discountAmount;
+  // GST that must be ADDED on top for tax-EXCLUSIVE items (tax-inclusive items
+  // already carry GST inside their price, so they add nothing here). Discount is
+  // spread proportionally, mirroring [gstBreakdown]. For an all-inclusive cart
+  // — the default — this is always 0, so it changes nothing.
+  double get addedGst {
+    final effectiveDiscount = discountAmount + flashSaleDiscount;
+    final ratio =
+        subtotal > 0 ? (effectiveDiscount / subtotal).clamp(0.0, 1.0) : 0.0;
+    double tax = 0;
+    for (final item in cartItems) {
+      if (item.gstRate <= 0 || item.priceIncludesGst) continue;
+      final net = item.subtotal * (1 - ratio);
+      tax += net * (item.gstRate / 100);
+    }
+    return tax;
+  }
 
-  double get totalDiscountAmount => flashSaleDiscount + discountAmount;
+  // Never allow a negative bill. A manual discount (or flash sale) larger than
+  // the cart must floor at ₹0 — otherwise finalAmount goes negative, which would
+  // corrupt day revenue and, for udhar sales, REDUCE the customer's debt.
+  double get rawTotal {
+    final t = subtotal - flashSaleDiscount - discountAmount + addedGst;
+    return t < 0 ? 0.0 : t;
+  }
+
+  // Final payable. When round-off is on, snap to the nearest whole rupee so the
+  // owner can collect a clean cash amount (no coins).
+  double get total {
+    if (!roundOffEnabled) return rawTotal;
+    return rawTotal.roundToDouble();
+  }
+
+  // Signed round-off adjustment (+ owner collects a little more, − a little
+  // less). Shown as a line on the cart + receipt so the bill always reconciles.
+  double get roundOffAmount => roundOffEnabled ? total - rawTotal : 0.0;
+
+  // Effective discount can't exceed the subtotal (mirrors the clamped total).
+  double get totalDiscountAmount {
+    final d = flashSaleDiscount + discountAmount;
+    return d > subtotal ? subtotal : d;
+  }
 
   /// GST breakdown grouped by rate.
   /// Each key is the GST rate (e.g. 5, 12, 18) and the value contains
   /// taxableAmount, cgst, and sgst for that rate slab.
   Map<int, Map<String, double>> get gstBreakdown {
     final result = <int, Map<String, double>>{};
-    // Apply discount proportionally across items so GST is on net amount
+    // Apply discount proportionally across items so GST is on the NET amount the
+    // customer actually pays. Both the manual discount AND the flash sale reduce
+    // the taxable base (both are known at the time of sale).
+    final effectiveDiscount = discountAmount + flashSaleDiscount;
     final discountRatio =
-        subtotal > 0 ? (discountAmount / subtotal).clamp(0.0, 1.0) : 0.0;
+        subtotal > 0 ? (effectiveDiscount / subtotal).clamp(0.0, 1.0) : 0.0;
     for (final item in cartItems) {
       if (item.gstRate <= 0) continue;
       final rate = item.gstRate;
@@ -100,6 +185,8 @@ class BillingState {
     String? flashSaleCategory,
     bool? isLoading,
     String? preNote,
+    bool? roundOffEnabled,
+    List<ParkedBill>? parkedBills,
   }) {
     return BillingState(
       cartItems: cartItems ?? this.cartItems,
@@ -109,6 +196,8 @@ class BillingState {
       flashSaleCategory: flashSaleCategory ?? this.flashSaleCategory,
       isLoading: isLoading ?? this.isLoading,
       preNote: preNote ?? this.preNote,
+      roundOffEnabled: roundOffEnabled ?? this.roundOffEnabled,
+      parkedBills: parkedBills ?? this.parkedBills,
     );
   }
 }
@@ -119,12 +208,94 @@ class BillingState {
 
 class BillingNotifier extends Notifier<BillingState> {
   static const _cartKey = 'billing_cart_draft';
+  static const _parkedKey = 'billing_parked_bills';
 
   @override
   BillingState build() {
-    // Restore cart from SharedPreferences on first build
+    // Restore cart + parked bills from SharedPreferences on first build
     _restoreCart();
+    _restoreParked();
     return const BillingState();
+  }
+
+  Future<void> _restoreParked() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final json = prefs.getString(_parkedKey);
+      if (json == null) return;
+      final list = (jsonDecode(json) as List).cast<Map<String, dynamic>>();
+      final parked = list.map(ParkedBill.fromMap).toList();
+      if (parked.isNotEmpty) {
+        state = state.copyWith(parkedBills: parked);
+      }
+    } catch (e, st) {
+      debugPrint('BillingProvider: parked restore failed: $e\n$st');
+    }
+  }
+
+  void _persistParked(List<ParkedBill> parked) {
+    SharedPreferences.getInstance().then((prefs) {
+      if (parked.isEmpty) {
+        prefs.remove(_parkedKey);
+      } else {
+        prefs.setString(
+            _parkedKey, jsonEncode(parked.map((p) => p.toMap()).toList()));
+      }
+    });
+  }
+
+  /// Set the current cart aside under [label] and start a fresh cart. Keeps the
+  /// round-off preference and the list of parked bills.
+  void parkCurrentBill(String label) {
+    if (state.cartItems.isEmpty) return;
+    final parked = ParkedBill(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      label: label.trim(),
+      items: List.unmodifiable(state.cartItems),
+      discount: state.discountAmount,
+      createdAt: DateTime.now(),
+    );
+    final newParked = [parked, ...state.parkedBills];
+    _persistParked(newParked);
+    _persistCart([]);
+    state = BillingState(
+      roundOffEnabled: state.roundOffEnabled,
+      parkedBills: newParked,
+    );
+  }
+
+  /// Resume a parked bill into the current cart. Any items already in the cart
+  /// are merged (qty added) so nothing is lost.
+  void resumeParkedBill(String id) {
+    final idx = state.parkedBills.indexWhere((p) => p.id == id);
+    if (idx < 0) return;
+    final parked = state.parkedBills[idx];
+    final cart = List<BillItemModel>.from(state.cartItems);
+    for (final it in parked.items) {
+      final i = cart.indexWhere((c) => c.productId == it.productId);
+      if (i >= 0) {
+        final newQty = cart[i].qty + it.qty;
+        cart[i] = cart[i].copyWith(qty: newQty, subtotal: newQty * cart[i].price);
+      } else {
+        cart.add(it.copyWith());
+      }
+    }
+    final newParked = List<ParkedBill>.from(state.parkedBills)..removeAt(idx);
+    _persistParked(newParked);
+    _persistCart(cart);
+    state = state.copyWith(
+      cartItems: cart,
+      discountAmount: parked.discount,
+      parkedBills: newParked,
+    );
+  }
+
+  /// Discard a parked bill without resuming it.
+  void deleteParkedBill(String id) {
+    final newParked =
+        state.parkedBills.where((p) => p.id != id).toList();
+    _persistParked(newParked);
+    state = state.copyWith(parkedBills: newParked);
   }
 
   Future<void> _restoreCart() async {
@@ -214,6 +385,56 @@ class BillingNotifier extends Notifier<BillingState> {
     _persistCart(items);
   }
 
+  /// Add an ad-hoc priced line that isn't in the catalog — for "no-catalog"
+  /// billing (tea shops, vendors) or a one-off loose item. No stock tracking
+  /// and no GST; each call is its own line so repeated quick-adds don't merge.
+  void addCustomItem({required String name, required double price, double qty = 1}) {
+    if (price <= 0 || qty <= 0) return;
+    final items = List<BillItemModel>.from(state.cartItems);
+    items.add(BillItemModel(
+      productId: 'quick_${DateTime.now().microsecondsSinceEpoch}',
+      productName: name.trim().isEmpty ? 'Item' : name.trim(),
+      qty: qty,
+      unit: 'piece',
+      price: price,
+      subtotal: price * qty,
+      tracksStock: false,
+    ));
+    state = state.copyWith(cartItems: items);
+    _persistCart(items);
+  }
+
+  /// Add [qty] of [product] in one go (used by voice billing). Merges with an
+  /// existing line if the product is already in the cart.
+  void addProductQuantity(ProductModel product, double qty) {
+    if (qty <= 0) return;
+    final items = List<BillItemModel>.from(state.cartItems);
+    final idx = items.indexWhere((i) => i.productId == product.productId);
+    final price = product.offerPrice > 0 ? product.offerPrice : product.price;
+    if (idx >= 0) {
+      final newQty = items[idx].qty + qty;
+      items[idx] =
+          items[idx].copyWith(qty: newQty, subtotal: newQty * items[idx].price);
+    } else {
+      items.add(BillItemModel(
+        productId: product.productId,
+        productName: product.nameEn,
+        category: product.category,
+        qty: qty,
+        unit: product.unit,
+        price: price,
+        subtotal: price * qty,
+        gstRate: product.gstRate,
+        hsnCode: product.hsnCode,
+        priceIncludesGst: product.priceIncludesGst,
+        batchNumber: product.batchNumber,
+        tracksStock: product.stockQty != null,
+      ));
+    }
+    state = state.copyWith(cartItems: items);
+    _persistCart(items);
+  }
+
   /// Apply active flash sale discount to billing state.
   void applyFlashSale(double percent, String name, String category) {
     state = state.copyWith(
@@ -226,6 +447,21 @@ class BillingNotifier extends Notifier<BillingState> {
   /// Remove an item from the cart by [productId].
   void removeItem(String productId) {
     final items = state.cartItems.where((i) => i.productId != productId).toList();
+    state = state.copyWith(cartItems: items);
+    _persistCart(items);
+  }
+
+  /// Re-insert a previously removed [item] at [index] (used by "Undo" after a
+  /// swipe-to-delete). Restores the exact line — qty, price, modifiers and all.
+  void restoreCartItem(BillItemModel item, int index) {
+    final items = List<BillItemModel>.from(state.cartItems);
+    // Don't duplicate if it somehow got re-added already.
+    if (items.any((i) => i.productId == item.productId)) return;
+    // Guard against a stale index if the cart changed in the meantime.
+    final int safeIndex = index < 0
+        ? 0
+        : (index > items.length ? items.length : index);
+    items.insert(safeIndex, item);
     state = state.copyWith(cartItems: items);
     _persistCart(items);
   }
@@ -275,6 +511,11 @@ class BillingNotifier extends Notifier<BillingState> {
     state = state.copyWith(discountAmount: amount < 0 ? 0 : amount);
   }
 
+  /// Toggle rounding the final total to the nearest rupee.
+  void setRoundOff(bool enabled) {
+    state = state.copyWith(roundOffEnabled: enabled);
+  }
+
   /// Apply an active flash sale percentage discount.
   void setFlashSale(double percent, String name, {String category = ''}) {
     state = state.copyWith(
@@ -287,6 +528,19 @@ class BillingNotifier extends Notifier<BillingState> {
   void clearFlashSale() {
     state = state.copyWith(
         flashSalePercent: 0, flashSaleName: '', flashSaleCategory: '');
+  }
+
+  /// Override the unit price of a cart line (counter bargaining / negotiated
+  /// price). Recomputes the line subtotal from the new price × current qty.
+  void setItemPrice(String productId, double price) {
+    if (price < 0) return;
+    final items = List<BillItemModel>.from(state.cartItems);
+    final idx = items.indexWhere((i) => i.productId == productId);
+    if (idx < 0) return;
+    final item = items[idx];
+    items[idx] = item.copyWith(price: price, subtotal: price * item.qty);
+    state = state.copyWith(cartItems: items);
+    _persistCart(items);
   }
 
   /// Set modifier add-ons for a cart item (Bakery / Hotel).
@@ -309,9 +563,13 @@ class BillingNotifier extends Notifier<BillingState> {
     _persistCart(items);
   }
 
-  /// Reset the cart to empty.
+  /// Reset the cart to empty. Keeps the round-off preference and any parked
+  /// bills so they survive completing/clearing the current sale.
   void clearCart() {
-    state = const BillingState();
+    state = BillingState(
+      roundOffEnabled: state.roundOffEnabled,
+      parkedBills: state.parkedBills,
+    );
     _persistCart([]);
   }
 
@@ -355,6 +613,7 @@ class BillingNotifier extends Notifier<BillingState> {
         totalAmount: state.subtotal,
         discountAmount: state.totalDiscountAmount,
         finalAmount: state.total,
+        roundOff: state.total - state.rawTotal,
         paymentMethod: paymentMethod,
         customerName: customerName,
         customerPhone: customerPhone,
@@ -389,6 +648,7 @@ class BillingNotifier extends Notifier<BillingState> {
         totalAmount: bill.totalAmount,
         discountAmount: bill.discountAmount,
         finalAmount: bill.finalAmount,
+        roundOff: bill.roundOff,
         paymentMethod: bill.paymentMethod,
         customerName: bill.customerName,
         customerPhone: bill.customerPhone,
@@ -403,11 +663,14 @@ class BillingNotifier extends Notifier<BillingState> {
         billedByName: bill.billedByName,
         billNote: bill.billNote,
       );
-      await ref.set(billWithInvoice.toFirestore());
-
-      // Decrement stock for each item.
+      // Write the bill AND all stock decrements in ONE atomic batch. Previously
+      // the bill was set first and stock moved in a separate commit — if the
+      // second commit failed you got a saved bill with un-decremented stock.
+      // Batching them is atomic (all-or-nothing) AND a single network round-trip
+      // instead of two, so it's faster and cheaper on every sale.
       // Variant items have productId = 'realId_variantId' — handle separately.
       final batch = FirebaseFirestore.instance.batch();
+      batch.set(ref, billWithInvoice.toFirestore());
       for (final item in state.cartItems) {
         if (item.productId.isEmpty || !item.tracksStock) continue;
         final parts = item.productId.split('_');
@@ -418,16 +681,22 @@ class BillingNotifier extends Notifier<BillingState> {
             .doc(shopId)
             .collection('products')
             .doc(realProductId);
+        // orderCount is a popularity counter for bestsellers — round weight sales
+        // (e.g. 0.5 kg) up to at least 1 so they still rank. Stock, however, must
+        // decrement by the EXACT quantity sold (fractional included).
+        final countInc = item.qty < 1 ? 1 : item.qty.round();
         if (isVariant) {
           final variantId = parts.sublist(1).join('_');
           batch.update(productRef, {
-            'variantStock.$variantId': FieldValue.increment(-item.qty.toInt()),
-            'orderCount': FieldValue.increment(item.qty.toInt()),
+            // was -item.qty.toInt() — that truncated fractional weight to 0,
+            // so selling 0.5 kg of a variant decremented no stock at all.
+            'variantStock.$variantId': FieldValue.increment(-item.qty),
+            'orderCount': FieldValue.increment(countInc),
           });
         } else {
           batch.update(productRef, {
             'stockQty': FieldValue.increment(-item.qty),
-            'orderCount': FieldValue.increment(item.qty.toInt()),
+            'orderCount': FieldValue.increment(countInc),
           });
         }
       }
@@ -529,7 +798,12 @@ class BillingNotifier extends Notifier<BillingState> {
         if (!snap.exists) continue;
         final qty = (snap.data()?['stockQty'] as num?)?.toDouble() ?? 1;
         if (qty <= 0) {
-          unawaited(snap.reference.update({'isOutOfStock': true}));
+          unawaited(snap.reference.update({
+            'isOutOfStock': true,
+            // Heal oversold stock: if it went negative (sold more than on hand),
+            // floor it back to 0. Reuses the read we already did here — no extra cost.
+            if (qty < 0) 'stockQty': 0,
+          }));
         } else {
           // Restore if restocked via stock-receive (just in case)
           if (snap.data()?['isOutOfStock'] == true) {
@@ -572,7 +846,9 @@ class BillingNotifier extends Notifier<BillingState> {
       if (isVariant) {
         final variantId = parts.sublist(1).join('_');
         batch.update(productRef, {
-          'variantStock.$variantId': FieldValue.increment(item.qty.toInt()),
+          // Restore the EXACT qty sold (was .toInt() — dropped fractional weight,
+          // so voiding a 0.5 kg variant sale gave back 0 stock). Mirrors saveBill.
+          'variantStock.$variantId': FieldValue.increment(item.qty),
         });
       } else {
         batch.update(productRef, {
@@ -599,6 +875,90 @@ class BillingNotifier extends Notifier<BillingState> {
         unawaited(doc.reference.update({'status': 'paid', 'paidAmount': bill.finalAmount}));
       }
     }
+  }
+
+  /// Record a return/refund of [returnedItems] (each carrying the qty being
+  /// returned) against [original]. Restocks the items, writes a negative
+  /// "return" bill so revenue drops, and — for a credit refund — reduces the
+  /// customer's outstanding udhar. The refund is prorated by the original
+  /// bill's discount so it equals what the customer actually paid.
+  Future<BillModel> createReturn({
+    required BillModel original,
+    required List<BillItemModel> returnedItems,
+    required String refundMethod, // 'cash' | 'upi' | 'udhar'
+  }) async {
+    final db = FirebaseFirestore.instance;
+    final returnRef =
+        db.collection('shops').doc(original.shopId).collection('bills').doc();
+
+    final gross = returnedItems.fold<double>(0, (a, i) => a + i.subtotal);
+    // Prorate by what the customer actually paid (discount/round-off aware).
+    final ratio = original.totalAmount > 0
+        ? original.finalAmount / original.totalAmount
+        : 1.0;
+    final refundTotal =
+        double.parse((gross * ratio).toStringAsFixed(2));
+    final now = DateTime.now();
+    final isUdharRefund = refundMethod == 'udhar';
+
+    final returnBill = BillModel(
+      billId: returnRef.id,
+      shopId: original.shopId,
+      items: List.unmodifiable(returnedItems),
+      totalAmount: -refundTotal,
+      discountAmount: 0,
+      finalAmount: -refundTotal,
+      paymentMethod: refundMethod,
+      customerName: original.customerName,
+      customerPhone: original.customerPhone,
+      isUdhar: isUdharRefund,
+      createdAt: now,
+      isReturn: true,
+      returnOfBillId: original.billId,
+      gstinSnapshot: original.gstinSnapshot,
+      billedByName: FirebaseAuth.instance.currentUser?.displayName,
+    );
+
+    // Atomic: write the return bill AND restock every returned item.
+    final batch = db.batch();
+    batch.set(returnRef, returnBill.toFirestore());
+    for (final item in returnedItems) {
+      if (item.productId.isEmpty || !item.tracksStock) continue;
+      final parts = item.productId.split('_');
+      final realProductId = parts.first;
+      final isVariant = parts.length > 1;
+      final productRef = db
+          .collection('shops')
+          .doc(original.shopId)
+          .collection('products')
+          .doc(realProductId);
+      if (isVariant) {
+        final variantId = parts.sublist(1).join('_');
+        batch.update(productRef, {
+          'variantStock.$variantId': FieldValue.increment(item.qty),
+          'isOutOfStock': false,
+        });
+      } else {
+        batch.update(productRef, {
+          'stockQty': FieldValue.increment(item.qty),
+          'isOutOfStock': false,
+        });
+      }
+    }
+    await batch.commit();
+
+    // Credit refund: reduce the customer's outstanding udhar by the refund.
+    if (isUdharRefund && original.customerPhone.isNotEmpty) {
+      unawaited(db
+          .collection('shops')
+          .doc(original.shopId)
+          .collection('customers')
+          .doc(original.customerPhone)
+          .set({'udharBalance': FieldValue.increment(-refundTotal)},
+              SetOptions(merge: true)));
+    }
+
+    return returnBill;
   }
 }
 
@@ -656,7 +1016,8 @@ final dailySalesSummaryProvider =
           udhar += b.finalAmount;
         }
       }
-      final nonVoidedCount = list.where((b) => !b.isVoided).length;
+      final nonVoidedCount =
+          list.where((b) => !b.isVoided && !b.isReturn).length;
       return {
         'totalSales': total,
         'billCount': nonVoidedCount.toDouble(),

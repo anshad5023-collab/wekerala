@@ -395,24 +395,31 @@ class _BillTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCash = bill.paymentMethod == 'cash';
+    final isReturn = bill.isReturn;
 
-    final avatarBg = isCash
-        ? Colors.green.shade100
-        : bill.isUdhar
-            ? Colors.orange.shade100
-            : Colors.blue.shade100;
+    final avatarBg = isReturn
+        ? Colors.deepOrange.shade50
+        : isCash
+            ? Colors.green.shade100
+            : bill.isUdhar
+                ? Colors.orange.shade100
+                : Colors.blue.shade100;
 
-    final avatarColor = isCash
-        ? Colors.green
-        : bill.isUdhar
-            ? Colors.orange
-            : Colors.blue;
+    final avatarColor = isReturn
+        ? Colors.deepOrange
+        : isCash
+            ? Colors.green
+            : bill.isUdhar
+                ? Colors.orange
+                : Colors.blue;
 
-    final avatarIcon = isCash
-        ? Icons.money
-        : bill.isUdhar
-            ? Icons.credit_card
-            : Icons.phone_android;
+    final avatarIcon = isReturn
+        ? Icons.assignment_return
+        : isCash
+            ? Icons.money
+            : bill.isUdhar
+                ? Icons.credit_card
+                : Icons.phone_android;
 
     return Card(
       margin: EdgeInsets.zero,
@@ -462,8 +469,33 @@ class _BillTile extends StatelessWidget {
                   ),
                 ],
               )
-            : Text('₹${bill.finalAmount.toStringAsFixed(2)}',
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+            : isReturn
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text('₹${bill.finalAmount.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              color: Colors.deepOrange)),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                            color: Colors.deepOrange.shade50,
+                            borderRadius: BorderRadius.circular(4)),
+                        child: const Text('RETURN',
+                            style: TextStyle(
+                                fontSize: 9,
+                                color: Colors.deepOrange,
+                                fontWeight: FontWeight.w700)),
+                      ),
+                    ],
+                  )
+                : Text('₹${bill.finalAmount.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 15)),
         onTap: () => context.push('/bills/${bill.billId}', extra: bill),
       ),
     );
@@ -484,7 +516,8 @@ class _GstSummaryCard extends StatelessWidget {
     double totalSgst = 0;
     // Exclude voided bills from summary totals (show them in list but not in totals)
     final activeBills = bills.where((b) => !b.isVoided).toList();
-    int billCount = activeBills.length;
+    // Returns reduce revenue (their amount is negative) but aren't counted as sales.
+    int billCount = activeBills.where((b) => !b.isReturn).length;
 
     for (final bill in activeBills) {
       totalRevenue += bill.finalAmount;

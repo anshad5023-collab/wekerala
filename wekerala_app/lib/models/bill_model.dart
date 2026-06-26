@@ -122,6 +122,9 @@ class BillModel {
   final double totalAmount;
   final double discountAmount;
   final double finalAmount;
+  final double roundOff;      // signed rounding adjustment baked into finalAmount
+  final bool isReturn;          // true = a refund/return (amounts are negative)
+  final String? returnOfBillId; // the original bill this return is against
   final String paymentMethod; // 'cash' | 'upi' | 'udhar'
   final String customerName;
   final String customerPhone;
@@ -145,6 +148,9 @@ class BillModel {
     required this.totalAmount,
     this.discountAmount = 0,
     required this.finalAmount,
+    this.roundOff = 0.0,
+    this.isReturn = false,
+    this.returnOfBillId,
     required this.paymentMethod,
     this.customerName = '',
     this.customerPhone = '',
@@ -174,6 +180,9 @@ class BillModel {
       totalAmount: (d['totalAmount'] as num?)?.toDouble() ?? 0,
       discountAmount: (d['discountAmount'] as num?)?.toDouble() ?? 0,
       finalAmount: (d['finalAmount'] as num?)?.toDouble() ?? 0,
+      roundOff: (d['roundOff'] as num?)?.toDouble() ?? 0.0,
+      isReturn: d['isReturn'] as bool? ?? false,
+      returnOfBillId: d['returnOfBillId'] as String?,
       paymentMethod: d['paymentMethod'] as String? ?? 'cash',
       customerName: d['customerName'] as String? ?? '',
       customerPhone: d['customerPhone'] as String? ?? '',
@@ -215,6 +224,9 @@ class BillModel {
       'totalTax': totalTax,
       'isVoided': isVoided,
     };
+    if (roundOff.abs() >= 0.005) m['roundOff'] = roundOff;
+    if (isReturn) m['isReturn'] = true;
+    if (returnOfBillId != null) m['returnOfBillId'] = returnOfBillId;
     if (gstinSnapshot != null) m['gstinSnapshot'] = gstinSnapshot;
     if (voidedAt != null) m['voidedAt'] = Timestamp.fromDate(voidedAt!);
     if (invoiceNumber != null) m['invoiceNumber'] = invoiceNumber;
@@ -232,6 +244,9 @@ class BillModel {
     double? totalAmount,
     double? discountAmount,
     double? finalAmount,
+    double? roundOff,
+    bool? isReturn,
+    Object? returnOfBillId = _billSentinel,
     String? paymentMethod,
     String? customerName,
     String? customerPhone,
@@ -255,6 +270,11 @@ class BillModel {
       totalAmount: totalAmount ?? this.totalAmount,
       discountAmount: discountAmount ?? this.discountAmount,
       finalAmount: finalAmount ?? this.finalAmount,
+      roundOff: roundOff ?? this.roundOff,
+      isReturn: isReturn ?? this.isReturn,
+      returnOfBillId: returnOfBillId == _billSentinel
+          ? this.returnOfBillId
+          : returnOfBillId as String?,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       customerName: customerName ?? this.customerName,
       customerPhone: customerPhone ?? this.customerPhone,

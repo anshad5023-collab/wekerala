@@ -93,6 +93,35 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
             const SizedBox(height: 12),
           ],
 
+          // Return banner
+          if (_bill.isReturn) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.assignment_return_outlined,
+                      color: Colors.orange.shade800, size: 18),
+                  const SizedBox(width: 8),
+                  Text(
+                    'RETURN / REFUND',
+                    style: TextStyle(
+                      color: Colors.orange.shade800,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+
           // Shop info
           shopAsync.when(
             data: (shop) => _SectionCard(
@@ -196,6 +225,13 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
                     valueColor: AppColors.textSecondary,
                   ),
                 ],
+                if (_bill.roundOff.abs() >= 0.01)
+                  _InfoRow(
+                    label: 'Round off',
+                    value:
+                        '${_bill.roundOff >= 0 ? '+ ' : '- '}₹${_bill.roundOff.abs().toStringAsFixed(2)}',
+                    valueColor: AppColors.textSecondary,
+                  ),
                 const SizedBox(height: 4),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -386,6 +422,23 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
               error: (_, __) => const SizedBox.shrink(),
             ),
             const SizedBox(height: 10),
+            // Return / Refund button (not for return bills themselves)
+            if (!_bill.isReturn) ...[
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.orange.shade800,
+                  side: BorderSide(color: Colors.orange.shade400),
+                  minimumSize: const Size.fromHeight(48),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.assignment_return_outlined),
+                label: const Text('Return / Refund',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                onPressed: _showReturnSheet,
+              ),
+              const SizedBox(height: 10),
+            ],
             // Void bill button
             OutlinedButton.icon(
               style: OutlinedButton.styleFrom(
@@ -428,22 +481,7 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
                     await ref.read(billingProvider.notifier).voidBill(_bill);
                     if (mounted) {
                       setState(() {
-                        _bill = BillModel(
-                          billId: _bill.billId,
-                          shopId: _bill.shopId,
-                          items: _bill.items,
-                          totalAmount: _bill.totalAmount,
-                          discountAmount: _bill.discountAmount,
-                          finalAmount: _bill.finalAmount,
-                          paymentMethod: _bill.paymentMethod,
-                          customerName: _bill.customerName,
-                          customerPhone: _bill.customerPhone,
-                          isUdhar: _bill.isUdhar,
-                          createdAt: _bill.createdAt,
-                          gstBreakdown: _bill.gstBreakdown,
-                          totalTax: _bill.totalTax,
-                          gstinSnapshot: _bill.gstinSnapshot,
-                          invoiceNumber: _bill.invoiceNumber,
+                        _bill = _bill.copyWith(
                           isVoided: true,
                           voidedAt: DateTime.now(),
                         );
@@ -466,6 +504,211 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
           ],
           const SizedBox(height: 20),
         ],
+      ),
+    );
+  }
+
+  Future<void> _showReturnSheet() async {
+    // Per-item return qty (defaults to the full qty sold) + which are selected.
+    final returnQty = <String, double>{
+      for (final i in _bill.items) i.productId: i.qty
+    };
+    final selected = <String>{..._bill.items.map((i) => i.productId)};
+    String refundMethod = _bill.isUdhar
+        ? 'udhar'
+        : (_bill.paymentMethod == 'upi' ? 'upi' : 'cash');
+    final paidRatio =
+        _bill.totalAmount > 0 ? _bill.finalAmount / _bill.totalAmount : 1.0;
+    bool saving = false;
+
+    String fmtQty(double q) =>
+        q % 1 == 0 ? q.toInt().toString() : q.toStringAsFixed(2);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (sheetCtx, setSheet) {
+          double gross = 0;
+          for (final i in _bill.items) {
+            if (selected.contains(i.productId)) {
+              gross += i.price * (returnQty[i.productId] ?? 0);
+            }
+          }
+          final refund = double.parse((gross * paidRatio).toStringAsFixed(2));
+
+          Widget methodChip(String value, String label) => ChoiceChip(
+                label: Text(label),
+                selected: refundMethod == value,
+                onSelected: (_) => setSheet(() => refundMethod = value),
+                selectedColor: AppColors.primary.withValues(alpha: 0.15),
+              );
+
+          return Padding(
+            padding: EdgeInsets.only(
+                bottom: MediaQuery.of(sheetCtx).viewInsets.bottom),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.assignment_return_outlined,
+                            color: Colors.orange.shade800),
+                        const SizedBox(width: 8),
+                        const Text('Return / Refund',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 16)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    const Text('Pick the items and quantities coming back.',
+                        style: TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary)),
+                    const SizedBox(height: 8),
+                    Flexible(
+                      child: ListView(
+                        shrinkWrap: true,
+                        children: _bill.items.map((i) {
+                          final isSel = selected.contains(i.productId);
+                          final q = returnQty[i.productId] ?? i.qty;
+                          return Row(
+                            children: [
+                              Checkbox(
+                                value: isSel,
+                                onChanged: (v) => setSheet(() {
+                                  if (v == true) {
+                                    selected.add(i.productId);
+                                  } else {
+                                    selected.remove(i.productId);
+                                  }
+                                }),
+                              ),
+                              Expanded(
+                                child: Text(i.productName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 13)),
+                              ),
+                              IconButton(
+                                visualDensity: VisualDensity.compact,
+                                icon: const Icon(Icons.remove_circle_outline,
+                                    size: 20),
+                                onPressed: !isSel || q <= i.qtyStep
+                                    ? null
+                                    : () => setSheet(() => returnQty[i.productId] =
+                                        (q - i.qtyStep)),
+                              ),
+                              Text('${fmtQty(q)} ${i.unit}',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12)),
+                              IconButton(
+                                visualDensity: VisualDensity.compact,
+                                icon: const Icon(Icons.add_circle_outline,
+                                    size: 20),
+                                onPressed: !isSel || q >= i.qty
+                                    ? null
+                                    : () => setSheet(() => returnQty[i.productId] =
+                                        (q + i.qtyStep) > i.qty
+                                            ? i.qty
+                                            : (q + i.qtyStep)),
+                              ),
+                            ],
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                    const Divider(),
+                    Row(
+                      children: [
+                        const Text('Refund via',
+                            style: TextStyle(
+                                fontSize: 13, color: AppColors.textSecondary)),
+                        const SizedBox(width: 10),
+                        methodChip('cash', 'Cash'),
+                        const SizedBox(width: 6),
+                        methodChip('upi', 'UPI'),
+                        const SizedBox(width: 6),
+                        methodChip('udhar', 'Udhar'),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange.shade800,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        icon: saving
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.check),
+                        label: Text(saving
+                            ? 'Processing...'
+                            : 'Refund ₹${refund.toStringAsFixed(2)}'),
+                        onPressed: (refund <= 0 || saving)
+                            ? null
+                            : () async {
+                                final items = <BillItemModel>[];
+                                for (final i in _bill.items) {
+                                  if (!selected.contains(i.productId)) continue;
+                                  final qv = returnQty[i.productId] ?? 0;
+                                  if (qv <= 0) continue;
+                                  items.add(i.copyWith(
+                                      qty: qv, subtotal: i.price * qv));
+                                }
+                                if (items.isEmpty) return;
+                                setSheet(() => saving = true);
+                                final messenger =
+                                    ScaffoldMessenger.of(context);
+                                try {
+                                  await ref
+                                      .read(billingProvider.notifier)
+                                      .createReturn(
+                                        original: _bill,
+                                        returnedItems: items,
+                                        refundMethod: refundMethod,
+                                      );
+                                  if (sheetCtx.mounted) {
+                                    Navigator.pop(sheetCtx);
+                                  }
+                                  messenger.showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                          'Return recorded — ₹${refund.toStringAsFixed(2)} refunded, stock restored.'),
+                                      backgroundColor: AppColors.success,
+                                    ),
+                                  );
+                                } catch (e) {
+                                  setSheet(() => saving = false);
+                                  messenger.showSnackBar(
+                                    SnackBar(
+                                      content: Text('Return failed: $e'),
+                                      backgroundColor: AppColors.error,
+                                    ),
+                                  );
+                                }
+                              },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -567,6 +810,12 @@ class _BillDetailScreenState extends ConsumerState<BillDetailScreen> {
       if (item.batchNumber != null && item.batchNumber!.isNotEmpty) {
         buffer.writeln('  Batch: ${item.batchNumber}');
       }
+      if (item.modifiers.isNotEmpty) {
+        buffer.writeln('  + ${item.modifiers.join(', ')}');
+      }
+      if (item.itemNote != null && item.itemNote!.isNotEmpty) {
+        buffer.writeln('  📝 ${item.itemNote}');
+      }
     }
     buffer.writeln();
 
@@ -614,6 +863,14 @@ class _BillItemRow extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.w500)),
                 if (item.batchNumber != null && item.batchNumber!.isNotEmpty)
                   Text('Batch: ${item.batchNumber}',
+                      style: const TextStyle(
+                          color: AppColors.textSecondary, fontSize: 11)),
+                if (item.modifiers.isNotEmpty)
+                  Text('+ ${item.modifiers.join(', ')}',
+                      style: const TextStyle(
+                          color: AppColors.primary, fontSize: 11)),
+                if (item.itemNote != null && item.itemNote!.isNotEmpty)
+                  Text('📝 ${item.itemNote}',
                       style: const TextStyle(
                           color: AppColors.textSecondary, fontSize: 11)),
                 Row(

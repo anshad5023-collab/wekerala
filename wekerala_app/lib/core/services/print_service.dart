@@ -77,14 +77,35 @@ class PrintService {
           pw.Text('Date: ${bill.createdAt.day}/${bill.createdAt.month}/${bill.createdAt.year}', style: const pw.TextStyle(fontSize: 9)),
           if (bill.customerName.isNotEmpty) pw.Text('Customer: ${bill.customerName}', style: const pw.TextStyle(fontSize: 9)),
           pw.Divider(),
-          ...bill.items.map((item) => pw.Row(
-            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          ...bill.items.map((item) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Expanded(child: pw.Text('${item.productName} x${item.qty}', style: const pw.TextStyle(fontSize: 9))),
-              pw.Text('₹${item.subtotal.toStringAsFixed(0)}', style: const pw.TextStyle(fontSize: 9)),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Expanded(child: pw.Text('${item.productName} x${item.qty}', style: const pw.TextStyle(fontSize: 9))),
+                  pw.Text('₹${item.subtotal.toStringAsFixed(0)}', style: const pw.TextStyle(fontSize: 9)),
+                ],
+              ),
+              if (item.modifiers.isNotEmpty)
+                pw.Text('  + ${item.modifiers.join(', ')}', style: const pw.TextStyle(fontSize: 8)),
+              if (item.itemNote != null && item.itemNote!.isNotEmpty)
+                pw.Text('  Note: ${item.itemNote}', style: const pw.TextStyle(fontSize: 8)),
             ],
           )),
           pw.Divider(),
+          if (bill.discountAmount > 0)
+            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+              pw.Text('Discount', style: const pw.TextStyle(fontSize: 9)),
+              pw.Text('-₹${bill.discountAmount.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 9)),
+            ]),
+          if (bill.roundOff.abs() >= 0.01)
+            pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+              pw.Text('Round off', style: const pw.TextStyle(fontSize: 9)),
+              pw.Text(
+                '${bill.roundOff >= 0 ? '+' : '-'}₹${bill.roundOff.abs().toStringAsFixed(2)}',
+                style: const pw.TextStyle(fontSize: 9)),
+            ]),
           pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
             pw.Text('TOTAL', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
             pw.Text('₹${bill.finalAmount.toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
@@ -152,6 +173,14 @@ class PrintService {
         bytes.addAll(gen.text('  Batch: ${item.batchNumber}',
             styles: const PosStyles(height: PosTextSize.size1)));
       }
+      if (item.modifiers.isNotEmpty) {
+        bytes.addAll(gen.text('  + ${item.modifiers.join(', ')}',
+            styles: const PosStyles(height: PosTextSize.size1)));
+      }
+      if (item.itemNote != null && item.itemNote!.isNotEmpty) {
+        bytes.addAll(gen.text('  Note: ${item.itemNote}',
+            styles: const PosStyles(height: PosTextSize.size1)));
+      }
     }
     bytes.addAll(gen.hr(ch: '='));
 
@@ -168,6 +197,12 @@ class PrintService {
         bytes.addAll(gen.text('SGST $half%: Rs.${e.value['sgst']!.toStringAsFixed(2)}'));
       }
       bytes.addAll(gen.text('Total Tax: Rs.${bill.totalTax.toStringAsFixed(2)}'));
+    }
+    // Round-off so the printed bill reconciles to the collected amount.
+    final roundOff = bill.roundOff;
+    if (roundOff.abs() >= 0.01) {
+      bytes.addAll(gen.text(
+          'Round off: ${roundOff >= 0 ? '+' : '-'}Rs.${roundOff.abs().toStringAsFixed(2)}'));
     }
     bytes.addAll(gen.hr(ch: '='));
     bytes.addAll(gen.text('TOTAL: Rs.${bill.finalAmount.toStringAsFixed(2)}',

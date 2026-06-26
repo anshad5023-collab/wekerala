@@ -57,6 +57,10 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+        <!-- Lets speech_to_text discover the on-device recognizer (Android 11+) -->
+        <intent>
+            <action android:name="android.speech.RecognitionService"/>
+        </intent>
         <package android:name="com.whatsapp"/>
         <package android:name="com.whatsapp.w4b"/>
         <intent>

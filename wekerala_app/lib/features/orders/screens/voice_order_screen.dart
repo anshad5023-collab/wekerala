@@ -13,6 +13,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../models/order_model.dart';
 import '../../../models/product_model.dart';
+import '../voice_command_parser.dart';
 
 // ---------------------------------------------------------------------------
 // Data class for a single parsed/manually-entered item
@@ -206,45 +207,12 @@ class _VoiceOrderScreenState extends ConsumerState<VoiceOrderScreen> {
   // Parser
   // -------------------------------------------------------------------------
   void _parseTranscription(String text) {
-    const units = [
-      'kg', 'gram', 'g', 'litre', 'l', 'ml', 'dozen', 'piece', 'pcs',
-      'packet', 'box',
-    ];
-    final words = text.toLowerCase().split(RegExp(r'[,\s]+'));
-
-    final List<_VoiceItem> parsed = [];
-    int i = 0;
-
-    while (i < words.length) {
-      if (words[i].isEmpty) {
-        i++;
-        continue;
-      }
-
-      double? qty;
-      String unit = 'piece';
-
-      if (double.tryParse(words[i]) != null) {
-        qty = double.parse(words[i]);
-        i++;
-        if (i < words.length && units.contains(words[i])) {
-          unit = words[i];
-          i++;
-        }
-      }
-
-      final nameParts = <String>[];
-      while (i < words.length && double.tryParse(words[i]) == null) {
-        if (words[i].isNotEmpty) nameParts.add(words[i]);
-        i++;
-      }
-
-      final itemName = nameParts.join(' ').trim();
-      if (itemName.isNotEmpty) {
-        parsed.add(_VoiceItem(name: itemName, qty: qty ?? 1, unit: unit));
-      }
-    }
-
+    // Malayalam-first parsing lives in the pure, unit-tested parseVoiceOrder
+    // (handles Malayalam script, Manglish, fractions and English). We just map
+    // its result into the screen's editable _VoiceItem rows.
+    final parsed = parseVoiceOrder(text)
+        .map((p) => _VoiceItem(name: p.name, qty: p.qty, unit: p.unit))
+        .toList();
     _applyParsedItems(parsed);
   }
 
