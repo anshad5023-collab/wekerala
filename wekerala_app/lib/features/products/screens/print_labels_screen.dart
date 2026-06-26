@@ -1,11 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/label_print_service.dart';
 import '../../../models/product_model.dart';
 import '../../../providers/products_provider.dart';
 import '../../../providers/shop_provider.dart';
@@ -159,25 +157,25 @@ class _PrintLabelsScreenState extends ConsumerState<PrintLabelsScreen> {
       final chosen =
           all.where((p) => _selected.contains(p.productId)).toList();
 
-      // Auto-assign a barcode (the productId) to any chosen product without one,
-      // so the printed label scans back to this product.
+      // Auto-assign an internal barcode to any chosen product without one, so
+      // the printed label scans back to this product at billing.
       final batch = FirebaseFirestore.instance.batch();
       final col = FirebaseFirestore.instance
           .collection('shops').doc(shopId).collection('products');
-      final withCodes = <(ProductModel, String)>[];
+      final labels = <LabelData>[];
+      var salt = 0;
       for (final p in chosen) {
         final code = (p.barcode != null && p.barcode!.isNotEmpty)
             ? p.barcode!
-            : p.productId;
+            : LabelPrintService.generateInternalEan13(salt++);
         if (p.barcode == null || p.barcode!.isEmpty) {
           batch.update(col.doc(p.productId), {'barcode': code});
         }
-        withCodes.add((p, code));
+        labels.add(LabelData(name: p.nameEn, price: p.price, barcode: code));
       }
       await batch.commit();
 
-      final doc = await _buildLabelsPdf(withCodes);
-      await Printing.layoutPdf(onLayout: (_) async => doc.save());
+      await LabelPrintService.printLabels(labels);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -187,74 +185,5 @@ class _PrintLabelsScreenState extends ConsumerState<PrintLabelsScreen> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-  }
-
-  Future<pw.Document> _buildLabelsPdf(
-      List<(ProductModel, String)> items) async {
-    final doc = pw.Document();
-    const perRow = 3;
-
-    // Chunk into rows of [perRow] so MultiPage paginates cleanly.
-    final rows = <List<(ProductModel, String)>>[];
-    for (var i = 0; i < items.length; i += perRow) {
-      rows.add(items.sublist(
-          i, i + perRow > items.length ? items.length : i + perRow));
-    }
-
-    doc.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(18),
-        build: (ctx) => rows
-            .map((row) => pw.Row(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: List.generate(perRow, (c) {
-                    if (c >= row.length) {
-                      return pw.Expanded(child: pw.SizedBox());
-                    }
-                    final (p, code) = row[c];
-                    return pw.Expanded(child: _label(p, code));
-                  }),
-                ))
-            .toList(),
-      ),
-    );
-    return doc;
-  }
-
-  pw.Widget _label(ProductModel p, String code) {
-    return pw.Container(
-      margin: const pw.EdgeInsets.all(4),
-      padding: const pw.EdgeInsets.all(6),
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.grey400, width: 0.5),
-        borderRadius: pw.BorderRadius.circular(4),
-      ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.center,
-        mainAxisSize: pw.MainAxisSize.min,
-        children: [
-          pw.Text(
-            p.nameEn,
-            maxLines: 2,
-            overflow: pw.TextOverflow.clip,
-            textAlign: pw.TextAlign.center,
-            style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold),
-          ),
-          pw.SizedBox(height: 3),
-          pw.Text('₹${p.price.toStringAsFixed(0)}',
-              style:
-                  pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
-          pw.SizedBox(height: 3),
-          pw.BarcodeWidget(
-            barcode: pw.Barcode.code128(),
-            data: code,
-            drawText: false,
-            height: 26,
-            width: 120,
-          ),
-        ],
-      ),
-    );
   }
 }

@@ -13,6 +13,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/print_service.dart';
@@ -838,6 +839,357 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
     return result ?? false;
   }
 
+  // ── park / hold bills ───────────────────────────────────────────────────
+
+  Future<String?> _askParkLabel(BuildContext context) async {
+    final ctrl = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.background,
+        title: const Text('Hold this bill',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: _inputDecoration('Name / table (optional)'),
+          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel',
+                  style: TextStyle(color: AppColors.textSecondary))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: const Text('Hold'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _parkCurrent(String label) {
+    ref.read(billingProvider.notifier).parkCurrentBill(label);
+    _discountCtrl.clear();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(label.isEmpty ? 'Bill held' : 'Held: $label'),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppColors.accent,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _resumeParked(String id) {
+    ref.read(billingProvider.notifier).resumeParkedBill(id);
+    final d = ref.read(billingProvider).discountAmount;
+    _discountCtrl.text = d > 0 ? d.toStringAsFixed(2) : '';
+  }
+
+  Future<void> _showParkedBills(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (sheetCtx) => Consumer(
+        builder: (ctx, ref2, _) {
+          final state = ref2.watch(billingProvider);
+          final parked = state.parkedBills;
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.bookmark_outline,
+                          color: AppColors.primary),
+                      const SizedBox(width: 8),
+                      const Text('Parked Bills',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: state.cartItems.isEmpty
+                          ? null
+                          : () async {
+                              final label = await _askParkLabel(sheetCtx);
+                              if (label == null) return; // cancelled
+                              _parkCurrent(label);
+                              if (sheetCtx.mounted) Navigator.pop(sheetCtx);
+                            },
+                      icon: const Icon(Icons.pause_circle_outline, size: 18),
+                      label: const Text('Hold current bill'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.accent,
+                        side: BorderSide(
+                            color: AppColors.accent.withValues(alpha: 0.6)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Divider(),
+                  if (parked.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: Text('No held bills yet.',
+                            style: TextStyle(color: AppColors.textSecondary)),
+                      ),
+                    )
+                  else
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: parked.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (_, i) {
+                          final p = parked[i];
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.receipt_long_outlined,
+                                color: AppColors.primary),
+                            title: Text(p.label.isEmpty ? 'Bill ${i + 1}' : p.label,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600)),
+                            subtitle: Text(
+                                '${p.items.length} items  •  ₹${p.total.toStringAsFixed(0)}'),
+                            onTap: () {
+                              _resumeParked(p.id);
+                              Navigator.pop(sheetCtx);
+                            },
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete_outline,
+                                  color: AppColors.error),
+                              onPressed: () => ref2
+                                  .read(billingProvider.notifier)
+                                  .deleteParkedBill(p.id),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  // ── quick item (no-catalog billing) ──────────────────────────────────────
+
+  Future<void> _showQuickItemDialog() async {
+    final nameCtrl = TextEditingController();
+    final priceCtrl = TextEditingController();
+    final qtyCtrl = TextEditingController(text: '1');
+    final priceFocus = FocusNode();
+
+    void add({required bool keepOpen, required BuildContext ctx}) {
+      final price = double.tryParse(priceCtrl.text.trim()) ?? 0;
+      final qty = double.tryParse(qtyCtrl.text.trim()) ?? 1;
+      if (price <= 0) return;
+      ref.read(billingProvider.notifier).addCustomItem(
+            name: nameCtrl.text.trim(),
+            price: price,
+            qty: qty <= 0 ? 1 : qty,
+          );
+      HapticFeedback.lightImpact();
+      if (keepOpen) {
+        nameCtrl.clear();
+        priceCtrl.clear();
+        qtyCtrl.text = '1';
+        priceFocus.requestFocus();
+      } else {
+        Navigator.pop(ctx);
+      }
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.background,
+        title: const Text('Quick item',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Add a priced line without a catalog product.',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: nameCtrl,
+              textCapitalization: TextCapitalization.words,
+              decoration: _inputDecoration('Name (optional)'),
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: priceCtrl,
+                    focusNode: priceFocus,
+                    autofocus: true,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))
+                    ],
+                    decoration: _inputDecoration('Price ₹'),
+                    onSubmitted: (_) => add(keepOpen: true, ctx: ctx),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: qtyCtrl,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,3}'))
+                    ],
+                    decoration: _inputDecoration('Qty'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close',
+                style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () => add(keepOpen: true, ctx: ctx),
+            child: const Text('Add & next'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white),
+            onPressed: () => add(keepOpen: false, ctx: ctx),
+            child: const Text('Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── price check (scan to see price, don't add) ───────────────────────────
+
+  Future<void> _showPriceCheck() async {
+    final shopId = await _resolveShopId();
+    if (shopId == null || !mounted) return;
+    final barcode = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const _BillingBarcodeScanner()),
+    );
+    if (barcode == null || barcode.isEmpty || !mounted) return;
+    final product = await _lookupByBarcode(shopId, barcode, ref);
+    if (!mounted) return;
+    if (product == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Barcode $barcode not in catalog'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    final price = product.offerPrice > 0 ? product.offerPrice : product.price;
+    final hasOffer = product.offerPrice > 0 && product.offerPrice < product.price;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.background,
+        title: Text(product.nameEn,
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text('₹${price.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                        fontSize: 30,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primary)),
+                const SizedBox(width: 8),
+                if (hasOffer)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 5),
+                    child: Text('₹${product.price.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                            fontSize: 15,
+                            color: AppColors.textSecondary,
+                            decoration: TextDecoration.lineThrough)),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6, left: 2),
+                  child: Text('/ ${product.unit}',
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              product.isOutOfStock
+                  ? 'Out of stock'
+                  : product.stockQty != null
+                      ? 'In stock: ${product.stockQty} ${product.unit}'
+                      : 'In stock',
+              style: TextStyle(
+                  fontSize: 13,
+                  color: product.isOutOfStock
+                      ? AppColors.error
+                      : AppColors.textSecondary),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close',
+                style: TextStyle(color: AppColors.textSecondary)),
+          ),
+          if (!product.isOutOfStock)
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white),
+              icon: const Icon(Icons.add_shopping_cart, size: 18),
+              label: const Text('Add to bill'),
+              onPressed: () {
+                ref.read(billingProvider.notifier).addItem(product);
+                Navigator.pop(ctx);
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
   // ── build ─────────────────────────────────────────────────────────────────
 
   @override
@@ -972,15 +1324,93 @@ class _BillingScreenState extends ConsumerState<BillingScreen> {
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          // Continuous "scan gun" mode — keep the camera open and add every
+          // barcode straight to the bill. Android only (uses the device camera).
+          if (!kIsWeb && Platform.isAndroid && shopId != null)
+            IconButton(
+              icon: const Icon(Icons.barcode_reader),
+              tooltip: 'Scan to Bill',
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => _ContinuousScanBilling(shopId: shopId),
+                ),
+              ),
+            ),
+          // Parked / held bills — badge shows how many are waiting.
           IconButton(
-            icon: const Icon(Icons.receipt_long_outlined),
-            tooltip: 'Bill History',
-            onPressed: () => context.push('/bill-history'),
+            icon: Badge(
+              isLabelVisible: billingState.parkedBills.isNotEmpty,
+              label: Text('${billingState.parkedBills.length}'),
+              child: const Icon(Icons.bookmark_border),
+            ),
+            tooltip: 'Held bills',
+            onPressed: () => _showParkedBills(context),
           ),
-          IconButton(
-            icon: const Icon(Icons.calculate_outlined),
-            tooltip: 'Cash Counter',
-            onPressed: () => context.push('/cash-counter'),
+          // Everything else lives in a "More" menu so the bar never overflows.
+          PopupMenuButton<String>(
+            tooltip: 'More',
+            icon: const Icon(Icons.more_vert),
+            onSelected: (v) {
+              switch (v) {
+                case 'voice':
+                  if (shopId != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => _VoiceBillingScreen(shopId: shopId),
+                      ),
+                    );
+                  }
+                  break;
+                case 'price':
+                  _showPriceCheck();
+                  break;
+                case 'quick':
+                  _showQuickItemDialog();
+                  break;
+                case 'history':
+                  context.push('/bill-history');
+                  break;
+                case 'cash':
+                  context.push('/cash-counter');
+                  break;
+              }
+            },
+            itemBuilder: (ctx) => [
+              if (!kIsWeb && Platform.isAndroid && shopId != null)
+                const PopupMenuItem(
+                  value: 'voice',
+                  child: ListTile(
+                      leading: Icon(Icons.mic_none),
+                      title: Text('Voice billing')),
+                ),
+              if (!kIsWeb && Platform.isAndroid && shopId != null)
+                const PopupMenuItem(
+                  value: 'price',
+                  child: ListTile(
+                      leading: Icon(Icons.sell_outlined),
+                      title: Text('Price check')),
+                ),
+              const PopupMenuItem(
+                value: 'quick',
+                child: ListTile(
+                    leading: Icon(Icons.dialpad),
+                    title: Text('Quick item')),
+              ),
+              const PopupMenuItem(
+                value: 'history',
+                child: ListTile(
+                    leading: Icon(Icons.receipt_long_outlined),
+                    title: Text('Bill history')),
+              ),
+              const PopupMenuItem(
+                value: 'cash',
+                child: ListTile(
+                    leading: Icon(Icons.calculate_outlined),
+                    title: Text('Cash counter')),
+              ),
+            ],
           ),
           if (billingState.cartItems.isNotEmpty)
             IconButton(
@@ -1054,6 +1484,80 @@ class _CartPanel extends ConsumerWidget {
     final state = ref.watch(billingProvider);
     final notifier = ref.read(billingProvider.notifier);
 
+    // Apply a percentage discount by converting it to a flat ₹ amount on the
+    // current subtotal (keeps the ₹ field as the single source of truth).
+    Future<void> applyDiscountPercent() async {
+      final pctCtrl = TextEditingController();
+      final pct = await showDialog<double>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Discount %', style: TextStyle(fontSize: 15)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Wrap(
+                spacing: 8,
+                children: [5, 10, 15, 20].map((p) {
+                  return ActionChip(
+                    label: Text('$p%'),
+                    onPressed: () => Navigator.pop(context, p.toDouble()),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: pctCtrl,
+                autofocus: true,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))
+                ],
+                decoration: const InputDecoration(
+                    suffixText: '%', hintText: 'Custom %'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel')),
+            TextButton(
+              onPressed: () =>
+                  Navigator.pop(context, double.tryParse(pctCtrl.text.trim())),
+              child: const Text('Apply'),
+            ),
+          ],
+        ),
+      );
+      if (pct == null || pct <= 0) return;
+      final amount = (state.subtotal * pct / 100);
+      discountCtrl.text = amount.toStringAsFixed(2);
+      onDiscountChanged(discountCtrl.text);
+    }
+
+    // Remove an item but offer a 4-second "Undo" — so an accidental delete is
+    // never final (the owner specifically asked to be able to cancel an item).
+    void removeWithUndo(int index, BillItemModel item) {
+      notifier.removeItem(item.productId);
+      HapticFeedback.lightImpact();
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.clearSnackBars();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Removed ${item.productName}'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(
+            label: 'Undo',
+            textColor: Colors.white,
+            onPressed: () => notifier.restoreCartItem(item, index),
+          ),
+        ),
+      );
+    }
+
     return Column(
       children: [
         // Section header
@@ -1115,22 +1619,42 @@ class _CartPanel extends ConsumerWidget {
                   itemCount: state.cartItems.length,
                   itemBuilder: (context, index) {
                     final item = state.cartItems[index];
-                    return _CartItemRow(
-                      item: item,
-                      shopType: shopType,
-                      onIncrement: () => notifier.updateQty(
-                          item.productId, item.qty + item.qtyStep),
-                      onDecrement: () => notifier.decrementItem(item.productId),
-                      onDelete: () => notifier.removeItem(item.productId),
-                      onSetQty: (qty) => notifier.updateQty(item.productId, qty),
-                      onSetModifiers: (mods) =>
-                          notifier.setItemModifiers(item.productId, mods),
-                    ).animate().fadeIn(duration: 200.ms);
+                    return Dismissible(
+                      key: ValueKey(item.productId),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        margin: const EdgeInsets.symmetric(vertical: 3),
+                        padding: const EdgeInsets.only(right: 20),
+                        decoration: BoxDecoration(
+                          color: AppColors.error,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.delete_outline,
+                            color: Colors.white),
+                      ),
+                      onDismissed: (_) => removeWithUndo(index, item),
+                      child: _CartItemRow(
+                        item: item,
+                        shopType: shopType,
+                        onIncrement: () => notifier.updateQty(
+                            item.productId, item.qty + item.qtyStep),
+                        onDecrement: () =>
+                            notifier.decrementItem(item.productId),
+                        onDelete: () => removeWithUndo(index, item),
+                        onSetQty: (qty) =>
+                            notifier.updateQty(item.productId, qty),
+                        onSetPrice: (p) =>
+                            notifier.setItemPrice(item.productId, p),
+                        onSetModifiers: (mods) =>
+                            notifier.setItemModifiers(item.productId, mods),
+                      ).animate().fadeIn(duration: 200.ms),
+                    );
                   },
                 ),
         ),
 
-        // Discount row
+        // Discount row — flat ₹ field, a % quick-apply, and a round-off toggle.
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           child: Row(
@@ -1138,7 +1662,7 @@ class _CartPanel extends ConsumerWidget {
               const Text('Discount:  ₹',
                   style: TextStyle(color: AppColors.textSecondary)),
               SizedBox(
-                width: 80,
+                width: 70,
                 child: TextField(
                   controller: discountCtrl,
                   keyboardType:
@@ -1156,6 +1680,38 @@ class _CartPanel extends ConsumerWidget {
                     hintText: '0',
                   ),
                   style: const TextStyle(fontSize: 14),
+                ),
+              ),
+              const SizedBox(width: 6),
+              OutlinedButton(
+                onPressed:
+                    state.cartItems.isEmpty ? null : applyDiscountPercent,
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(40, 34),
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  foregroundColor: AppColors.primary,
+                ),
+                child: const Text('%'),
+              ),
+              const Spacer(),
+              // Round-off toggle
+              GestureDetector(
+                onTap: () => notifier.setRoundOff(!state.roundOffEnabled),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Round',
+                        style: TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary)),
+                    Transform.scale(
+                      scale: 0.75,
+                      child: Switch(
+                        value: state.roundOffEnabled,
+                        activeColor: AppColors.primary,
+                        onChanged: (v) => notifier.setRoundOff(v),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -1263,6 +1819,24 @@ class _CartPanel extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Round-off line (only when it actually changes the total)
+              if (state.roundOffEnabled && state.roundOffAmount.abs() >= 0.01)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Round off',
+                          style: TextStyle(
+                              fontSize: 12, color: AppColors.textSecondary)),
+                      Text(
+                        '${state.roundOffAmount >= 0 ? '+' : '-'}₹${state.roundOffAmount.abs().toStringAsFixed(2)}',
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -1326,6 +1900,7 @@ class _CartItemRow extends StatelessWidget {
   final VoidCallback onDecrement;
   final VoidCallback onDelete;
   final ValueChanged<double>? onSetQty;
+  final ValueChanged<double>? onSetPrice;
   final ValueChanged<List<String>>? onSetModifiers;
   final String shopType;
 
@@ -1335,6 +1910,7 @@ class _CartItemRow extends StatelessWidget {
     required this.onDecrement,
     required this.onDelete,
     this.onSetQty,
+    this.onSetPrice,
     this.onSetModifiers,
     this.shopType = '',
   });
@@ -1377,6 +1953,51 @@ class _CartItemRow extends StatelessWidget {
       ),
     );
     if (val != null && val > 0 && onSetQty != null) onSetQty!(val);
+  }
+
+  Future<void> _showPriceDialog(BuildContext ctx) async {
+    final ctrl = TextEditingController(text: item.price.toStringAsFixed(2));
+    final val = await showDialog<double>(
+      context: ctx,
+      builder: (_) => AlertDialog(
+        title: Text('Price — ${item.productName}',
+            style: const TextStyle(fontSize: 14)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Set a negotiated unit price for this item.',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+            const SizedBox(height: 10),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))
+              ],
+              decoration: InputDecoration(
+                prefixText: '₹ ',
+                suffixText: '/ ${item.unit}',
+                hintText: 'Unit price',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel')),
+          TextButton(
+            onPressed: () =>
+                Navigator.pop(ctx, double.tryParse(ctrl.text.trim())),
+            child: const Text('Set'),
+          ),
+        ],
+      ),
+    );
+    if (val != null && val >= 0 && onSetPrice != null) onSetPrice!(val);
   }
 
   Future<void> _showModifierSheet(BuildContext ctx) async {
@@ -1554,11 +2175,26 @@ class _CartItemRow extends StatelessWidget {
                             ],
                           ],
                         ),
-                        Text(
-                          _priceLabel,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: AppColors.textSecondary,
+                        GestureDetector(
+                          onTap: onSetPrice == null
+                              ? null
+                              : () => _showPriceDialog(context),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                _priceLabel,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                              if (onSetPrice != null) ...[
+                                const SizedBox(width: 3),
+                                const Icon(Icons.edit,
+                                    size: 11, color: AppColors.textSecondary),
+                              ],
+                            ],
                           ),
                         ),
                         // Batch number badge for pharmacy
@@ -1595,7 +2231,7 @@ class _CartItemRow extends StatelessWidget {
                         child: Center(
                           child: Text(
                             item.isWeightBased
-                                ? '${_qtyLabel} ${item.unit}'
+                                ? '$_qtyLabel ${item.unit}'
                                 : _qtyLabel,
                             style: const TextStyle(
                                 fontWeight: FontWeight.bold, fontSize: 13),
@@ -1732,6 +2368,44 @@ class _ProductPanel extends ConsumerStatefulWidget {
 class _ProductPanelState extends ConsumerState<_ProductPanel> {
   String _selectedCategory = 'All';
 
+  // Non-blocking nudge when the cart qty exceeds what's on hand. We still let
+  // the sale through (the owner may have stock the app doesn't know about) but
+  // they get told, so inventory doesn't silently drift negative.
+  void _warnIfOversold(BuildContext context, ProductModel product) {
+    final stock = product.stockQty;
+    if (stock == null) return; // services / untracked items
+    final cartQty = ref
+        .read(billingProvider)
+        .cartItems
+        .where((i) => i.productId == product.productId)
+        .fold<double>(0, (a, i) => a + i.qty);
+    if (cartQty > stock) {
+      final qtyStr = cartQty % 1 == 0 ? cartQty.toInt().toString() : cartQty.toString();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+              'Only $stock ${product.unit} of ${product.nameEn} left — cart now has $qtyStr'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  // Shared add logic — used by the product list AND the quick-add row.
+  Future<void> _addProduct(BuildContext context, ProductModel product) async {
+    if (product.hasVariants && product.variants.isNotEmpty) {
+      final variant = await _showVariantPicker(context, product);
+      if (variant != null && context.mounted) {
+        ref.read(billingProvider.notifier).addItem(product, variant: variant);
+      }
+    } else {
+      ref.read(billingProvider.notifier).addItem(product);
+      _warnIfOversold(context, product);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final shopId = widget.shopId;
@@ -1741,6 +2415,15 @@ class _ProductPanelState extends ConsumerState<_ProductPanel> {
     final categories = ['All', ...?shopAsync.value?.categories];
     final cartItems = ref.watch(billingProvider).cartItems;
     final inCartIds = {for (final i in cartItems) i.productId};
+
+    // Bestsellers for the quick-add row (hidden while searching to cut clutter).
+    final allProducts = productsAsync.valueOrNull ?? const <ProductModel>[];
+    final quickItems = (allProducts
+            .where((p) => !p.isHidden && !p.isOutOfStock && p.orderCount > 0)
+            .toList()
+          ..sort((a, b) => b.orderCount.compareTo(a.orderCount)))
+        .take(10)
+        .toList();
 
     return Column(
       children: [
@@ -1908,6 +2591,35 @@ class _ProductPanelState extends ConsumerState<_ProductPanel> {
           ),
         if (categories.length > 2) const SizedBox(height: 6),
 
+        // Quick-add row — tap the shop's bestsellers without searching/scrolling.
+        if (searchQuery.isEmpty && quickItems.isNotEmpty) ...[
+          SizedBox(
+            height: 40,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              itemCount: quickItems.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              itemBuilder: (_, i) {
+                final p = quickItems[i];
+                final price = p.offerPrice > 0 ? p.offerPrice : p.price;
+                return ActionChip(
+                  avatar: const Icon(Icons.bolt,
+                      size: 16, color: AppColors.primary),
+                  label: Text('${p.nameEn}  ₹${price.toStringAsFixed(0)}',
+                      style: const TextStyle(fontSize: 12)),
+                  onPressed: () => _addProduct(context, p),
+                  backgroundColor: AppColors.primary.withValues(alpha: 0.06),
+                  side: BorderSide(
+                      color: AppColors.primary.withValues(alpha: 0.25)),
+                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 6),
+        ],
+
         // Product list
         Expanded(
           child: productsAsync.when(
@@ -1967,17 +2679,7 @@ class _ProductPanelState extends ConsumerState<_ProductPanel> {
                   return _ProductButton(
                     product: product,
                     inCart: inCart,
-                    onTap: () async {
-                      if (product.hasVariants && product.variants.isNotEmpty) {
-                        final variant = await _showVariantPicker(context, product);
-                        if (variant != null && context.mounted) {
-                          ref.read(billingProvider.notifier)
-                              .addItem(product, variant: variant);
-                        }
-                      } else {
-                        ref.read(billingProvider.notifier).addItem(product);
-                      }
-                    },
+                    onTap: () => _addProduct(context, product),
                   );
                 },
               );
@@ -2221,6 +2923,36 @@ class _PaymentBarState extends ConsumerState<_PaymentBar> {
     super.dispose();
   }
 
+  bool _syncingSplit = false;
+
+  // Format an amount without trailing ".0" for whole numbers.
+  String _fmtAmt(double v) {
+    if (v <= 0) return '0';
+    return v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
+  }
+
+  // User typed in the Cash field → auto-fill UPI with the remainder.
+  void _syncFromCash(double total) {
+    if (_syncingSplit) return;
+    _syncingSplit = true;
+    final cash = double.tryParse(_cashSplitCtrl.text) ?? 0;
+    final remaining = total - cash;
+    _upiSplitCtrl.text = _fmtAmt(remaining < 0 ? 0 : remaining);
+    _syncingSplit = false;
+    setState(() {});
+  }
+
+  // User typed in the UPI field → auto-fill Cash with the remainder.
+  void _syncFromUpi(double total) {
+    if (_syncingSplit) return;
+    _syncingSplit = true;
+    final upi = double.tryParse(_upiSplitCtrl.text) ?? 0;
+    final remaining = total - upi;
+    _cashSplitCtrl.text = _fmtAmt(remaining < 0 ? 0 : remaining);
+    _syncingSplit = false;
+    setState(() {});
+  }
+
   void _onSplitConfirm(double total) {
     final cash = double.tryParse(_cashSplitCtrl.text) ?? 0;
     final upi = double.tryParse(_upiSplitCtrl.text) ?? 0;
@@ -2320,12 +3052,43 @@ class _PaymentBarState extends ConsumerState<_PaymentBar> {
           // Split payment fields
           if (_splitMode) ...[
             const SizedBox(height: 10),
+            // Helper: shows the goal + live confirmation that the two add up.
+            Builder(builder: (_) {
+              final total = billingState.total;
+              final cash = double.tryParse(_cashSplitCtrl.text) ?? 0;
+              final upi = double.tryParse(_upiSplitCtrl.text) ?? 0;
+              final sum = cash + upi;
+              final matches = (sum - total).abs() < 0.01;
+              final hasInput = _cashSplitCtrl.text.isNotEmpty || _upiSplitCtrl.text.isNotEmpty;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  children: [
+                    Text('Total to split: ₹${total.toStringAsFixed(0)}',
+                        style: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+                    const Spacer(),
+                    if (hasInput)
+                      Text(
+                        matches
+                            ? '₹${_fmtAmt(cash)} + ₹${_fmtAmt(upi)} ✓'
+                            : 'Off by ₹${(total - sum).abs().toStringAsFixed(0)}',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: matches ? AppColors.success : AppColors.error),
+                      ),
+                  ],
+                ),
+              );
+            }),
             Row(
               children: [
                 Expanded(
                   child: TextField(
                     controller: _cashSplitCtrl,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (_) => _syncFromCash(billingState.total),
                     decoration: InputDecoration(
                       labelText: 'Cash ₹',
                       isDense: true,
@@ -2339,6 +3102,7 @@ class _PaymentBarState extends ConsumerState<_PaymentBar> {
                   child: TextField(
                     controller: _upiSplitCtrl,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (_) => _syncFromUpi(billingState.total),
                     decoration: InputDecoration(
                       labelText: 'UPI ₹',
                       isDense: true,
@@ -2610,6 +3374,12 @@ class _ReceiptSheetState extends State<_ReceiptSheet> {
               : '';
       buf.writeln(
           '${item.productName}$hsnPart  ${qtyStr}x₹${item.price.toStringAsFixed(2)}  ₹${item.subtotal.toStringAsFixed(2)}');
+      if (item.modifiers.isNotEmpty) {
+        buf.writeln('  + ${item.modifiers.join(', ')}');
+      }
+      if (item.itemNote != null && item.itemNote!.isNotEmpty) {
+        buf.writeln('  📝 ${item.itemNote}');
+      }
     }
     buf.writeln('──────────────────');
     buf.writeln(
@@ -2629,6 +3399,13 @@ class _ReceiptSheetState extends State<_ReceiptSheet> {
       }
       buf.writeln(
           'Total Tax: ₹${bill.totalTax.toStringAsFixed(2)}');
+    }
+    // Round-off line so the printed/sent bill reconciles when the owner
+    // rounded the total to a clean rupee amount.
+    final roundOff = bill.roundOff;
+    if (roundOff.abs() >= 0.01) {
+      buf.writeln(
+          'Round off: ${roundOff >= 0 ? '+' : '-'}₹${roundOff.abs().toStringAsFixed(2)}');
     }
     buf.writeln('──────────────────');
     buf.writeln(
@@ -2659,7 +3436,6 @@ class _ReceiptSheetState extends State<_ReceiptSheet> {
   @override
   Widget build(BuildContext context) {
     final bill = widget.bill;
-    final receiptText = _buildReceiptText();
 
     return Container(
       decoration: const BoxDecoration(
@@ -2733,23 +3509,36 @@ class _ReceiptSheetState extends State<_ReceiptSheet> {
                 : item.qty.toStringAsFixed(1);
             return Padding(
               padding: const EdgeInsets.symmetric(vertical: 4),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: Text(
-                      '${item.productName}  x$qtyStr',
-                      style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.textPrimary),
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '${item.productName}  x$qtyStr',
+                          style: const TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textPrimary),
+                        ),
+                      ),
+                      Text(
+                        '₹${item.subtotal.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w500),
+                      ),
+                    ],
                   ),
-                  Text(
-                    '₹${item.subtotal.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w500),
-                  ),
+                  if (item.modifiers.isNotEmpty)
+                    Text('  + ${item.modifiers.join(', ')}',
+                        style: const TextStyle(
+                            fontSize: 11, color: AppColors.textSecondary)),
+                  if (item.itemNote != null && item.itemNote!.isNotEmpty)
+                    Text('  📝 ${item.itemNote}',
+                        style: const TextStyle(
+                            fontSize: 11, color: AppColors.textSecondary)),
                 ],
               ),
             );
@@ -2791,6 +3580,14 @@ class _ReceiptSheetState extends State<_ReceiptSheet> {
             ),
             const SizedBox(height: 4),
           ],
+
+          // Round-off (only shown when it changed the total)
+          if (bill.roundOff.abs() >= 0.01)
+            _SummaryRow(
+              label: 'Round off',
+              value:
+                  '${bill.roundOff >= 0 ? '+' : '-'}₹${bill.roundOff.abs().toStringAsFixed(2)}',
+            ),
 
           // Total
           _SummaryRow(
@@ -3214,6 +4011,753 @@ class _UpiQrCard extends StatelessWidget {
           Text(
             'Ask customer to scan with any UPI app',
             style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Voice billing — say items, they get matched to the catalog and added
+// ---------------------------------------------------------------------------
+// e.g. "2 kg rice, one Maggi, three soap" → adds those lines. Quantities can be
+// digits or words (English + common Malayalam numerals). Best-effort matching
+// against product names; anything it can't match is listed so the owner can
+// add it by hand.
+
+class _VoiceMatch {
+  final ProductModel product;
+  final double qty;
+  _VoiceMatch(this.product, this.qty);
+}
+
+class _VoiceLine {
+  final _VoiceMatch? match;
+  final String phrase;
+  _VoiceLine(this.match, this.phrase);
+}
+
+const _kNumberWords = <String, double>{
+  'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6,
+  'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10, 'a': 1, 'an': 1, 'half': 0.5,
+  // common Malayalam numerals (transliterated)
+  'onnu': 1, 'rendu': 2, 'randu': 2, 'moonu': 3, 'munnu': 3, 'naalu': 4,
+  'anchu': 5, 'aaru': 6, 'ezhu': 7, 'ettu': 8, 'onpathu': 9, 'pathu': 10,
+};
+
+const _kUnitWords = <String>{
+  'kg', 'kgs', 'kilo', 'kilos', 'gram', 'grams', 'g', 'gm', 'packet',
+  'packets', 'piece', 'pieces', 'pcs', 'nos', 'litre', 'liter',
+  'litres', 'liters', 'l', 'ml', 'dozen', 'box', 'boxes', 'bottle', 'bottles',
+};
+
+List<_VoiceLine> _parseVoiceTranscript(
+    String transcript, List<ProductModel> products) {
+  final lines = <_VoiceLine>[];
+  final phrases = transcript.toLowerCase().split(RegExp(r',|\band\b|\bplus\b|\n'));
+  for (final raw in phrases) {
+    final phrase = raw.trim();
+    if (phrase.isEmpty) continue;
+    var words = phrase.split(RegExp(r'\s+'));
+    double qty = 1;
+    if (words.isNotEmpty) {
+      final first = words.first;
+      final asNum = double.tryParse(first);
+      if (asNum != null && asNum > 0) {
+        qty = asNum;
+        words = words.sublist(1);
+      } else if (_kNumberWords.containsKey(first)) {
+        qty = _kNumberWords[first]!;
+        words = words.sublist(1);
+      }
+    }
+    final nameWords = words
+        .where((w) => !_kUnitWords.contains(w) && !_kNumberWords.containsKey(w))
+        .toList();
+    final query = nameWords.join(' ').trim();
+    if (query.isEmpty) {
+      lines.add(_VoiceLine(null, phrase));
+      continue;
+    }
+    ProductModel? best;
+    int bestScore = 0;
+    for (final p in products) {
+      if (p.isHidden || p.isOutOfStock) continue;
+      final en = p.nameEn.toLowerCase();
+      final ml = p.nameMl.toLowerCase();
+      var score = 0;
+      if (en == query || ml == query) {
+        score = 1000 + p.orderCount;
+      } else if (en.contains(query) ||
+          query.contains(en) ||
+          (ml.isNotEmpty && (ml.contains(query) || query.contains(ml)))) {
+        score = 500 + p.orderCount;
+      } else {
+        final overlap = nameWords.where((w) => w.length > 2 && en.contains(w)).length;
+        if (overlap > 0) score = overlap * 10 + p.orderCount;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        best = p;
+      }
+    }
+    lines.add(best != null
+        ? _VoiceLine(_VoiceMatch(best, qty), phrase)
+        : _VoiceLine(null, phrase));
+  }
+  return lines;
+}
+
+class _VoiceBillingScreen extends ConsumerStatefulWidget {
+  final String shopId;
+  const _VoiceBillingScreen({required this.shopId});
+
+  @override
+  ConsumerState<_VoiceBillingScreen> createState() =>
+      _VoiceBillingScreenState();
+}
+
+class _VoiceBillingScreenState extends ConsumerState<_VoiceBillingScreen> {
+  final SpeechToText _speech = SpeechToText();
+  bool _available = false;
+  bool _listening = false;
+  bool _consumed = false; // guards against double-processing one utterance
+  String _transcript = '';
+  final List<String> _added = [];
+  final List<String> _unmatched = [];
+  String _error = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    try {
+      _available = await _speech.initialize(
+        onStatus: (s) {
+          if ((s == 'done' || s == 'notListening') && mounted) {
+            setState(() => _listening = false);
+          }
+        },
+        onError: (e) {
+          if (mounted) {
+            setState(() {
+              _error = e.errorMsg;
+              _listening = false;
+            });
+          }
+        },
+      );
+    } catch (e) {
+      _available = false;
+      _error = e.toString();
+    }
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _speech.cancel();
+    super.dispose();
+  }
+
+  Future<void> _toggle() async {
+    if (!_available) {
+      await _init();
+      if (!_available) return;
+    }
+    if (_listening) {
+      await _speech.stop();
+      if (mounted) setState(() => _listening = false);
+      _process(_transcript);
+      return;
+    }
+    setState(() {
+      _transcript = '';
+      _added.clear();
+      _unmatched.clear();
+      _error = '';
+      _listening = true;
+      _consumed = false;
+    });
+    await _speech.listen(
+      onResult: (r) {
+        if (!mounted) return;
+        setState(() => _transcript = r.recognizedWords);
+        if (r.finalResult) {
+          _process(r.recognizedWords);
+          setState(() => _listening = false);
+        }
+      },
+      listenFor: const Duration(seconds: 30),
+      pauseFor: const Duration(seconds: 4),
+    );
+  }
+
+  void _process(String transcript) {
+    if (_consumed || transcript.trim().isEmpty) return;
+    _consumed = true;
+    final products =
+        ref.read(productsStreamProvider(widget.shopId)).valueOrNull ??
+            const <ProductModel>[];
+    final results = _parseVoiceTranscript(transcript, products);
+    final notifier = ref.read(billingProvider.notifier);
+    for (final r in results) {
+      final m = r.match;
+      if (m != null) {
+        notifier.addProductQuantity(m.product, m.qty);
+        final qs =
+            m.qty % 1 == 0 ? m.qty.toInt().toString() : m.qty.toStringAsFixed(2);
+        _added.add('$qs × ${m.product.nameEn}');
+      } else {
+        _unmatched.add(r.phrase);
+      }
+    }
+    HapticFeedback.mediumImpact();
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cartCount = ref.watch(billingProvider).cartItems.length;
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: const Text('Voice Billing'),
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              _listening
+                  ? 'Listening… say items like "2 kg rice, one Maggi"'
+                  : 'Tap the mic and say your items.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 14, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            if (_transcript.isNotEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey.shade200),
+                ),
+                child: Text('"$_transcript"',
+                    style: const TextStyle(
+                        fontSize: 16, fontStyle: FontStyle.italic)),
+              ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ListView(
+                children: [
+                  for (final a in _added)
+                    ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.check_circle,
+                          color: AppColors.success, size: 20),
+                      title: Text(a),
+                    ),
+                  for (final u in _unmatched)
+                    ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.help_outline,
+                          color: Colors.orange, size: 20),
+                      title: Text('Not found: "$u"',
+                          style: const TextStyle(color: Colors.orange)),
+                    ),
+                  if (_error.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Text(
+                        _available
+                            ? 'Error: $_error'
+                            : 'Voice not available on this device/permission. $_error',
+                        style: const TextStyle(color: AppColors.error),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // Mic button
+            Center(
+              child: GestureDetector(
+                onTap: _toggle,
+                child: Container(
+                  width: 88,
+                  height: 88,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _listening ? AppColors.error : AppColors.primary,
+                    boxShadow: [
+                      BoxShadow(
+                        color: (_listening ? AppColors.error : AppColors.primary)
+                            .withValues(alpha: 0.4),
+                        blurRadius: _listening ? 24 : 10,
+                        spreadRadius: _listening ? 4 : 0,
+                      ),
+                    ],
+                  ),
+                  child: Icon(_listening ? Icons.stop : Icons.mic,
+                      color: Colors.white, size: 40),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                icon: const Icon(Icons.check),
+                label: Text('Done${cartCount > 0 ? '  ($cartCount in cart)' : ''}'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Continuous scan-to-bill ("scan gun" mode)
+// ---------------------------------------------------------------------------
+// The owner keeps the camera open and waves the phone across each product's
+// barcode — every detected barcode is looked up and added straight to the
+// shared cart, with a beep + vibrate so they never have to look at the screen.
+// Re-presenting the same item adds +1 (a short per-barcode debounce stops a
+// single scan from being counted dozens of times while it sits in view).
+class _ContinuousScanBilling extends ConsumerStatefulWidget {
+  final String shopId;
+  const _ContinuousScanBilling({required this.shopId});
+
+  @override
+  ConsumerState<_ContinuousScanBilling> createState() =>
+      _ContinuousScanBillingState();
+}
+
+class _RecentScan {
+  final String productId;
+  final String name;
+  final double price;
+  _RecentScan(this.productId, this.name, this.price);
+}
+
+class _ContinuousScanBillingState
+    extends ConsumerState<_ContinuousScanBilling> {
+  final MobileScannerController _scanner = MobileScannerController(
+    detectionSpeed: DetectionSpeed.normal,
+    facing: CameraFacing.back,
+  );
+
+  // Per-barcode debounce: ignore the same code if seen again within this window,
+  // so holding an item in view = +1, not +30.
+  static const _debounce = Duration(milliseconds: 1200);
+  String? _lastCode;
+  DateTime _lastAt = DateTime.fromMillisecondsSinceEpoch(0);
+
+  final List<_RecentScan> _recent = []; // newest first — drives the undo stack
+  int _unknownCount = 0;
+  bool _flashOn = false;
+  bool _busy = false; // a lookup is in flight
+
+  // Visual feedback: 'ok' (green), 'bad' (red), or null (none).
+  String? _feedback;
+  String _banner = 'Point at a barcode';
+
+  @override
+  void dispose() {
+    _scanner.dispose();
+    super.dispose();
+  }
+
+  Future<void> _onDetect(BarcodeCapture capture) async {
+    if (_busy) return;
+    final code = capture.barcodes.firstOrNull?.rawValue;
+    if (code == null || code.length < 4) return;
+
+    final now = DateTime.now();
+    if (code == _lastCode && now.difference(_lastAt) < _debounce) return;
+    _lastCode = code;
+    _lastAt = now;
+
+    _busy = true;
+    try {
+      final product = await _lookupByBarcode(widget.shopId, code, ref);
+      if (!mounted) return;
+      if (product != null && !product.isOutOfStock) {
+        ref.read(billingProvider.notifier).addItem(product);
+        final price =
+            product.offerPrice > 0 ? product.offerPrice : product.price;
+        _recent.insert(0, _RecentScan(product.productId, product.nameEn, price));
+        HapticFeedback.mediumImpact();
+        SystemSound.play(SystemSoundType.click);
+        setState(() {
+          _feedback = 'ok';
+          _banner = '✓ ${product.nameEn}  ₹${price.toStringAsFixed(0)}';
+        });
+      } else if (product != null && product.isOutOfStock) {
+        HapticFeedback.heavyImpact();
+        setState(() {
+          _feedback = 'bad';
+          _banner = '${product.nameEn} — OUT OF STOCK';
+        });
+      } else {
+        // Unknown barcode at the counter — don't dead-end. Offer a one-screen
+        // quick add (name + price) with the barcode pre-filled, create the
+        // product in this shop, and drop it straight into the bill.
+        await _quickAddUnknown(code);
+      }
+    } finally {
+      _busy = false;
+      // Clear the colour flash shortly after.
+      Future.delayed(const Duration(milliseconds: 350), () {
+        if (mounted) setState(() => _feedback = null);
+      });
+    }
+  }
+
+  /// Quick-add an unrecognised barcode without leaving the scan screen.
+  Future<void> _quickAddUnknown(String code) async {
+    _unknownCount++;
+    HapticFeedback.heavyImpact();
+    setState(() {
+      _feedback = 'bad';
+      _banner = 'Unknown barcode — quick add it';
+    });
+    // Pause scanning while the sheet is open so it doesn't re-fire.
+    await _scanner.stop().catchError((_) {});
+    final product = await _showQuickAddSheet(code);
+    if (mounted && product != null) {
+      ref.read(billingProvider.notifier).addItem(product);
+      final price = product.offerPrice > 0 ? product.offerPrice : product.price;
+      _recent.insert(0, _RecentScan(product.productId, product.nameEn, price));
+      HapticFeedback.mediumImpact();
+      setState(() {
+        _feedback = 'ok';
+        _banner = '✓ ${product.nameEn}  ₹${price.toStringAsFixed(0)}';
+      });
+    }
+    await _scanner.start().catchError((_) {});
+  }
+
+  Future<ProductModel?> _showQuickAddSheet(String code) async {
+    final nameCtrl = TextEditingController();
+    final priceCtrl = TextEditingController();
+    bool busy = false;
+    return showModalBottomSheet<ProductModel>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+            left: 16,
+            right: 16,
+            top: 18,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('New product',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 4),
+              Text('Barcode: $code',
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary)),
+              const SizedBox(height: 12),
+              TextField(
+                controller: nameCtrl,
+                autofocus: true,
+                textCapitalization: TextCapitalization.words,
+                decoration: _inputDecoration('Product name'),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: priceCtrl,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}'))
+                ],
+                decoration: _inputDecoration('Price ₹'),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white),
+                      onPressed: busy
+                          ? null
+                          : () async {
+                              final name = nameCtrl.text.trim();
+                              final price =
+                                  double.tryParse(priceCtrl.text.trim()) ?? 0;
+                              if (name.isEmpty || price <= 0) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  const SnackBar(
+                                      content:
+                                          Text('Enter a name and a price.')),
+                                );
+                                return;
+                              }
+                              setSheet(() => busy = true);
+                              final now = DateTime.now();
+                              final productId = FirebaseFirestore.instance
+                                  .collection('_')
+                                  .doc()
+                                  .id;
+                              final product = ProductModel(
+                                productId: productId,
+                                nameEn: name,
+                                category: '',
+                                price: price,
+                                unit: 'piece',
+                                barcode: code,
+                                createdAt: now,
+                                updatedAt: now,
+                              );
+                              try {
+                                await ProductRepository.add(
+                                    widget.shopId, product);
+                                if (ctx.mounted) Navigator.pop(ctx, product);
+                              } catch (e) {
+                                setSheet(() => busy = false);
+                                if (ctx.mounted) {
+                                  ScaffoldMessenger.of(ctx).showSnackBar(
+                                    SnackBar(content: Text('Could not save: $e')),
+                                  );
+                                }
+                              }
+                            },
+                      child: busy
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white))
+                          : const Text('Add & bill'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _undoLast() {
+    if (_recent.isEmpty) return;
+    final last = _recent.removeAt(0);
+    ref.read(billingProvider.notifier).decrementItem(last.productId);
+    HapticFeedback.lightImpact();
+    setState(() => _banner = 'Removed ${last.name}');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(billingProvider);
+    final itemCount = state.cartItems.fold<double>(0, (a, i) => a + i.qty);
+
+    final flashColor = _feedback == 'ok'
+        ? AppColors.success.withValues(alpha: 0.30)
+        : _feedback == 'bad'
+            ? AppColors.error.withValues(alpha: 0.30)
+            : Colors.transparent;
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        title: const Text('Scan to Bill'),
+        actions: [
+          IconButton(
+            tooltip: _flashOn ? 'Flash off' : 'Flash on',
+            icon: Icon(_flashOn ? Icons.flash_on : Icons.flash_off),
+            onPressed: () async {
+              await _scanner.toggleTorch().catchError((_) {});
+              setState(() => _flashOn = !_flashOn);
+            },
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                MobileScanner(controller: _scanner, onDetect: _onDetect),
+                // Colour flash on each scan
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 120),
+                  color: flashColor,
+                ),
+                // Scan frame
+                Center(
+                  child: Container(
+                    width: 260,
+                    height: 130,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: AppColors.primary, width: 3),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                // Status banner
+                Positioned(
+                  top: 12,
+                  left: 12,
+                  right: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      _banner,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+                if (_unknownCount > 0)
+                  Positioned(
+                    top: 70,
+                    right: 12,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.error.withValues(alpha: 0.85),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text('$_unknownCount unknown',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                // Hint
+                const Positioned(
+                  bottom: 10,
+                  left: 16,
+                  right: 16,
+                  child: Text(
+                    'Move slowly across each barcode. Same item again = +1.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.white38, fontSize: 11),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Running total + actions
+          SafeArea(
+            top: false,
+            child: Container(
+              color: AppColors.surface,
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        '${itemCount.toStringAsFixed(itemCount % 1 == 0 ? 0 : 2)} items',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '₹${state.total.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 24,
+                            color: AppColors.primary),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _recent.isEmpty ? null : _undoLast,
+                          icon: const Icon(Icons.undo, size: 18),
+                          label: const Text('Undo last'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            foregroundColor: AppColors.error,
+                            side: BorderSide(
+                                color: _recent.isEmpty
+                                    ? Colors.grey.shade300
+                                    : AppColors.error),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: ElevatedButton.icon(
+                          onPressed: () => Navigator.pop(context),
+                          icon: const Icon(Icons.check),
+                          label: const Text('Done'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            textStyle: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 15),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),

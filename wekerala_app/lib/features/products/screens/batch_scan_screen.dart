@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/product_lookup_service.dart';
+import '../../../core/utils/barcode_reader.dart';
 import '../../../providers/shop_provider.dart';
 import '../../../models/shop_model.dart';
 import '../models/scan_job.dart';
@@ -62,10 +63,14 @@ class _BatchScanScreenState extends ConsumerState<BatchScanScreen> {
     final bytes = await file.readAsBytes();
     final base64Image = base64Encode(bytes);
 
+    // Auto-link a barcode if the photo happens to show one (packaged goods).
+    final detectedBarcode = await BarcodeReader.fromImage(file.path);
+
     final job = ScanJob(
       id: id,
       imagePath: file.path,
       base64Image: base64Image,
+      barcode: detectedBarcode,
     );
 
     setState(() {

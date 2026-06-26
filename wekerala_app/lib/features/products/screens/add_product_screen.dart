@@ -22,7 +22,9 @@ import '../../../providers/products_provider.dart';
 import '../../../models/product_model.dart';
 import '../../../models/variant_model.dart';
 import '../../../core/services/storage_service.dart';
+import '../../../core/services/label_print_service.dart';
 import '../../../core/utils/image_matcher.dart';
+import '../../../core/utils/barcode_reader.dart';
 
 class AddProductScreen extends ConsumerStatefulWidget {
   final String? productId;
@@ -452,6 +454,40 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     }
   }
 
+  // Generate an internal barcode (if none yet) and immediately print a shelf
+  // label for it — the one-tap path for un-barcoded items like vegetables,
+  // meat or loose goods. Needs a name + price so the label is meaningful.
+  Future<void> _generateAndPrintLabel() async {
+    final name = _nameEnCtrl.text.trim();
+    final price = double.tryParse(_priceCtrl.text.trim()) ?? 0;
+    if (name.isEmpty) {
+      _showError('Enter the product name first, then print the label.');
+      return;
+    }
+    if (price <= 0) {
+      _showError('Enter a price first, then print the label.');
+      return;
+    }
+    // Reuse the linked code if there is one; otherwise mint a fresh internal one.
+    final code = _barcode.trim().isEmpty
+        ? LabelPrintService.generateInternalEan13()
+        : _barcode.trim();
+    setState(() => _barcode = code);
+    try {
+      await LabelPrintService.printLabels(
+          [LabelData(name: name, price: price, barcode: code)]);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Label sent to printer. Stick it on the product — '
+              'it will scan at billing. Remember to Save the product.'),
+          duration: Duration(seconds: 4),
+        ));
+      }
+    } catch (e) {
+      if (mounted) _showError('Could not print label: $e');
+    }
+  }
+
   // Scan product photo with AI — identifies product and auto-fills all fields
   Future<void> _scanPhoto() async {
     if (kIsWeb) {
@@ -474,6 +510,16 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     if (file == null || !mounted) return;
 
     setState(() => _loadingImage = true);
+
+    // If the same photo also shows a barcode (common on packaged goods), link
+    // it automatically — no separate barcode scan needed.
+    if (_barcode.trim().isEmpty) {
+      final detected = await BarcodeReader.fromImage(file.path);
+      if (detected.isNotEmpty && mounted) {
+        setState(() => _barcode = detected);
+      }
+    }
+
     final bytes = await file.readAsBytes();
     final base64Image = base64Encode(bytes);
     final shopId = ref.read(activeShopIdProvider).valueOrNull ?? '';
@@ -772,8 +818,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   loading: _loadingImage,
                   barcode: _barcode,
                   onClearBarcode: () => setState(() => _barcode = ''),
-                  onGenerateBarcode: () =>
-                      setState(() => _barcode = _genEan13()),
+                  onGenerateBarcode: () => setState(
+                      () => _barcode = LabelPrintService.generateInternalEan13()),
+                  onGeneratePrintBarcode: _generateAndPrintLabel,
                   onCamera: () => _pickImage(ImageSource.camera),
                   onGallery: () => _pickImage(ImageSource.gallery),
                   onAuto: _autoMatch,
@@ -1552,21 +1599,6 @@ class _StockExpirySection extends StatelessWidget {
   }
 }
 
-/// Generate a valid EAN-13 internal barcode (prefix 20 = in-store range) for a
-/// product with no manufacturer barcode. Printable as Code128 on a shelf label
-/// and scannable back at billing.
-String _genEan13() {
-  final base =
-      '20${(DateTime.now().millisecondsSinceEpoch % 10000000000).toString().padLeft(10, '0')}';
-  final digits = base.split('').map(int.parse).toList();
-  var sum = 0;
-  for (var i = 0; i < 12; i++) {
-    sum += digits[i] * (i.isEven ? 1 : 3);
-  }
-  final check = (10 - (sum % 10)) % 10;
-  return '$base$check';
-}
-
 // ─── Image Section ────────────────────────────────────────────────────────────
 
 class _ImageSection extends StatelessWidget {
@@ -1582,6 +1614,7 @@ class _ImageSection extends StatelessWidget {
   final String barcode;
   final VoidCallback onClearBarcode;
   final VoidCallback onGenerateBarcode;
+  final VoidCallback onGeneratePrintBarcode;
 
   const _ImageSection({
     required this.imageFile,
@@ -1590,6 +1623,7 @@ class _ImageSection extends StatelessWidget {
     required this.barcode,
     required this.onClearBarcode,
     required this.onGenerateBarcode,
+    required this.onGeneratePrintBarcode,
     required this.onCamera,
     required this.onGallery,
     required this.onAuto,
@@ -1706,8 +1740,35 @@ class _ImageSection extends StatelessWidget {
                     foregroundColor: AppColors.primary,
                   ),
                 ),
-              ] else
+                // One tap: make an internal barcode AND print the label now.
+                // The path for veg / meat / loose goods with no barcode.
+                TextButton.icon(
+                  onPressed: onGeneratePrintBarcode,
+                  icon: const Icon(Icons.print_outlined, size: 14),
+                  label: const Text('Generate & print label',
+                      style: TextStyle(fontSize: 11)),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 28),
+                    foregroundColor: AppColors.primary,
+                  ),
+                ),
+              ] else ...[
                 linkedChip,
+                const SizedBox(height: 4),
+                // Print a label for the already-linked barcode.
+                TextButton.icon(
+                  onPressed: onGeneratePrintBarcode,
+                  icon: const Icon(Icons.print_outlined, size: 14),
+                  label: const Text('Print label',
+                      style: TextStyle(fontSize: 11)),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 28),
+                    foregroundColor: AppColors.primary,
+                  ),
+                ),
+              ],
               const SizedBox(height: 6),
               OutlinedButton.icon(
                 onPressed: loading ? null : onScanPhoto,

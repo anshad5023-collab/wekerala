@@ -1,12 +1,15 @@
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/product_lookup_service.dart';
 import '../../../core/services/storage_service.dart';
+import '../../../core/services/label_print_service.dart';
 import '../../../models/product_model.dart';
 import '../../../providers/products_provider.dart';
 import '../../../providers/shop_provider.dart';
@@ -25,6 +28,10 @@ class _BatchReviewScreenState extends ConsumerState<BatchReviewScreen> {
   late final List<_EditState> _edits;
   bool _saving = false;
   int _savedCount = 0;
+
+  // Products saved in the last _saveAll run, so we can offer to print labels.
+  final List<({String productId, String name, double price, String barcode})>
+      _savedForPrint = [];
 
   @override
   void initState() {
@@ -47,6 +54,7 @@ class _BatchReviewScreenState extends ConsumerState<BatchReviewScreen> {
     }
 
     setState(() => _saving = true);
+    _savedForPrint.clear();
     final shopId = ref.read(activeShopIdProvider).valueOrNull ?? '';
 
     for (final e in _edits) {
@@ -99,12 +107,21 @@ class _BatchReviewScreenState extends ConsumerState<BatchReviewScreen> {
           imageSource: imageSource,
           description: result.description.isNotEmpty ? result.description : null,
           stockQty: stock,
+          // Persist the barcode captured during the live scan (or one the owner
+          // scanned/generated on the review card) so it scans at billing.
+          barcode: e.barcode.trim().isEmpty ? null : e.barcode.trim(),
           attributes: attributes,
           createdAt: now,
           updatedAt: now,
         );
 
         await ProductRepository.add(shopId, product);
+        _savedForPrint.add((
+          productId: productId,
+          name: product.nameEn,
+          price: price,
+          barcode: product.barcode ?? '',
+        ));
         setState(() => _savedCount++);
       } catch (_) {}
     }
@@ -116,8 +133,74 @@ class _BatchReviewScreenState extends ConsumerState<BatchReviewScreen> {
       content: Text('$_savedCount product${_savedCount == 1 ? '' : 's'} added successfully!'),
       backgroundColor: Colors.green,
     ));
+
+    // Offer to print barcode labels for everything just added, so the owner can
+    // stick them on shelves / loose items and scan them at billing.
+    if (_savedForPrint.isNotEmpty && !kIsWeb && Platform.isAndroid) {
+      final printNow = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AppColors.background,
+          title: const Text('Print barcode labels?'),
+          content: Text(
+            'Print labels for the ${_savedForPrint.length} product'
+            '${_savedForPrint.length == 1 ? '' : 's'} you just added? '
+            'Products without a barcode will get a printable one so they scan at billing.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Skip'),
+            ),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white),
+              onPressed: () => Navigator.pop(ctx, true),
+              icon: const Icon(Icons.print, size: 18),
+              label: const Text('Print labels'),
+            ),
+          ],
+        ),
+      );
+      if (printNow == true) {
+        await _printSavedLabels(shopId);
+      }
+    }
+
+    if (!mounted) return;
     // Pop both this screen and the batch scan screen
     Navigator.of(context).popUntil((route) => route.isFirst || route.settings.name == '/products');
+  }
+
+  /// Print barcode labels for every product saved in the last run. Any product
+  /// that has no barcode gets an internal one minted and persisted first, so the
+  /// printed label scans back to it at billing.
+  Future<void> _printSavedLabels(String shopId) async {
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      final col = FirebaseFirestore.instance
+          .collection('shops').doc(shopId).collection('products');
+      final labels = <LabelData>[];
+      var salt = 0;
+      for (final s in _savedForPrint) {
+        final code = s.barcode.isNotEmpty
+            ? s.barcode
+            : LabelPrintService.generateInternalEan13(salt++);
+        if (s.barcode.isEmpty) {
+          batch.update(col.doc(s.productId), {'barcode': code});
+        }
+        labels.add(LabelData(name: s.name, price: s.price, barcode: code));
+      }
+      await batch.commit();
+      await LabelPrintService.printLabels(labels);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not print labels: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -208,8 +291,13 @@ class _EditState {
   /// Whether the per-product "More details" editor is expanded.
   bool expanded;
 
+  /// Barcode for this product — seeded from the live scan, but the owner can
+  /// scan or generate one on the card if it came in empty (e.g. a photo scan).
+  String barcode;
+
   _EditState({required this.job})
       : nameCtrl = TextEditingController(text: job.result?.nameEn ?? ''),
+        barcode = job.barcode,
         priceCtrl = TextEditingController(
             text: (job.result?.price ?? 0) > 0
                 ? ((job.result!.price % 1 == 0)
@@ -373,6 +461,8 @@ class _ProductCard extends StatelessWidget {
                     hint: result?.nameEn ?? '',
                   ),
                   const SizedBox(height: 8),
+                  // Barcode — captured from the scan, or scan/generate one now.
+                  _BarcodeRow(edit: edit, onChanged: onChanged),
                   // Image source toggle — only when a web image was found
                   if (result?.imageUrl.isNotEmpty == true)
                     GestureDetector(
@@ -610,6 +700,150 @@ class _Field extends StatelessWidget {
           style: const TextStyle(fontSize: 14),
         ),
       ],
+    );
+  }
+}
+
+// ── Barcode row (per scanned product) ─────────────────────────────────────────
+// Shows the captured barcode, or — when none came through (e.g. a photo scan) —
+// lets the owner scan one or generate a printable one. Mirrors the Add Product
+// screen so the behaviour is identical wherever a product is created.
+class _BarcodeRow extends StatelessWidget {
+  final _EditState edit;
+  final VoidCallback onChanged;
+  const _BarcodeRow({required this.edit, required this.onChanged});
+
+  Future<void> _scan(BuildContext context) async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    final code = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => const _SingleBarcodeScannerPage()),
+    );
+    if (code != null && code.trim().isNotEmpty) {
+      edit.barcode = code.trim();
+      onChanged();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (edit.barcode.trim().isNotEmpty) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.success.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.success.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.qr_code_2, size: 16, color: AppColors.success),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text('Barcode: ${edit.barcode}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12)),
+            ),
+            GestureDetector(
+              onTap: () {
+                edit.barcode = '';
+                onChanged();
+              },
+              child: const Icon(Icons.close,
+                  size: 16, color: Colors.grey),
+            ),
+          ],
+        ),
+      );
+    }
+    // No barcode → scan one, or generate a printable code.
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          if (!kIsWeb && Platform.isAndroid) ...[
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => _scan(context),
+                icon: const Icon(Icons.qr_code_scanner, size: 16),
+                label:
+                    const Text('Scan barcode', style: TextStyle(fontSize: 12)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.accent,
+                  side: const BorderSide(color: AppColors.accent),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: () {
+                edit.barcode = _generateBarcode();
+                onChanged();
+              },
+              icon: const Icon(Icons.qr_code_2, size: 16),
+              label: const Text('Generate', style: TextStyle(fontSize: 12)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primary),
+                padding: const EdgeInsets.symmetric(vertical: 8),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Generate a valid EAN-13 internal barcode (prefix 20 = in-store range).
+/// Delegates to the shared service so the format lives in exactly one place.
+String _generateBarcode() => LabelPrintService.generateInternalEan13();
+
+/// Single-shot barcode scanner — returns the first code via Navigator.pop.
+class _SingleBarcodeScannerPage extends StatefulWidget {
+  const _SingleBarcodeScannerPage();
+
+  @override
+  State<_SingleBarcodeScannerPage> createState() =>
+      _SingleBarcodeScannerPageState();
+}
+
+class _SingleBarcodeScannerPageState extends State<_SingleBarcodeScannerPage> {
+  final _controller = MobileScannerController();
+  bool _done = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: const Text('Scan Barcode'),
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+      ),
+      body: MobileScanner(
+        controller: _controller,
+        onDetect: (capture) {
+          if (_done) return;
+          final barcodes = capture.barcodes;
+          final code = barcodes.isNotEmpty ? barcodes.first.rawValue : null;
+          if (code != null && code.isNotEmpty) {
+            _done = true;
+            Navigator.pop(context, code);
+          }
+        },
+      ),
     );
   }
 }
