@@ -17,6 +17,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/print_service.dart';
+import '../../../core/services/scan_feedback.dart';
 import '../../../models/bill_model.dart';
 import '../../../models/customer_model.dart';
 import '../../../models/product_model.dart';
@@ -2516,9 +2517,12 @@ class _ProductPanelState extends ConsumerState<_ProductPanel> {
                     // and submit with Enter — this field captures that input.
                     _DesktopBarcodeField(
                       shopId: shopId,
-                      onProductFound: (product) =>
-                          ref.read(billingProvider.notifier).addItem(product),
+                      onProductFound: (product) {
+                        ref.read(billingProvider.notifier).addItem(product);
+                        ScanFeedback.success();
+                      },
                       onNotFound: (barcode) {
+                        ScanFeedback.error();
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             action: SnackBarAction(
@@ -4381,6 +4385,12 @@ class _ContinuousScanBillingState
   String _banner = 'Point at a barcode';
 
   @override
+  void initState() {
+    super.initState();
+    ScanFeedback.preload(); // warm up the beep so the first scan is instant
+  }
+
+  @override
   void dispose() {
     _scanner.dispose();
     super.dispose();
@@ -4405,14 +4415,13 @@ class _ContinuousScanBillingState
         final price =
             product.offerPrice > 0 ? product.offerPrice : product.price;
         _recent.insert(0, _RecentScan(product.productId, product.nameEn, price));
-        HapticFeedback.mediumImpact();
-        SystemSound.play(SystemSoundType.click);
+        ScanFeedback.success(); // crisp POS beep + haptic
         setState(() {
           _feedback = 'ok';
           _banner = '✓ ${product.nameEn}  ₹${price.toStringAsFixed(0)}';
         });
       } else if (product != null && product.isOutOfStock) {
-        HapticFeedback.heavyImpact();
+        ScanFeedback.error(); // low buzz + strong haptic
         setState(() {
           _feedback = 'bad';
           _banner = '${product.nameEn} — OUT OF STOCK';
@@ -4435,7 +4444,7 @@ class _ContinuousScanBillingState
   /// Quick-add an unrecognised barcode without leaving the scan screen.
   Future<void> _quickAddUnknown(String code) async {
     _unknownCount++;
-    HapticFeedback.heavyImpact();
+    ScanFeedback.error(); // low buzz — not recognised
     setState(() {
       _feedback = 'bad';
       _banner = 'Unknown barcode — quick add it';
@@ -4447,7 +4456,7 @@ class _ContinuousScanBillingState
       ref.read(billingProvider.notifier).addItem(product);
       final price = product.offerPrice > 0 ? product.offerPrice : product.price;
       _recent.insert(0, _RecentScan(product.productId, product.nameEn, price));
-      HapticFeedback.mediumImpact();
+      ScanFeedback.success();
       setState(() {
         _feedback = 'ok';
         _banner = '✓ ${product.nameEn}  ₹${price.toStringAsFixed(0)}';

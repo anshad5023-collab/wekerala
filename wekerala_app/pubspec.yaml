@@ -43,6 +43,7 @@ dependencies:
   fl_chart: ^0.69.0
   shimmer: ^3.0.0
   lottie: ^3.1.0
+  audioplayers: ^6.1.0      # realistic POS beep on barcode scan (success/error tones)
 
   # Utilities
   intl: ^0.19.0
@@ -83,4 +84,5 @@ flutter:
     - assets/catalogs/
     - assets/animations/
     - assets/models/
+    - assets/sounds/
     - .env
